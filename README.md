@@ -1,6 +1,6 @@
 # ⚡ FileTools Pro
 
-Ứng dụng xử lý, chuyển đổi và tối ưu hóa tài liệu toàn diện (iLovePDF alternative) với kiến trúc Full-Stack React + Express, hỗ trợ AI Kép (Google Gemini + Claude), E-Signature, Cloudflare R2, Stripe và Real-time Socket.io.
+Ứng dụng hỗ trợ edit file.
 
 ---
 
