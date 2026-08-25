@@ -1,0 +1,56 @@
+{
+  "name": "filetools-app",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "nodemon server/index.js",
+    "client": "cd client && npm run dev",
+    "dev:all": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm run dev\" \"npm run client\"",
+    "build": "cd client && npm run build",
+    "clean": "node -e \"const fs=require('fs');['uploads','outputs'].forEach(d=>{if(fs.existsSync(d))fs.readdirSync(d).forEach(f=>fs.unlinkSync(d+'/'+f))})\""
+  },
+  "allowScripts": {
+    "sharp": true,
+    "puppeteer": true
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.714.0",
+    "@aws-sdk/s3-request-presigner": "^3.714.0",
+    "@imgly/background-removal-node": "^1.4.5",
+    "archiver": "^7.0.1",
+    "bcryptjs": "^2.4.3",
+    "compression": "^1.7.5",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "express-validator": "^7.2.1",
+    "form-data": "^4.0.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mammoth": "^1.8.0",
+    "mongoose": "^8.9.3",
+    "multer": "^2.0.0",
+    "node-cron": "^3.0.3",
+    "node-fetch": "^3.3.2",
+    "nodemailer": "^6.9.16",
+    "p-queue": "^8.0.1",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^1.1.1",
+    "puppeteer": "^22.15.0",
+    "qrcode": "^1.5.4",
+    "sharp": "^0.33.5",
+    "socket.io": "^4.8.1",
+    "stripe": "^17.5.0",
+    "unzipper": "^0.12.3",
+    "uuid": "^11.0.5",
+    "winston": "^3.17.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "nodemon": "^3.1.9"
+  }
+}

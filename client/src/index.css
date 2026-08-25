@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+/* Custom scrollbar */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #111; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #555; }
+
+/* Smooth transitions toàn cục */
+* {
+  transition-property: color, background-color, border-color, opacity;
+  transition-duration: 150ms;
+}
+
+/* File input hidden nhưng clickable */
+input[type="file"] { display: none; }
+
+/* Prevent body scroll khi modal mở */
+body.modal-open { overflow: hidden; }

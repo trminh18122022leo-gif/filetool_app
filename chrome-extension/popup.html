@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #f1f5f9;
+      padding: 16px;
+    }
+    h2 { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    p { font-size: 11px; color: #94a3b8; margin-bottom: 12px; }
+    .tool-list { display: flex; flex-direction: column; gap: 6px; }
+    .tool-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 12px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      color: #e2e8f0;
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .tool-btn:hover {
+      background: #2563eb;
+      border-color: #3b82f6;
+      color: #fff;
+    }
+    .footer {
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid #1e293b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+    }
+    .footer a { color: #60a5fa; text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h2>⚡ FileTools Pro</h2>
+  <p>Công cụ xử lý file nhanh trên Laptop</p>
+
+  <div class="tool-list">
+    <button class="tool-btn" data-path="/pdf">📄 PDF Tools <span>→</span></button>
+    <button class="tool-btn" data-path="/image">🖼️ Image Tools <span>→</span></button>
+    <button class="tool-btn" data-path="/office">📊 Office to PDF <span>→</span></button>
+    <button class="tool-btn" data-path="/ocr">🔍 OCR Nhận Dạng <span>→</span></button>
+    <button class="tool-btn" data-path="/ai">🤖 AI Tóm Tắt & Dịch <span>→</span></button>
+    <button class="tool-btn" data-path="/signature">✍️ Ký Điện Tử <span>→</span></button>
+  </div>
+
+  <div class="footer">
+    <a href="#" id="openDashboard">📊 Dashboard</a>
+    <a href="#" id="openHome">Mở ứng dụng ↗</a>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
