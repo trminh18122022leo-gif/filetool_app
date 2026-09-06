@@ -2,18 +2,93 @@
 
 /* Custom scrollbar */
 ::-webkit-scrollbar       { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #111; }
+::-webkit-scrollbar-track { background: #08080A; }
 ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #555; }
 
 /* Smooth transitions toàn cục */
 * {
-  transition-property: color, background-color, border-color, opacity;
-  transition-duration: 150ms;
+  transition-property: color, background-color, border-color, opacity, transform, box-shadow, filter;
+  transition-duration: 200ms;
 }
 
 /* File input hidden nhưng clickable */
 input[type="file"] { display: none; }
 
-/* Prevent body scroll khi modal mở */
-body.modal-open { overflow: hidden; }
+body {
+  background-color: #0A0A0F; /* Deep dark background */
+  color: #E2E8F0;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Background gradient mesh effect */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: 
+    radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 85% 30%, rgba(236, 72, 153, 0.08) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ── LIQUID GLASS CLASSES ── */
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1.5rem;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+.glass-button {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  color: white;
+}
+.glass-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.glass-input {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  color: white;
+  padding: 0.75rem 1rem;
+  width: 100%;
+  outline: none;
+}
+.glass-input:focus {
+  background: rgba(0, 0, 0, 0.6);
+  border-color: rgba(236, 72, 153, 0.5); /* Pinkish highlight */
+  box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.2);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 1rem;
+}
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Gradient text */
+.text-gradient {
+  background: linear-gradient(to right, #818cf8, #c084fc, #f472b6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

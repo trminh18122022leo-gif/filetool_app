@@ -3,6 +3,7 @@ import { Upload, File } from 'lucide-react';
 
 export default function FileDropzone({
   onFilesSelected,
+  onFiles,
   accept = '*',
   multiple = false,
   maxSizeMB = 100,
@@ -22,7 +23,9 @@ export default function FileDropzone({
     }
 
     setSelectedNames(valid.map(f => f.name));
-    onFilesSelected(multiple ? valid : valid[0]);
+    const payload = multiple ? valid : valid[0];
+    if (onFilesSelected) onFilesSelected(payload);
+    if (onFiles) onFiles(payload);
   };
 
   const handleDrop = (e) => {
@@ -37,10 +40,10 @@ export default function FileDropzone({
       onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
       onDragLeave={() => setIsDragging(false)}
       onDrop={handleDrop}
-      className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+      className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${
         isDragging
-          ? 'border-blue-500 bg-blue-500/10 scale-[1.01]'
-          : 'border-gray-700 hover:border-gray-500 bg-gray-900/50'
+          ? 'border-pink-500 bg-pink-500/10 scale-[1.01]'
+          : 'border-white/10 hover:border-pink-500/50 bg-black/30 backdrop-blur-xl'
       }`}
     >
       <input
@@ -53,21 +56,21 @@ export default function FileDropzone({
       />
 
       <div className="flex flex-col items-center gap-3">
-        <div className="p-4 bg-gray-800 rounded-full text-blue-400">
+        <div className="p-4 bg-white/5 rounded-2xl text-pink-400 border border-white/10 shadow-[0_0_15px_rgba(236,72,153,0.2)]">
           <Upload size={28} />
         </div>
         <div>
-          <p className="font-medium text-gray-200">{label}</p>
-          {hint && <p className="text-xs text-gray-500 mt-1">{hint}</p>}
-          <p className="text-xs text-gray-500 mt-0.5">Tối đa {maxSizeMB}MB {multiple ? '· Hỗ trợ nhiều file' : ''}</p>
+          <p className="font-semibold text-white text-base">{label}</p>
+          {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
+          <p className="text-xs text-gray-500 mt-1">Tối đa {maxSizeMB}MB {multiple ? '· Hỗ trợ nhiều file' : ''}</p>
         </div>
 
         {selectedNames.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2 justify-center max-w-md">
             {selectedNames.map((name, i) => (
-              <span key={i} className="inline-flex items-center gap-1 text-xs bg-gray-800 text-gray-300 px-2 py-1 rounded-lg border border-gray-700">
-                <File size={12} className="text-blue-400" />
-                <span className="max-w-[150px] truncate">{name}</span>
+              <span key={i} className="inline-flex items-center gap-1.5 text-xs bg-white/10 text-gray-200 px-3 py-1.5 rounded-xl border border-white/10 backdrop-blur">
+                <File size={13} className="text-pink-400 flex-shrink-0" />
+                <span className="max-w-[160px] truncate">{name}</span>
               </span>
             ))}
           </div>

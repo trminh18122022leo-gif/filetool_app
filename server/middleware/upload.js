@@ -15,21 +15,30 @@ const storage = multer.diskStorage({
 const allowedMimes = new Set([
   'application/pdf',
   'image/jpeg', 'image/png', 'image/webp',
-  'image/gif',  'image/avif','image/tiff', 'image/bmp',
-  'application/zip', 'application/x-zip-compressed',
-  'application/x-tar', 'application/gzip',
+  'image/gif',  'image/avif','image/tiff', 'image/bmp', 'image/svg+xml',
+  'application/zip', 'application/x-zip-compressed', 'application/x-zip',
+  'application/x-tar', 'application/gzip', 'application/x-gzip', 'application/x-7z-compressed',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'application/msword',
-  'text/plain', 'text/csv',
+  'application/msword', 'application/vnd.ms-excel', 'application/vnd.ms-powerpoint',
+  'text/plain', 'text/csv', 'text/markdown', 'text/html', 'text/xml', 'application/json',
+  'application/octet-stream', // rất phổ biến khi browser upload file nhị phân
+]);
+
+const allowedExtensions = new Set([
+  '.pdf', '.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.tiff', '.bmp', '.svg',
+  '.zip', '.tar', '.gz', '.7z', '.rar',
+  '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt',
+  '.txt', '.csv', '.md', '.json', '.html', '.xml',
 ]);
 
 const fileFilter = (req, file, cb) => {
-  if (allowedMimes.has(file.mimetype)) {
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (allowedMimes.has(file.mimetype) || allowedExtensions.has(ext) || !ext) {
     cb(null, true);
   } else {
-    cb(new multer.MulterError('LIMIT_UNEXPECTED_FILE', `Định dạng không hỗ trợ: ${file.mimetype}`));
+    cb(new multer.MulterError('LIMIT_UNEXPECTED_FILE', `Định dạng file không được hỗ trợ (${file.mimetype || ext})`));
   }
 };
 

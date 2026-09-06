@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+const path    = require('path');
 const router  = express.Router();
 const upload  = require('../middleware/upload');
 const pdfSvc  = require('../services/pdf.service');
@@ -8,16 +9,27 @@ const { respondFile, respondFiles } = require('../utils/cloudRespond');
 
 let optionalAuth = (req, res, next) => next();
 try { optionalAuth = require('../middleware/auth').optionalAuth; } catch (_) {}
+let freeModeUpgrade = (req,res,next)=>next();
+try { freeModeUpgrade = require('../middleware/auth').freeModeUpgrade; } catch (_) {}
 
 const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 
-// Gộp PDF (nhiều file)
-router.post('/merge', optionalAuth, upload.array('files', 20), wrap(async (req, res) => {
-  if (!req.files || req.files.length < 2) {
-    return res.status(400).json({ error: 'Cần ít nhất 2 file PDF để gộp' });
+// Gộp PDF (nhiều file hoặc sắp xếp từng trang)
+router.post('/merge', optionalAuth, upload.array('files', 50), wrap(async (req, res) => {
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ error: 'Chưa tải lên file PDF' });
+  }
+  let pageOrder = null;
+  if (req.body.pageOrder) {
+    try {
+      pageOrder = typeof req.body.pageOrder === 'string' ? JSON.parse(req.body.pageOrder) : req.body.pageOrder;
+    } catch (_) {}
+  }
+  if (!pageOrder && req.files.length < 2) {
+    return res.status(400).json({ error: 'Cần ít nhất 2 file PDF để gộp hoặc chỉ định thứ tự trang' });
   }
   const paths   = req.files.map(f => f.path);
-  const outPath = await pdfSvc.mergePDFs(paths);
+  const outPath = await pdfSvc.mergePDFs(paths, { pageOrder });
   await respondFile(req, res, outPath, 'pdf-merge');
 }));
 
@@ -104,6 +116,57 @@ router.post('/auto-toc', optionalAuth, upload.single('file'), wrap(async (req, r
     useAI: useAI === 'true' || useAI === true,
   });
   await respondFile(req, res, outPath, 'auto-toc', { headingCount });
+}));
+
+
+router.post('/sign', optionalAuth, freeModeUpgrade, upload.fields([{name: 'file', maxCount: 1}, {name: 'signature', maxCount: 1}]), wrap(async (req, res) => {
+  const file = req.files?.['file']?.[0];
+  const signatureFile = req.files?.['signature']?.[0];
+  if (!file) return res.status(400).json({ error: 'Thiếu file PDF' });
+  const inputPath = file.path;
+  const outputPath = path.join(path.resolve('outputs'), `signed_${Date.now()}.pdf`);
+  await pdfSvc.signPdf(inputPath, outputPath, {
+    page: req.body.page,
+    x: req.body.x,
+    y: req.body.y,
+    signatureText: req.body.signatureText,
+    signatureImage: signatureFile ? signatureFile.path : null,
+  });
+  await respondFile(req, res, outputPath, 'pdf-sign');
+}));
+
+
+router.post('/page-numbers', optionalAuth, freeModeUpgrade, upload.single('file'), wrap(async (req, res) => {
+  const creativeSvc = require('../services/creative.service');
+  const { position = 'bottom-center', startFrom = 1, format = '{n}', fontSize = 11 } = req.body;
+  const out = await creativeSvc.addPageNumbers(req.file.path, {
+    position, startFrom: Number(startFrom), format, fontSize: Number(fontSize),
+  });
+  await respondFile(req, res, out, 'add-page-numbers');
+}));
+
+router.post('/header-footer', optionalAuth, freeModeUpgrade, upload.single('file'), wrap(async (req, res) => {
+  const creativeSvc = require('../services/creative.service');
+  const { headerText = '', footerText = '', fontSize = 10, color = '#888888' } = req.body;
+  const out = await creativeSvc.addHeaderFooter(req.file.path, {
+    headerText, footerText, fontSize: Number(fontSize), color,
+  });
+  await respondFile(req, res, out, 'header-footer');
+}));
+
+router.post('/delete-pages', optionalAuth, freeModeUpgrade, upload.single('file'), wrap(async (req, res) => {
+  const creativeSvc = require('../services/creative.service');
+  const { pages } = req.body;
+  if (!pages) return res.status(400).json({ error: 'Thiếu danh sách trang cần xóa' });
+  const deleteList = String(pages).split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
+  const { path: out, removedCount, remainingPages } = await creativeSvc.deletePages(req.file.path, deleteList);
+  await respondFile(req, res, out, 'delete-pages', { removedCount, remainingPages });
+}));
+
+router.post('/stats', upload.single('file'), wrap(async (req, res) => {
+  const convertSvc = require('../services/convert.service');
+  const stats = await convertSvc.getDocStats(req.file.path);
+  res.json({ success: true, stats });
 }));
 
 module.exports = router;

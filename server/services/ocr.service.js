@@ -15,6 +15,24 @@ function getTesseractCmd() {
   return 'tesseract';
 }
 
+function getAvailableLangs() {
+  try {
+    const out = execSync(`${getTesseractCmd()} --list-langs`, { stdio: 'pipe' }).toString();
+    return out.split(/\r?\n/).map(s => s.trim()).filter(Boolean).slice(1);
+  } catch (_) {
+    return ['eng'];
+  }
+}
+
+function resolveLang(requestedLang = 'vie+eng') {
+  const available = getAvailableLangs();
+  const parts = requestedLang.split('+').map(l => l.trim()).filter(Boolean);
+  const matched = parts.filter(p => available.includes(p));
+  if (matched.length > 0) return matched.join('+');
+  if (available.includes('eng')) return 'eng';
+  return available[0] || 'eng';
+}
+
 function run(cmd) {
   try {
     return execSync(cmd, { stdio: 'pipe' });
@@ -23,14 +41,15 @@ function run(cmd) {
   }
 }
 
-// 1. OCR Ảnh -> Text thuần (hỗ trợ vie+eng)
+// 1. OCR Ảnh -> Text thuần
 async function ocrImage(filePath, lang = 'vie+eng') {
   const outBase = path.join(OUT, `ocr_${uuidv4()}`);
   const tessCmd = getTesseractCmd();
-  run(`${tessCmd} "${filePath}" "${outBase}" -l ${lang}`);
+  const safeLang = resolveLang(lang);
+  run(`${tessCmd} "${filePath}" "${outBase}" -l ${safeLang}`);
   const textFile = `${outBase}.txt`;
   const text = fs.readFileSync(textFile, 'utf8');
-  fs.unlinkSync(textFile); // Xóa file txt tạm
+  try { fs.unlinkSync(textFile); } catch (_) {}
   return text;
 }
 
@@ -38,18 +57,20 @@ async function ocrImage(filePath, lang = 'vie+eng') {
 async function ocrPdfScan(filePath, lang = 'vie+eng') {
   const outBase = path.join(OUT, `ocr_pdf_${uuidv4()}`);
   const tessCmd = getTesseractCmd();
-  run(`${tessCmd} "${filePath}" "${outBase}" -l ${lang}`);
+  const safeLang = resolveLang(lang);
+  run(`${tessCmd} "${filePath}" "${outBase}" -l ${safeLang}`);
   const textFile = `${outBase}.txt`;
   const text = fs.readFileSync(textFile, 'utf8');
-  fs.unlinkSync(textFile);
+  try { fs.unlinkSync(textFile); } catch (_) {}
   return text;
 }
 
-// 3. Tạo PDF có thể tìm kiếm (Searchable PDF — chèn lớp text ẩn vào PDF scan)
+// 3. Tạo Searchable PDF
 async function createSearchablePdf(filePath, lang = 'vie+eng') {
   const outBase = path.join(OUT, `searchable_${uuidv4()}`);
   const tessCmd = getTesseractCmd();
-  run(`${tessCmd} "${filePath}" "${outBase}" -l ${lang} pdf`);
+  const safeLang = resolveLang(lang);
+  run(`${tessCmd} "${filePath}" "${outBase}" -l ${safeLang} pdf`);
   return `${outBase}.pdf`;
 }
 

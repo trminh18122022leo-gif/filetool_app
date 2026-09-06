@@ -17,15 +17,43 @@ function run(cmd) {
   }
 }
 
-// 1. Gộp PDF
-async function mergePDFs(filePaths) {
+// 1. Gộp PDF (hỗ trợ sắp xếp từng trang cụ thể & xoay trang)
+async function mergePDFs(filePaths, options = {}) {
   const merged = await PDFDocument.create();
+  const docs = [];
   for (const fp of filePaths) {
     const bytes = fs.readFileSync(fp);
     const doc   = await PDFDocument.load(bytes, { ignoreEncryption: true });
-    const pages = await merged.copyPages(doc, doc.getPageIndices());
-    pages.forEach(p => merged.addPage(p));
+    docs.push(doc);
   }
+
+  const pageOrder = options?.pageOrder;
+  if (Array.isArray(pageOrder) && pageOrder.length > 0) {
+    for (const item of pageOrder) {
+      const fIdx = Number(item.fileIndex !== undefined ? item.fileIndex : item.fileIdx);
+      const pNum = Number(item.pageNum !== undefined ? item.pageNum : (item.pageIndex !== undefined ? item.pageIndex + 1 : 1));
+      const rot  = Number(item.rotation || 0);
+
+      if (docs[fIdx]) {
+        const srcDoc = docs[fIdx];
+        const total = srcDoc.getPageCount();
+        if (pNum >= 1 && pNum <= total) {
+          const [copiedPage] = await merged.copyPages(srcDoc, [pNum - 1]);
+          if (rot) {
+            const curRot = copiedPage.getRotation().angle;
+            copiedPage.setRotation(degrees((curRot + rot) % 360));
+          }
+          merged.addPage(copiedPage);
+        }
+      }
+    }
+  } else {
+    for (const doc of docs) {
+      const pages = await merged.copyPages(doc, doc.getPageIndices());
+      pages.forEach(p => merged.addPage(p));
+    }
+  }
+
   const outPath = path.join(OUT, `merged_${uuidv4()}.pdf`);
   fs.writeFileSync(outPath, await merged.save());
   return outPath;
@@ -186,4 +214,53 @@ module.exports = {
   addWatermark,
   protectPDF,
   unlockPDF,
+};
+
+
+exports.signPdf = async (inputPath, outputPath, options) => {
+  const { PDFDocument, rgb } = require('pdf-lib');
+  const fs = require('fs');
+  const path = require('path');
+  
+  const pdfBytes = fs.readFileSync(inputPath);
+  const pdfDoc = await PDFDocument.load(pdfBytes);
+  const pages = pdfDoc.getPages();
+  const pageIdx = options.page ? parseInt(options.page) - 1 : 0;
+  if (pageIdx < 0 || pageIdx >= pages.length) throw new Error('Trang không hợp lệ');
+  
+  const page = pages[pageIdx];
+  const { width, height } = page.getSize();
+  
+  // X, Y provided as percentages (0.0 to 1.0)
+  const px = parseFloat(options.x) || 0;
+  const py = parseFloat(options.y) || 0;
+  const actualX = px * width;
+  const actualY = height - (py * height); // PDF-lib Y is bottom-up, web is top-down
+  
+  if (options.signatureText) {
+    page.drawText(options.signatureText, {
+      x: actualX,
+      y: actualY,
+      size: 24,
+      color: rgb(0, 0, 0.8), // dark blue
+    });
+  } else if (options.signatureImage) {
+    const imgBytes = fs.readFileSync(options.signatureImage);
+    let pdfImage;
+    if (options.signatureImage.toLowerCase().endsWith('.png')) {
+      pdfImage = await pdfDoc.embedPng(imgBytes);
+    } else {
+      pdfImage = await pdfDoc.embedJpg(imgBytes);
+    }
+    const imgDims = pdfImage.scale(0.5); // scale down
+    page.drawImage(pdfImage, {
+      x: actualX,
+      y: actualY - imgDims.height, // anchor top-left
+      width: imgDims.width,
+      height: imgDims.height,
+    });
+  }
+  
+  const modifiedPdfBytes = await pdfDoc.save();
+  fs.writeFileSync(outputPath, modifiedPdfBytes);
 };

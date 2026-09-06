@@ -20,6 +20,10 @@ try {
  * @param {object}  extra      - thêm fields tuỳ ý vào JSON response
  */
 async function respondFile(req, res, localPath, operation, extra = {}) {
+  if (!localPath || typeof localPath !== 'string') {
+    return res.status(500).json({ error: 'Quá trình xử lý file không tạo ra kết quả hợp lệ.' });
+  }
+
   const filename = path.basename(localPath);
 
   if (req.user && uploadToCloud && process.env.R2_ENDPOINT) {
@@ -42,13 +46,39 @@ async function respondFile(req, res, localPath, operation, extra = {}) {
     }
   }
 
-  return res.json({ success: true, file: filename, cloud: false, ...extra });
+  const fs = require('fs');
+  let dataUrl = null;
+  const ext = path.extname(filename).toLowerCase();
+  if (['.png', '.webp', '.jpg', '.jpeg', '.svg', '.gif'].includes(ext)) {
+    try {
+      const stats = fs.statSync(localPath);
+      if (stats.size < 8 * 1024 * 1024) {
+        const mime = ext === '.svg' ? 'image/svg+xml' : ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+        const b64 = fs.readFileSync(localPath).toString('base64');
+        dataUrl = `data:${mime};base64,${b64}`;
+      }
+    } catch (_) {}
+  }
+
+  return res.json({
+    success:     true,
+    file:        filename,
+    downloadUrl: `/api/download/${encodeURIComponent(filename)}`,
+    viewUrl:     `/outputs/${encodeURIComponent(filename)}`,
+    dataUrl:     extra.dataUrl || dataUrl,
+    cloud:       false,
+    ...extra,
+  });
 }
 
 /**
  * Dùng khi kết quả là nhiều file (vd: split PDF)
  */
 async function respondFiles(req, res, localPaths, operation, extra = {}) {
+  if (!Array.isArray(localPaths) || localPaths.length === 0) {
+    return res.status(500).json({ error: 'Quá trình xử lý không tạo ra file nào.' });
+  }
+
   if (req.user && uploadToCloud && process.env.R2_ENDPOINT && localPaths.length > 0) {
     try {
       const records = [];

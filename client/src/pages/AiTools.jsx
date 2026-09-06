@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import axios from 'axios';
+
+const API = import.meta.env.VITE_API_URL || '';
 import FileDropzone   from '../components/FileDropzone';
 import ProgressBar    from '../components/ProgressBar';
 import ResultDownload from '../components/ResultDownload';
@@ -96,22 +99,17 @@ export default function AiTools() {
 
     try {
       setProgress(60);
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: fd,
+      const { data } = await axios.post(`${API}${endpoint}`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        withCredentials: true,
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Xử lý AI thất bại');
-
       setProgress(100);
       if (data.summary) setAiText(data.summary);
       if (data.translated) setAiText(data.translated);
       if (data.answer) setAiText(data.answer);
       if (data.file || data.downloadUrl) setFileResult(data);
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.error || err.message || 'Xử lý AI thất bại');
     } finally {
       setLoading(false);
     }

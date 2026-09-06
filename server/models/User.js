@@ -13,14 +13,38 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type:     String,
-    required: [true, 'Mật khẩu là bắt buộc'],
+    required: false,
     minlength: 6,
-    select:   false, // không trả về khi query thông thường
+    select:   false,
   },
   name: {
     type: String,
     trim: true,
-    default: function() { return this.email.split('@')[0]; },
+    default: function() { return this.email ? this.email.split('@')[0] : 'User'; },
+  },
+  avatar: {
+    type: String,
+    default: null,
+  },
+  googleId: {
+    type: String,
+    default: null,
+    sparse: true,
+  },
+  githubId: {
+    type: String,
+    default: null,
+    sparse: true,
+  },
+  telegramId: {
+    type: String,
+    default: null,
+    sparse: true,
+  },
+  authProvider: {
+    type:    String,
+    enum:    ['local', 'google', 'github', 'telegram'],
+    default: 'local',
   },
   role: {
     type:    String,
@@ -36,7 +60,6 @@ const userSchema = new mongoose.Schema({
     type:    Date,
     default: null,
   },
-  // Stripe customer ID
   stripeCustomerId: {
     type:    String,
     default: null,
@@ -45,12 +68,10 @@ const userSchema = new mongoose.Schema({
     type:    String,
     default: null,
   },
-  // Giới hạn theo ngày (reset mỗi 00:00 UTC)
   dailyUsage: {
     date:  { type: String, default: () => new Date().toISOString().slice(0,10) },
     count: { type: Number, default: 0 },
   },
-  // Dung lượng cloud đã dùng (bytes)
   cloudStorageUsed: {
     type:    Number,
     default: 0,
@@ -67,22 +88,20 @@ const userSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-// Hash password trước khi lưu
 userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
+  if (!this.isModified('password') || !this.password) return next();
   this.password = await bcrypt.hash(this.password, 12);
   next();
 });
 
-// Kiểm tra mật khẩu
 userSchema.methods.comparePassword = async function(candidate) {
+  if (!this.password) return false;
   return bcrypt.compare(candidate, this.password);
 };
 
-// Kiểm tra gói còn hạn không
 userSchema.methods.isPlanActive = function() {
   if (this.plan === 'free') return true;
-  if (!this.planExpiresAt) return true; // lifetime hoặc renew tự động
+  if (!this.planExpiresAt) return true;
   return new Date() < this.planExpiresAt;
 };
 

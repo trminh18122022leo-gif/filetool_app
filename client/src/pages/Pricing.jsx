@@ -57,6 +57,7 @@ const PLANS = [
 ];
 
 export default function Pricing() {
+  const isFreeMode = import.meta.env.VITE_HIDE_PRICING === 'true';
   const { user, token } = useAuth();
   const [loadingPlan, setLoadingPlan] = useState(null);
 

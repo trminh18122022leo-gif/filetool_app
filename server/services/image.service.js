@@ -115,9 +115,17 @@ async function filter(filePath, filterType = 'grayscale') {
 /**
  * Xóa phông nền ảnh (Remove Background).
  */
-async function removeBg(filePath) {
+async function removeBg(filePath, maskInput = null) {
   const { removeBg: rb } = require('./removebg.service');
-  return rb(filePath);
+  return rb(filePath, maskInput);
 }
 
-module.exports = { convert, compress, resize, crop, filter, removeBg };
+/**
+ * Xóa vật thể khỏi ảnh (AI Object Removal / Inpainting).
+ */
+async function removeObject(filePath, maskInput) {
+  const { removeObject: ro } = require('./inpaint.service');
+  return ro(filePath, maskInput);
+}
+
+module.exports = { convert, compress, resize, crop, filter, removeBg, removeObject };

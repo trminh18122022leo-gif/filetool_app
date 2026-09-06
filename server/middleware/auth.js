@@ -1,7 +1,8 @@
 'use strict';
 
-const jwt  = require('jsonwebtoken');
-const User = require('../models/User');
+const jwt      = require('jsonwebtoken');
+const mongoose = require('mongoose');
+const User     = require('../models/User');
 
 /**
  * Middleware bắt buộc phải đăng nhập.
@@ -16,14 +17,15 @@ async function requireAuth(req, res, next) {
       return res.status(401).json({ error: 'Chưa đăng nhập' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user    = await User.findById(decoded.id).select('-password');
-
-    if (!user) {
-      return res.status(401).json({ error: 'Tài khoản không tồn tại' });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(decoded.id).select('-password');
+      if (!user) return res.status(401).json({ error: 'Tài khoản không tồn tại' });
+      req.user = user;
+    } else {
+      req.user = { _id: decoded.id, email: decoded.email, role: 'user', plan: 'pro' };
     }
 
-    req.user = user;
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Token không hợp lệ hoặc đã hết hạn' });
@@ -40,8 +42,12 @@ async function optionalAuth(req, res, next) {
       req.headers.authorization?.replace('Bearer ', '');
 
     if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      req.user      = await User.findById(decoded.id).select('-password');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+      if (mongoose.connection.readyState === 1) {
+        req.user = await User.findById(decoded.id).select('-password');
+      } else {
+        req.user = { _id: decoded.id, email: decoded.email, role: 'user', plan: 'pro' };
+      }
     }
   } catch (_) {}
   next();
@@ -78,4 +84,20 @@ function requirePlan(minPlan) {
   };
 }
 
-module.exports = { requireAuth, optionalAuth, requireRole, requirePlan };
+function freeModeUpgrade(req, res, next) {
+  if (process.env.FREE_MODE === 'true' && req.user) {
+    const proLimits = {
+      uploadsPerMonth: -1,
+      maxFileSizeMB: 100,
+      maxBatchFiles: 20,
+      apiAccess: true,
+      storageGB: 5,
+    };
+    req.user.plan = 'pro';
+    req.user.getPlanLimits = () => proLimits;
+    req.user.canUpload = () => true;
+  }
+  next();
+}
+
+module.exports = { freeModeUpgrade, requireAuth, optionalAuth, requireRole, requirePlan };

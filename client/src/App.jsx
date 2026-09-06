@@ -1,156 +1,194 @@
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import Home         from './pages/Home';
+import PdfTools     from './pages/PdfTools';
+import PdfMergeTool from './pages/PdfMergeTool';
+import PdfSplitTool from './pages/PdfSplitTool';
+import PdfSignTool  from './pages/PdfSignTool';
+import PdfDeleteTool from './pages/PdfDeleteTool';
+import ImageTools   from './pages/ImageTools';
+import ConvertTools from './pages/ConvertTools';
+import CreativeTools from './pages/CreativeTools';
+import OfficeTools  from './pages/OfficeTools';
+import AiTools      from './pages/AiTools';
+import OcrTools     from './pages/OcrTools';
+import ArchiveTools from './pages/ArchiveTools';
+import QrTools      from './pages/QrTools';
+import Pricing      from './pages/Pricing';
+import Login        from './pages/Login';
+import Register     from './pages/Register';
+import Dashboard    from './pages/Dashboard';
+import GlobalSearch from './components/GlobalSearch';
 import {
-  FileText, Image, Archive, Sparkles,
-  FileOutput, ScanText, PenLine, Layers,
-  QrCode, Code, ShieldCheck, Heart
+  FileText, Image, Sparkles, Layers,
+  ScanText, Archive, QrCode, LogIn,
+  LogOut, LayoutDashboard, ArrowRightLeft, Wand2, Menu, X
 } from 'lucide-react';
 
-import AuthGuard      from './components/AuthGuard';
-import UserMenu       from './components/UserMenu';
-
-import Home           from './pages/Home';
-import PdfTools       from './pages/PdfTools';
-import ImageTools     from './pages/ImageTools';
-import OfficeTools    from './pages/OfficeTools';
-import ArchiveTools   from './pages/ArchiveTools';
-import OcrTools       from './pages/OcrTools';
-import AiTools        from './pages/AiTools';
-import BatchTools     from './pages/BatchTools';
-import QrTools        from './pages/QrTools';
-import SignaturePage  from './pages/SignaturePage';
-
-import Login          from './pages/Login';
-import Register       from './pages/Register';
-import Dashboard      from './pages/Dashboard';
-import Pricing        from './pages/Pricing';
-import ApiDocs        from './pages/ApiDocs';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword  from './pages/ResetPassword';
-import VerifyEmail    from './pages/VerifyEmail';
-import NotFound       from './pages/NotFound';
-
-const NAV_LINKS = [
-  { to: '/pdf',       label: 'PDF',       icon: FileText },
-  { to: '/image',     label: 'Ảnh',       icon: Image },
-  { to: '/office',    label: 'Office',    icon: FileOutput },
-  { to: '/ocr',       label: 'OCR',       icon: ScanText },
-  { to: '/archive',   label: 'Archive',   icon: Archive },
-  { to: '/ai',        label: 'AI Tools',  icon: Sparkles },
-  { to: '/batch',     label: 'Batch',     icon: Layers },
-  { to: '/qr',        label: 'QR Code',   icon: QrCode },
-  { to: '/signature', label: 'E-Sign',    icon: PenLine },
+const NAV = [
+  { path: '/pdf',       label: 'PDF',       icon: FileText },
+  { path: '/image',     label: 'Hình ảnh',  icon: Image },
+  { path: '/convert',   label: 'Convert',   icon: ArrowRightLeft },
+  { path: '/creative',  label: 'Creative',  icon: Wand2 },
+  { path: '/office',    label: 'Office',    icon: Layers },
+  { path: '/ai',        label: 'AI Tools',  icon: Sparkles },
+  { path: '/ocr',       label: 'OCR',       icon: ScanText },
+  { path: '/archive',   label: 'Nén file',  icon: Archive },
+  { path: '/qr',        label: 'QR Code',   icon: QrCode },
 ];
 
-function Navbar() {
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const navigate = useNavigate();
   const location = useLocation();
 
-  return (
-    <header className="sticky top-0 z-40 bg-gray-950/80 backdrop-blur-md border-b border-gray-800/80">
-      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-        {/* Brand */}
-        <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-blue-900/30 group-hover:scale-105 transition-transform">
-            <Layers size={20} />
-          </div>
-          <div>
-            <span className="font-extrabold text-white text-base tracking-tight group-hover:text-blue-400 transition-colors">
-              FileTools<span className="text-blue-500">Pro</span>
-            </span>
-          </div>
-        </Link>
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token) {
+      localStorage.setItem('token', token);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
 
-        {/* Desktop Nav */}
-        <nav className="hidden lg:flex items-center gap-1">
-          {NAV_LINKS.map(({ to, label, icon: Icon }) => {
-            const active = location.pathname.startsWith(to);
-            return (
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      try { setUser(JSON.parse(savedUser)); } catch (_) {}
+    }
+  }, [location]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+    navigate('/');
+    window.location.reload();
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-[#0A0A0F] text-[#E2E8F0] selection:bg-pink-500 selection:text-white">
+      <header className="sticky top-0 z-50 bg-black/30 backdrop-blur-2xl border-b border-white/10 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Link to="/" className="flex items-center gap-2 group">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-white font-black shadow-[0_0_15px_rgba(236,72,153,0.4)] group-hover:scale-105 transition-transform">
+                F
+              </div>
+              <span className="font-extrabold text-lg tracking-tight text-gradient hidden sm:inline">
+                FileTools<span className="text-white text-xs ml-1 px-1.5 py-0.5 rounded-md bg-white/10 border border-white/10">PRO</span>
+              </span>
+            </Link>
+            <GlobalSearch />
+          </div>
+
+          <nav className="hidden lg:flex items-center gap-1">
+            {NAV.map(({ path, label, icon: Icon }) => {
+              const active = location.pathname.startsWith(path);
+              return (
+                <Link
+                  key={path}
+                  to={path}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    active
+                      ? 'bg-white/10 text-white border border-white/10 shadow-inner'
+                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <Icon size={14} className={active ? 'text-pink-400' : 'text-gray-400'} />
+                  <span>{label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+
+          <div className="flex items-center gap-2">
+            {user ? (
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/dashboard"
+                  className="glass-button flex items-center gap-2 px-3 py-1.5 text-xs font-medium"
+                >
+                  <LayoutDashboard size={14} className="text-pink-400" />
+                  <span className="hidden sm:inline">{user.name || 'Dashboard'}</span>
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="p-1.5 rounded-xl hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-all border border-transparent hover:border-red-500/30"
+                  title="Đăng xuất"
+                >
+                  <LogOut size={16} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/login"
+                  className="glass-button flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold"
+                >
+                  <LogIn size={14} />
+                  <span>Đăng nhập</span>
+                </Link>
+                <Link
+                  to="/register"
+                  className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white shadow-[0_0_15px_rgba(236,72,153,0.3)] transition-all"
+                >
+                  <span>Đăng ký</span>
+                </Link>
+              </div>
+            )}
+
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="lg:hidden p-2 rounded-xl glass-button"
+            >
+              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+          </div>
+        </div>
+
+        {mobileMenuOpen && (
+          <div className="lg:hidden border-t border-white/10 bg-black/90 backdrop-blur-2xl px-4 py-4 space-y-1">
+            {NAV.map(({ path, label, icon: Icon }) => (
               <Link
-                key={to}
-                to={to}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  active
-                    ? 'bg-blue-600/20 text-blue-400 border border-blue-600/30'
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-gray-850'
-                }`}
+                key={path}
+                to={path}
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-300 hover:text-white hover:bg-white/10"
               >
-                <Icon size={14} />
+                <Icon size={16} className="text-pink-400" />
                 <span>{label}</span>
               </Link>
-            );
-          })}
-        </nav>
+            ))}
+          </div>
+        )}
+      </header>
 
-        {/* Right actions */}
-        <div className="flex items-center gap-2">
-          <Link
-            to="/api-docs"
-            className="hidden sm:flex items-center gap-1 text-xs text-gray-400 hover:text-white px-2.5 py-1.5 rounded-lg hover:bg-gray-900 transition-colors"
-          >
-            <Code size={13} />
-            <span>API</span>
-          </Link>
-          <UserMenu />
-        </div>
-      </div>
-    </header>
-  );
-}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/pdf" element={<PdfTools />} />
+          <Route path="/pdf/merge" element={<PdfMergeTool />} />
+          <Route path="/pdf/split" element={<PdfSplitTool />} />
+          <Route path="/pdf/sign"  element={<PdfSignTool />} />
+          <Route path="/pdf/delete" element={<PdfDeleteTool />} />
+          <Route path="/image" element={<ImageTools />} />
+          <Route path="/convert" element={<ConvertTools />} />
+          <Route path="/creative" element={<CreativeTools />} />
+          <Route path="/office" element={<OfficeTools />} />
+          <Route path="/ai" element={<AiTools />} />
+          <Route path="/ocr" element={<OcrTools />} />
+          <Route path="/archive" element={<ArchiveTools />} />
+          <Route path="/qr" element={<QrTools />} />
+          <Route path="/pricing" element={<Pricing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </main>
 
-function Footer() {
-  return (
-    <footer className="border-t border-gray-900 bg-gray-950/50 py-10 mt-20 text-center text-xs text-gray-500">
-      <div className="max-w-7xl mx-auto px-4 space-y-3">
-        <div className="flex flex-wrap justify-center gap-6 text-gray-400">
-          <Link to="/pdf" className="hover:text-white transition-colors">PDF Tools</Link>
-          <Link to="/image" className="hover:text-white transition-colors">Image Tools</Link>
-          <Link to="/office" className="hover:text-white transition-colors">Office</Link>
-          <Link to="/ocr" className="hover:text-white transition-colors">OCR</Link>
-          <Link to="/ai" className="hover:text-white transition-colors">AI Tools</Link>
-          <Link to="/pricing" className="hover:text-white transition-colors">Bảng giá</Link>
-          <Link to="/api-docs" className="hover:text-white transition-colors">API Docs</Link>
-        </div>
-        <p className="flex items-center justify-center gap-1 text-gray-500">
-          <span>&copy; {new Date().getFullYear()} FileTools Pro. Hoạt động trên Local Machine & Cloud.</span>
-        </p>
-      </div>
-    </footer>
-  );
-}
-
-export default function App() {
-  return (
-    <BrowserRouter>
-      <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
-        <Navbar />
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/pdf" element={<PdfTools />} />
-            <Route path="/image" element={<ImageTools />} />
-            <Route path="/office" element={<OfficeTools />} />
-            <Route path="/archive" element={<ArchiveTools />} />
-            <Route path="/ocr" element={<OcrTools />} />
-            <Route path="/ai" element={<AiTools />} />
-            <Route path="/batch" element={<BatchTools />} />
-            <Route path="/qr" element={<QrTools />} />
-            <Route path="/signature" element={<SignaturePage />} />
-
-            {/* Auth & User */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/verify-email" element={<VerifyEmail />} />
-            <Route path="/dashboard" element={<AuthGuard><Dashboard /></AuthGuard>} />
-            <Route path="/pricing" element={<Pricing />} />
-            <Route path="/api-docs" element={<ApiDocs />} />
-
-            {/* 404 Fallback */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </main>
-        <Footer />
-      </div>
-    </BrowserRouter>
+      <footer className="border-t border-white/5 bg-black/40 backdrop-blur-xl py-6 text-center text-xs text-gray-500">
+        <p>© 2026 FileTools Pro — Nền tảng xử lý file trực tuyến tốc độ cao & bảo mật.</p>
+      </footer>
+    </div>
   );
 }

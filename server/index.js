@@ -1,6 +1,11 @@
+const multer = require('multer');
+const passport = require('passport');
 'use strict';
 
 require('dotenv').config();
+
+const dns = require('dns');
+try { dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']); } catch (_) {}
 
 const express      = require('express');
 const http         = require('http');
@@ -79,6 +84,7 @@ app.use('/api/payment/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
+app.use(passport.initialize());
 
 // Áp dụng Rate Limit chung cho toàn bộ API
 app.use('/api', apiRateLimit);
@@ -106,6 +112,7 @@ app.use('/api/qr',        toolRateLimit, require('./routes/qr.routes'));
 app.use('/api/signature', toolRateLimit, require('./routes/signature.routes'));
 app.use('/api/ai',        toolRateLimit, require('./routes/ai.routes'));
 app.use('/api/convert',   toolRateLimit, require('./routes/convert.routes'));
+app.use('/api/creative',  toolRateLimit, require('./routes/creative.routes'));
 
 // Download file kết quả local an toàn
 app.get('/api/download/:filename', (req, res) => {
@@ -117,6 +124,18 @@ app.get('/api/download/:filename', (req, res) => {
   }
 
   res.download(filePath, safeName);
+});
+
+// View file trực tiếp trong browser (inline image, pdf preview, svg...)
+app.get('/api/view/:filename', (req, res) => {
+  const safeName = path.basename(req.params.filename);
+  const filePath = path.join(path.resolve('outputs'), safeName);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'File không tồn tại hoặc đã bị xóa' });
+  }
+
+  res.sendFile(filePath);
 });
 
 // Health check endpoint
@@ -148,15 +167,26 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// ── Production Frontend Serving ───────────────────────────────────────────────
-if (process.env.NODE_ENV === 'production') {
-  const clientDist = path.resolve('client/dist');
-  if (fs.existsSync(clientDist)) {
-    app.use(express.static(clientDist));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(clientDist, 'index.html'));
-    });
-  }
+// ── Frontend Static Serving ───────────────────────────────────────────────────
+const clientDist = path.resolve('client/dist');
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get('*', (req, res, next) => {
+    if (req.url.startsWith('/api') || req.url.startsWith('/outputs') || req.url.startsWith('/uploads') || req.url === '/ping') {
+      return next();
+    }
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+} else {
+  app.get('/', (req, res) => {
+    res.send(`
+      <div style="font-family: system-ui, sans-serif; background: #0a0a0f; color: #fff; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+        <h1 style="background: linear-gradient(to right, #ec4899, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 2.5rem; margin-bottom: 10px;">⚡ FileTools Pro Backend API</h1>
+        <p style="color: #94a3b8; max-width: 500px; margin-bottom: 25px;">Server backend đang chạy tại cổng 3002. Giao diện frontend Vite chạy tại cổng 5173.</p>
+        <a href="http://localhost:5173" style="background: linear-gradient(to right, #db2777, #9333ea); color: white; padding: 12px 24px; border-radius: 12px; text-decoration: none; font-weight: bold; box-shadow: 0 0 20px rgba(236,72,153,0.4);">Mở Giao Diện Web (localhost:5173) →</a>
+      </div>
+    `);
+  });
 }
 
 // ── Cron Auto Cleanup ────────────────────────────────────────────────────────
@@ -175,6 +205,14 @@ cron.schedule('*/30 * * * *', () => {
 // ── Error Handler ─────────────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
   logger.error(`${req.method} ${req.url} - ${err.message}`);
+  
+  if (err instanceof multer.MulterError || err.name === 'MulterError') {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'Dung lượng file vượt quá giới hạn 100MB' });
+    }
+    return res.status(400).json({ error: `Lỗi file tải lên: ${err.message}` });
+  }
+
   const status = err.status || err.statusCode || 500;
   res.status(status).json({
     error: err.message || 'Lỗi hệ thống máy chủ',

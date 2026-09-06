@@ -2,7 +2,10 @@ import { useState } from 'react';
 import FileDropzone   from '../components/FileDropzone';
 import ProgressBar    from '../components/ProgressBar';
 import ResultDownload from '../components/ResultDownload';
+import axios          from 'axios';
 import { Archive, FolderArchive } from 'lucide-react';
+
+const API = import.meta.env.VITE_API_URL || '';
 
 export default function ArchiveTools() {
   const [activeTab, setActiveTab] = useState('zip');
@@ -20,39 +23,34 @@ export default function ArchiveTools() {
   };
 
   const handleSubmit = async () => {
-    if (!files) return;
+    if (!files) return setError('Vui lòng chọn file');
     setLoading(true);
     setError(null);
     setProgress(30);
 
     const fd = new FormData();
-    const token = localStorage.getItem('token');
-    const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
     let endpoint = '';
+
     if (activeTab === 'zip') {
       endpoint = '/api/archive/zip';
-      Array.from(files).forEach(f => fd.append('files', f));
+      const fileList = Array.isArray(files) ? files : [files];
+      fileList.forEach(f => fd.append('files', f));
     } else {
       endpoint = '/api/archive/unzip';
-      fd.append('file', files);
+      fd.append('file', Array.isArray(files) ? files[0] : files);
     }
 
     try {
       setProgress(65);
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: fd,
+      const { data } = await axios.post(`${API}${endpoint}`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        withCredentials: true,
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Thao tác nén/giải nén thất bại');
 
       setProgress(100);
       setResult(data);
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.error || err.message || 'Thao tác nén/giải nén thất bại');
     } finally {
       setLoading(false);
     }
@@ -61,19 +59,19 @@ export default function ArchiveTools() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-white">Archive Tools</h1>
-        <p className="text-sm text-gray-400 mt-1">
+        <h1 className="text-3xl font-extrabold text-gradient">Archive Tools</h1>
+        <p className="text-sm text-gray-400 mt-1.5">
           Đóng gói file thành định dạng ZIP hoặc giải nén an toàn trực tiếp trên máy.
         </p>
       </div>
 
-      <div className="flex gap-2 p-1.5 bg-gray-900 border border-gray-800 rounded-2xl w-fit">
+      <div className="flex gap-2 p-2 glass-panel w-fit">
         <button
           onClick={() => { setActiveTab('zip'); reset(); }}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'zip'
-              ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
-              : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-[0_0_15px_rgba(236,72,153,0.4)]'
+              : 'text-gray-400 hover:text-white hover:bg-white/5'
           }`}
         >
           <Archive size={14} />
@@ -83,8 +81,8 @@ export default function ArchiveTools() {
           onClick={() => { setActiveTab('unzip'); reset(); }}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'unzip'
-              ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
-              : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-[0_0_15px_rgba(236,72,153,0.4)]'
+              : 'text-gray-400 hover:text-white hover:bg-white/5'
           }`}
         >
           <FolderArchive size={14} />
@@ -92,7 +90,7 @@ export default function ArchiveTools() {
         </button>
       </div>
 
-      <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-6 sm:p-8 space-y-6">
+      <div className="glass-panel p-6 sm:p-8 space-y-6">
         <FileDropzone
           key={activeTab}
           onFilesSelected={setFiles}
@@ -105,7 +103,7 @@ export default function ArchiveTools() {
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-blue-900/30 disabled:opacity-50"
+            className="w-full py-3.5 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-[0_0_20px_rgba(236,72,153,0.4)] disabled:opacity-50"
           >
             {loading ? 'Đang xử lý...' : activeTab === 'zip' ? 'Nén thành file ZIP' : 'Giải nén file'}
           </button>
@@ -114,7 +112,7 @@ export default function ArchiveTools() {
         {loading && <ProgressBar progress={progress} />}
 
         {error && (
-          <div className="p-4 bg-red-950/40 border border-red-800/60 rounded-xl text-xs text-red-300">
+          <div className="p-4 bg-red-950/50 border border-red-800/60 rounded-xl text-xs text-red-300">
             {error}
           </div>
         )}
