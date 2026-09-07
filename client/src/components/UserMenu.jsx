@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, CreditCard, LogOut, ChevronDown, User, Sparkles, Key } from 'lucide-react';
+import { LayoutDashboard, LogOut, ChevronDown, Sparkles, Key, LogIn, UserPlus } from 'lucide-react';
 
 export default function UserMenu() {
   const { user, logout } = useAuth();
@@ -24,90 +24,116 @@ export default function UserMenu() {
       <div className="flex items-center gap-2">
         <Link
           to="/login"
-          className="text-xs font-medium text-gray-300 hover:text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors"
+          className="glass-button flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold hover:border-pink-500/50 transition-all"
         >
-          Đăng nhập
+          <LogIn size={14} />
+          <span>Đăng nhập</span>
         </Link>
         <Link
           to="/register"
-          className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 px-3.5 py-1.5 rounded-lg transition-all shadow-md shadow-blue-900/30"
+          className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white shadow-[0_0_15px_rgba(236,72,153,0.35)] hover:shadow-[0_0_20px_rgba(236,72,153,0.5)] transition-all"
         >
-          Đăng ký
+          <UserPlus size={14} />
+          <span>Đăng ký</span>
         </Link>
       </div>
     );
   }
 
   const planBadges = {
-    free:     'bg-gray-800 text-gray-400 border-gray-700',
-    pro:      'bg-blue-950 text-blue-300 border-blue-800',
-    business: 'bg-purple-950 text-purple-300 border-purple-800',
+    free:     'bg-gray-800/80 text-gray-300 border-gray-700',
+    pro:      'bg-pink-950/80 text-pink-300 border-pink-700 shadow-[0_0_8px_rgba(236,72,153,0.3)]',
+    business: 'bg-purple-950/80 text-purple-300 border-purple-700 shadow-[0_0_8px_rgba(168,85,247,0.3)]',
   };
+
+  const initial = (user.name?.[0] || user.email?.[0] || 'U').toUpperCase();
 
   return (
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2.5 px-3 py-1.5 bg-gray-900 hover:bg-gray-800 border border-gray-800 rounded-xl transition-colors text-left"
+        className="flex items-center gap-2.5 p-1 sm:px-3 sm:py-1.5 glass-panel rounded-2xl border border-white/10 hover:border-pink-500/40 transition-all text-left group"
+        title="Tài khoản của bạn (nhấp để mở menu)"
       >
-        <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow">
-          {user.name?.[0]?.toUpperCase() || 'U'}
-        </div>
+        {/* User Avatar Image or Gradient Initial */}
+        {user.avatar ? (
+          <img
+            src={user.avatar}
+            alt={user.name || 'User'}
+            className="w-8 h-8 rounded-xl object-cover ring-2 ring-pink-500/40 shadow-[0_0_10px_rgba(236,72,153,0.3)]"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-pink-500 via-purple-500 to-indigo-500 flex items-center justify-center text-white text-xs font-black shadow-[0_0_12px_rgba(236,72,153,0.4)] group-hover:scale-105 transition-transform">
+            {initial}
+          </div>
+        )}
+
+        {/* User Info (Hidden on very small screens) */}
         <div className="hidden sm:block text-left">
-          <p className="text-xs font-medium text-gray-200 leading-tight truncate max-w-[100px]">
-            {user.name || user.email.split('@')[0]}
+          <p className="text-xs font-bold text-gray-100 leading-tight truncate max-w-[110px] group-hover:text-pink-300 transition-colors">
+            {user.name || user.email?.split('@')[0]}
           </p>
-          <span className={`inline-block text-[9px] uppercase font-bold px-1.5 rounded border ${planBadges[user.plan] || planBadges.free}`}>
-            {user.plan || 'free'}
+          <span className={`inline-block text-[9px] uppercase font-bold px-1.5 py-0.2 rounded-md border mt-0.5 ${planBadges[user.plan] || planBadges.free}`}>
+            {user.plan || 'Free'}
           </span>
         </div>
-        <ChevronDown size={14} className={`text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+
+        <ChevronDown size={14} className={`text-gray-400 group-hover:text-white transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
+      {/* Dropdown Menu */}
       {open && (
-        <div className="absolute right-0 mt-2 w-56 bg-gray-900 border border-gray-800 rounded-2xl p-2 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-100">
-          <div className="px-3 py-2 border-b border-gray-800/80 mb-1">
-            <p className="text-xs font-semibold text-white truncate">{user.name}</p>
-            <p className="text-[11px] text-gray-500 truncate">{user.email}</p>
+        <div className="absolute right-0 mt-2 w-64 glass-panel border border-white/15 rounded-2xl p-2.5 shadow-[0_10px_40px_rgba(0,0,0,0.6)] z-50 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-2xl bg-black/90">
+          {/* Header with full name and email */}
+          <div className="px-3 py-2.5 border-b border-white/10 mb-1.5">
+            <p className="text-xs font-bold text-white truncate flex items-center gap-1.5">
+              <span>{user.name || 'Thành viên'}</span>
+              <span className={`text-[9px] uppercase font-extrabold px-1.5 py-0.2 rounded border ${planBadges[user.plan] || planBadges.free}`}>
+                {user.plan || 'Free'}
+              </span>
+            </p>
+            <p className="text-[11px] text-gray-400 truncate mt-0.5">{user.email}</p>
           </div>
 
-          <div className="space-y-0.5">
-            <Link
-              to="/dashboard"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-gray-300 hover:text-white hover:bg-gray-800 transition-colors"
+          <div className="space-y-1">
+            <button
+              onClick={() => {
+                setOpen(false);
+                navigate('/dashboard');
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-gray-200 hover:text-white hover:bg-gradient-to-r hover:from-pink-600/30 hover:to-purple-600/30 border border-transparent hover:border-pink-500/30 transition-all text-left"
             >
-              <LayoutDashboard size={15} className="text-blue-400" />
-              <span>Dashboard</span>
-            </Link>
+              <LayoutDashboard size={16} className="text-pink-400" />
+              <span>Dashboard của tôi</span>
+            </button>
 
             <Link
               to="/pricing"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-gray-300 hover:text-white hover:bg-gray-800 transition-colors"
+              className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
             >
               <Sparkles size={15} className="text-purple-400" />
-              <span>Nâng cấp gói</span>
+              <span>Nâng cấp gói Pro</span>
             </Link>
 
             <Link
               to="/api-docs"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-gray-300 hover:text-white hover:bg-gray-800 transition-colors"
+              className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
             >
               <Key size={15} className="text-yellow-400" />
-              <span>API Documentation</span>
+              <span>Tài liệu API</span>
             </Link>
           </div>
 
-          <div className="border-t border-gray-800/80 my-1 pt-1">
+          <div className="border-t border-white/10 my-1.5 pt-1.5">
             <button
               onClick={() => {
                 setOpen(false);
                 logout();
                 navigate('/');
               }}
-              className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs text-red-400 hover:text-red-300 hover:bg-red-950/40 transition-colors"
+              className="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-950/40 transition-colors"
             >
               <LogOut size={15} />
               <span>Đăng xuất</span>

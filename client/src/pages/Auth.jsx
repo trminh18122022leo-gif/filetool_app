@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 import { LogIn, UserPlus, Loader2, AlertCircle, CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
 
 export default function Auth({ defaultMode = 'login' }) {
+  const { login } = useAuth();
   const [isRegister, setIsRegister] = useState(defaultMode === 'register');
   const navigate = useNavigate();
   const location = useLocation();
@@ -50,10 +52,8 @@ export default function Auth({ defaultMode = 'login' }) {
         password: loginPassword,
       }, { withCredentials: true });
 
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      login(data.user, data.token);
       navigate('/dashboard');
-      window.location.reload();
     } catch (err) {
       setLoginError(err.response?.data?.error || 'Đăng nhập thất bại. Vui lòng kiểm tra lại email/mật khẩu.');
     } finally {
@@ -74,18 +74,27 @@ export default function Auth({ defaultMode = 'login' }) {
         password: regPassword,
       }, { withCredentials: true });
 
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      login(data.user, data.token);
       setRegSuccess('Đăng ký thành công! Đang chuyển hướng...');
       setTimeout(() => {
         navigate('/dashboard');
-        window.location.reload();
-      }, 1000);
+      }, 800);
     } catch (err) {
       setRegError(err.response?.data?.error || 'Đăng ký thất bại. Vui lòng thử lại.');
     } finally {
       setRegLoading(false);
     }
+  };
+
+  const handleTelegramLogin = () => {
+    const botId = '8432535340'; // Numeric Bot ID from BotFather
+    const callbackUrl = `${API}/api/auth/telegram/callback`;
+    const url = `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(window.location.origin)}&embed=1&request_access=write&return_to=${encodeURIComponent(callbackUrl)}`;
+    window.open(
+      url,
+      'telegram_login',
+      'width=550,height=480,scrollbars=yes'
+    );
   };
 
   const SocialButtons = () => (
@@ -115,8 +124,8 @@ export default function Auth({ defaultMode = 'login' }) {
         <span className="truncate">GitHub</span>
       </a>
 
-      <a
-        href={`${API}/api/auth/telegram/callback`}
+      <button
+        onClick={handleTelegramLogin}
         className="glass-button flex items-center justify-center gap-1.5 py-2.5 px-2 text-xs font-semibold hover:border-cyan-400/50 hover:bg-white/10 transition-all group"
         title="Tiếp tục với Telegram"
       >
@@ -124,7 +133,7 @@ export default function Auth({ defaultMode = 'login' }) {
           <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.295-.6.295-.002 0-.003 0-.005 0l.213-3.054 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.458c.538-.196 1.006.128.832.943z"/>
         </svg>
         <span className="truncate">Telegram</span>
-      </a>
+      </button>
     </div>
   );
 

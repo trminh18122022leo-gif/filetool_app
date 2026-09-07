@@ -167,6 +167,17 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Endpoint cực nhẹ cho ping — không check DB, không check system tools
+app.get('/ping', (req, res) => res.send('pong'));
+
+// ── Self-Ping Keep Alive ──────────────────────────────────────────────────────
+// Tự ping chính mình mỗi 4 phút để server không bao giờ ngủ (Render, Railway free)
+const SELF_PING_INTERVAL = 4 * 60 * 1000; // 4 phút
+setInterval(() => {
+  const url = process.env.SERVER_URL || `http://localhost:${PORT}`;
+  http.get(`${url}/ping`, () => {}).on('error', () => {});
+}, SELF_PING_INTERVAL);
+
 // ── Frontend Static Serving ───────────────────────────────────────────────────
 const clientDist = path.resolve('client/dist');
 if (fs.existsSync(clientDist)) {

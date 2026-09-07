@@ -19,10 +19,11 @@ import Login        from './pages/Login';
 import Register     from './pages/Register';
 import Dashboard    from './pages/Dashboard';
 import GlobalSearch from './components/GlobalSearch';
+import UserMenu     from './components/UserMenu';
+import { useAuth }    from './context/AuthContext';
 import {
   FileText, Image, Sparkles, Layers,
-  ScanText, Archive, QrCode, LogIn,
-  LogOut, LayoutDashboard, ArrowRightLeft, Wand2, Menu, X
+  ScanText, Archive, QrCode, ArrowRightLeft, Wand2, Menu, X
 } from 'lucide-react';
 
 const NAV = [
@@ -38,9 +39,8 @@ const NAV = [
 ];
 
 export default function App() {
-  const [user, setUser] = useState(null);
+  const { user, login } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
@@ -49,21 +49,17 @@ export default function App() {
     if (token) {
       localStorage.setItem('token', token);
       window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      try { setUser(JSON.parse(savedUser)); } catch (_) {}
+      // Fetch user info for OAuth login
+      fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(d => {
+          if (d.user) login(d.user, token);
+        })
+        .catch(() => {});
     }
   }, [location]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
-    navigate('/');
-    window.location.reload();
-  };
 
   return (
     <div className="min-h-screen flex flex-col bg-[#0A0A0F] text-[#E2E8F0] selection:bg-pink-500 selection:text-white">
@@ -102,40 +98,7 @@ export default function App() {
           </nav>
 
           <div className="flex items-center gap-2">
-            {user ? (
-              <div className="flex items-center gap-2">
-                <Link
-                  to="/dashboard"
-                  className="glass-button flex items-center gap-2 px-3 py-1.5 text-xs font-medium"
-                >
-                  <LayoutDashboard size={14} className="text-pink-400" />
-                  <span className="hidden sm:inline">{user.name || 'Dashboard'}</span>
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="p-1.5 rounded-xl hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-all border border-transparent hover:border-red-500/30"
-                  title="Đăng xuất"
-                >
-                  <LogOut size={16} />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Link
-                  to="/login"
-                  className="glass-button flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold"
-                >
-                  <LogIn size={14} />
-                  <span>Đăng nhập</span>
-                </Link>
-                <Link
-                  to="/register"
-                  className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white shadow-[0_0_15px_rgba(236,72,153,0.3)] transition-all"
-                >
-                  <span>Đăng ký</span>
-                </Link>
-              </div>
-            )}
+            <UserMenu />
 
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

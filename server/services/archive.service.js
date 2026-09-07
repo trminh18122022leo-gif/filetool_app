@@ -19,7 +19,7 @@ async function createZip(files) {
   const zipName = `archive_${uuidv4()}.zip`;
   const zipPath = path.join(OUT, zipName);
   const output  = fs.createWriteStream(zipPath);
-  const archive = archiver('zip', { zlib: { level: 9 } });
+  const archive = archiver('zip', { zlib: { level: 6 } });
 
   return new Promise((resolve, reject) => {
     output.on('close', () => resolve(zipPath));

@@ -4,14 +4,17 @@
   ],
   "ignore": [
     "outputs/**",
+    "outputs/*",
     "uploads/**",
+    "uploads/*",
     "logs/**",
     "client/**",
     "node_modules/**",
     "dist/**",
     "*.tmp",
+    "**/*.tmp",
     "*.log"
   ],
   "ext": "js,mjs,cjs,json",
-  "delay": 1000
+  "delay": 1500
 }

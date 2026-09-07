@@ -36,7 +36,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     {
       clientID:     process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL:  (process.env.SERVER_URL || 'http://localhost:3001') + '/api/auth/google/callback',
+      callbackURL:  process.env.GOOGLE_CALLBACK_URL || ((process.env.SERVER_URL || 'http://localhost:3002') + '/api/auth/google/callback'),
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
@@ -70,7 +70,7 @@ if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
     {
       clientID:     process.env.GITHUB_CLIENT_ID,
       clientSecret: process.env.GITHUB_CLIENT_SECRET,
-      callbackURL:  (process.env.SERVER_URL || 'http://localhost:3001') + '/api/auth/github/callback',
+      callbackURL:  process.env.GITHUB_CALLBACK_URL || ((process.env.SERVER_URL || 'http://localhost:3002') + '/api/auth/github/callback'),
       scope:        ['user:email'],
     },
     async (accessToken, refreshToken, profile, done) => {
@@ -175,7 +175,23 @@ router.get('/telegram/callback', async (req, res) => {
     const tokens = authSvc.generateTokens ? authSvc.generateTokens(user._id) : { token: authSvc.signToken ? authSvc.signToken(user._id) : '' };
     const token = tokens.token;
     setCookie(res, token);
-    res.redirect(CLIENT + '/dashboard?token=' + token);
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head><title>Đăng nhập thành công</title></head>
+        <body style="background:#0a0a0f;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+          <script>
+            if (window.opener) {
+              window.opener.location.href = "${CLIENT}/dashboard?token=${token}";
+              window.close();
+            } else {
+              window.location.href = "${CLIENT}/dashboard?token=${token}";
+            }
+          </script>
+          <p>Đăng nhập thành công! Đang chuyển hướng đến Dashboard...</p>
+        </body>
+      </html>
+    `);
   } catch (err) {
     console.error('Telegram auth error:', err);
     res.redirect(CLIENT + '/login?error=telegram_failed');

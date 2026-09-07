@@ -93,36 +93,45 @@ export default function ImageTools() {
       return;
     }
 
-    const objectUrl = URL.createObjectURL(file);
-    setImagePreviewUrl(objectUrl);
+    let isSubscribed = true;
+    const reader = new FileReader();
 
-    const img = new Image();
-    img.onload = () => {
-      const w = img.naturalWidth;
-      const h = img.naturalHeight;
-      setNaturalDimensions({ width: w, height: h });
-      setWidth(w);
-      setHeight(h);
-      // Initialize centered crop
-      const initialCropSize = Math.min(w, h, 400);
-      setCropW(initialCropSize);
-      setCropH(initialCropSize);
-      setCropLeft(Math.max(0, Math.floor((w - initialCropSize) / 2)));
-      setCropTop(Math.max(0, Math.floor((h - initialCropSize) / 2)));
+    reader.onload = (e) => {
+      if (!isSubscribed) return;
+      const dataUrl = e.target.result;
+      setImagePreviewUrl(dataUrl);
 
-      // Initialize mask canvas size
-      if (maskCanvasRef.current) {
-        maskCanvasRef.current.width = w;
-        maskCanvasRef.current.height = h;
-        const ctx = maskCanvasRef.current.getContext('2d');
-        ctx.clearRect(0, 0, w, h);
-      }
-      setHasMaskDrawn(false);
+      const img = new Image();
+      img.onload = () => {
+        if (!isSubscribed) return;
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+        setNaturalDimensions({ width: w, height: h });
+        setWidth(w);
+        setHeight(h);
+        // Initialize centered crop
+        const initialCropSize = Math.min(w, h, 400);
+        setCropW(initialCropSize);
+        setCropH(initialCropSize);
+        setCropLeft(Math.max(0, Math.floor((w - initialCropSize) / 2)));
+        setCropTop(Math.max(0, Math.floor((h - initialCropSize) / 2)));
+
+        // Initialize mask canvas size
+        if (maskCanvasRef.current) {
+          maskCanvasRef.current.width = w;
+          maskCanvasRef.current.height = h;
+          const ctx = maskCanvasRef.current.getContext('2d');
+          ctx.clearRect(0, 0, w, h);
+        }
+        setHasMaskDrawn(false);
+      };
+      img.src = dataUrl;
     };
-    img.src = objectUrl;
+
+    reader.readAsDataURL(file);
 
     return () => {
-      URL.revokeObjectURL(objectUrl);
+      isSubscribed = false;
     };
   }, [file]);
 

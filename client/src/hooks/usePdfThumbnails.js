@@ -46,6 +46,7 @@ export function usePdfThumbnails(file, scale = 0.22) {
           data: new Uint8Array(arrayBuffer),
           cMapUrl: 'https://unpkg.com/pdfjs-dist@4.4.168/cmaps/',
           cMapPacked: true,
+          disableFontFace: false,
         });
 
         const pdf = await loadingTask.promise;
@@ -53,23 +54,30 @@ export function usePdfThumbnails(file, scale = 0.22) {
         setPageCount(pdf.numPages);
 
         const results = [];
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: false });
+
         for (let i = 1; i <= pdf.numPages; i++) {
           if (cancelled) return;
           try {
             const page = await pdf.getPage(i);
             const viewport = page.getViewport({ scale });
-            const canvas = document.createElement('canvas');
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
-            const ctx = canvas.getContext('2d');
+            canvas.width = Math.floor(viewport.width);
+            canvas.height = Math.floor(viewport.height);
             await page.render({ canvasContext: ctx, viewport }).promise;
-            results.push(canvas.toDataURL('image/jpeg', 0.7));
-            if (!cancelled) setThumbnails([...results]);
+            results.push(canvas.toDataURL('image/jpeg', 0.6));
+            // Update live preview in batches or on final page
+            if (!cancelled && (i % 2 === 0 || i === pdf.numPages || i <= 3)) {
+              setThumbnails([...results]);
+            }
           } catch (renderErr) {
             console.warn(`Page ${i} render failed:`, renderErr);
           }
         }
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setThumbnails(results);
+          setLoading(false);
+        }
       } catch (err) {
         console.error('PDF Read Error:', err);
         if (!cancelled) {

@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   Folder, Key, CreditCard, Download, Trash2,
-  Plus, Copy, Check, Sparkles, HardDrive, Zap
+  Plus, Copy, Check, Sparkles, HardDrive, Zap, Home
 } from 'lucide-react';
 import { formatBytes } from '../utils/fileHelpers';
 
 export default function Dashboard() {
   const { user, token } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('files');
 
   const [files, setFiles]         = useState([]);
@@ -108,14 +110,23 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {user?.plan === 'free' && (
-          <a
-            href="/pricing"
-            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-purple-900/40 shrink-0"
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 px-5 py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all border border-gray-700"
           >
-            <Sparkles size={14} /> Nâng cấp Pro
-          </a>
-        )}
+            <Home size={14} /> Trang chủ
+          </button>
+
+          {user?.plan === 'free' && (
+            <a
+              href="/pricing"
+              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-purple-900/40 shrink-0"
+            >
+              <Sparkles size={14} /> Nâng cấp Pro
+            </a>
+          )}
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -127,7 +138,7 @@ export default function Dashboard() {
           <div>
             <p className="text-xs text-gray-400">Lượt xử lý hôm nay</p>
             <h3 className="text-xl font-bold text-white mt-0.5">
-              {usage?.dailyUsage?.count || 0} / {usage?.limits?.dailyOperations === Infinity ? '∞' : (usage?.limits?.dailyOperations || 15)}
+              {usage?.dailyUsage?.count || 0} <span className="text-xs font-normal text-gray-500">file đã xử lý</span>
             </h3>
           </div>
         </div>
