@@ -44,14 +44,21 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
         if (!email) return done(new Error('Google không cung cấp email'));
 
         let user = await User.findOne({ $or: [{ googleId: profile.id }, { email }] });
+        const avatarUrl = profile.photos?.[0]?.value || null;
+        const displayName = profile.displayName || email.split('@')[0];
+
         if (user) {
-          if (!user.googleId) { user.googleId = profile.id; await user.save(); }
+          let updated = false;
+          if (!user.googleId) { user.googleId = profile.id; updated = true; }
+          if (avatarUrl && !user.avatar) { user.avatar = avatarUrl; updated = true; }
+          if (!user.name || user.name === 'User') { user.name = displayName; updated = true; }
+          if (updated) await user.save();
         } else {
           user = await User.create({
             googleId:      profile.id,
             email,
-            name:          profile.displayName || email.split('@')[0],
-            avatar:        profile.photos?.[0]?.value || null,
+            name:          displayName,
+            avatar:        avatarUrl,
             isVerified:    true,
             authProvider:  'google',
             plan:          'free',
@@ -76,15 +83,22 @@ if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
     async (accessToken, refreshToken, profile, done) => {
       try {
         const email = profile.emails?.[0]?.value || (profile.username + '@github.user');
+        const avatarUrl = profile.photos?.[0]?.value || profile._json?.avatar_url || null;
+        const displayName = profile.displayName || profile.username || email.split('@')[0];
+
         let user = await User.findOne({ $or: [{ githubId: profile.id }, { email }] });
         if (user) {
-          if (!user.githubId) { user.githubId = profile.id; await user.save(); }
+          let updated = false;
+          if (!user.githubId) { user.githubId = profile.id; updated = true; }
+          if (avatarUrl && !user.avatar) { user.avatar = avatarUrl; updated = true; }
+          if (!user.name || user.name === 'User') { user.name = displayName; updated = true; }
+          if (updated) await user.save();
         } else {
           user = await User.create({
             githubId:      profile.id,
             email,
-            name:          profile.displayName || profile.username,
-            avatar:        profile.photos?.[0]?.value || null,
+            name:          displayName,
+            avatar:        avatarUrl,
             isVerified:    true,
             authProvider:  'github',
             plan:          'free',
@@ -155,17 +169,22 @@ router.get('/telegram/callback', async (req, res) => {
     if (!telegramId) return res.redirect(CLIENT + '/login?error=no_telegram_id');
 
     const email = data.username ? (data.username + '@telegram.user') : ('tg_' + telegramId + '@telegram.user');
-    const name = [data.first_name, data.last_name].filter(Boolean).join(' ') || data.username || ('Telegram User ' + telegramId);
+    const displayName = [data.first_name, data.last_name].filter(Boolean).join(' ') || data.username || ('Telegram User ' + telegramId);
+    const avatarUrl = data.photo_url || null;
 
     let user = await User.findOne({ $or: [{ telegramId }, { email }] });
     if (user) {
-      if (!user.telegramId) { user.telegramId = telegramId; await user.save(); }
+      let updated = false;
+      if (!user.telegramId) { user.telegramId = telegramId; updated = true; }
+      if (avatarUrl && !user.avatar) { user.avatar = avatarUrl; updated = true; }
+      if (!user.name || user.name === 'User') { user.name = displayName; updated = true; }
+      if (updated) await user.save();
     } else {
       user = await User.create({
         telegramId,
         email,
-        name,
-        avatar: data.photo_url || null,
+        name: displayName,
+        avatar: avatarUrl,
         isVerified: true,
         authProvider: 'telegram',
         plan: 'free',

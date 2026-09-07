@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
+  // 1. Initialize user from localStorage if available
   const [user, setUser] = useState(() => {
     try {
       const saved = localStorage.getItem('user');
@@ -12,14 +13,36 @@ export function AuthProvider({ children }) {
     }
   });
 
-  const [token, setToken] = useState(() => localStorage.getItem('token'));
+  // 2. Initialize token from URL query params (OAuth redirect) or localStorage
+  const [token, setToken] = useState(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlToken = urlParams.get('token');
+      if (urlToken) {
+        localStorage.setItem('token', urlToken);
+        return urlToken;
+      }
+    } catch (_) {}
+    return localStorage.getItem('token') || null;
+  });
+
   const [loading, setLoading] = useState(true);
 
-  // Load / verify user info khi app khởi động nếu có token
+  // 3. Load / verify user info khi app khởi động hoặc khi token thay đổi
   useEffect(() => {
-    if (token) {
+    // Check if token in URL query
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlToken = urlParams.get('token');
+    const activeToken = urlToken || token;
+
+    if (activeToken) {
+      if (urlToken && urlToken !== token) {
+        setToken(urlToken);
+        localStorage.setItem('token', urlToken);
+      }
+
       fetch('/api/auth/me', {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${activeToken}` },
       })
         .then(r => (r.ok ? r.json() : Promise.reject()))
         .then(d => {
@@ -29,7 +52,7 @@ export function AuthProvider({ children }) {
           }
         })
         .catch(() => {
-          // Token expired or invalid
+          // Only logout if token is truly invalid and no user
           logout();
         })
         .finally(() => setLoading(false));

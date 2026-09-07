@@ -115,14 +115,16 @@ async function refreshAccessToken(refreshToken) {
 
 function formatUser(user) {
   return {
-    id:        user._id,
-    email:     user.email,
-    name:      user.name,
-    role:      user.role,
-    plan:      user.plan,
-    isVerified: user.isVerified,
-    cloudStorageUsed: user.cloudStorageUsed,
-    dailyUsage: user.dailyUsage,
+    id:               user._id,
+    email:            user.email,
+    name:             user.name || (user.email ? user.email.split('@')[0] : 'User'),
+    avatar:           user.avatar || null,
+    authProvider:     user.authProvider || 'local',
+    role:             user.role || 'user',
+    plan:             user.plan || 'free',
+    isVerified:       user.isVerified,
+    cloudStorageUsed: user.cloudStorageUsed || 0,
+    dailyUsage:       user.dailyUsage,
   };
 }
 
