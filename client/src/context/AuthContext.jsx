@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext(null);
+const API = import.meta.env.VITE_API_URL || '';
 
 export function AuthProvider({ children }) {
   // 1. Initialize user from localStorage if available
@@ -30,7 +31,6 @@ export function AuthProvider({ children }) {
 
   // 3. Load / verify user info khi app khởi động hoặc khi token thay đổi
   useEffect(() => {
-    // Check if token in URL query
     const urlParams = new URLSearchParams(window.location.search);
     const urlToken = urlParams.get('token');
     const activeToken = urlToken || token;
@@ -41,19 +41,23 @@ export function AuthProvider({ children }) {
         localStorage.setItem('token', urlToken);
       }
 
-      fetch('/api/auth/me', {
+      fetch(`${API}/api/auth/me`, {
         headers: { Authorization: `Bearer ${activeToken}` },
       })
-        .then(r => (r.ok ? r.json() : Promise.reject()))
-        .then(d => {
-          if (d.user) {
-            setUser(d.user);
-            localStorage.setItem('user', JSON.stringify(d.user));
+        .then(async (r) => {
+          if (r.ok) {
+            const d = await r.json();
+            if (d.user) {
+              setUser(d.user);
+              localStorage.setItem('user', JSON.stringify(d.user));
+            }
+          } else if (r.status === 401) {
+            // Only logout when token is strictly rejected as unauthorized
+            logout();
           }
         })
-        .catch(() => {
-          // Only logout if token is truly invalid and no user
-          logout();
+        .catch((err) => {
+          console.warn('[auth] Cannot reach /api/auth/me:', err);
         })
         .finally(() => setLoading(false));
     } else {
@@ -73,7 +77,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
-    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    fetch(`${API}/api/auth/logout`, { method: 'POST' }).catch(() => {});
   };
 
   const updateUser = fields => {

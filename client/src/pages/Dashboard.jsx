@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { formatBytes } from '../utils/fileHelpers';
 
+const API = import.meta.env.VITE_API_URL || '';
+
 export default function Dashboard() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
@@ -25,12 +27,13 @@ export default function Dashboard() {
   const authHeader = { Authorization: `Bearer ${token}` };
 
   const loadData = async () => {
+    if (!token) return;
     setLoading(true);
     try {
       const [filesRes, keysRes, usageRes] = await Promise.all([
-        fetch('/api/user/files', { headers: authHeader }).then(r => r.json()),
-        fetch('/api/apikey',     { headers: authHeader }).then(r => r.json()),
-        fetch('/api/user/usage', { headers: authHeader }).then(r => r.json()),
+        fetch(`${API}/api/user/files`, { headers: authHeader }).then(r => r.ok ? r.json() : {}),
+        fetch(`${API}/api/apikey`,     { headers: authHeader }).then(r => r.ok ? r.json() : {}),
+        fetch(`${API}/api/user/usage`, { headers: authHeader }).then(r => r.ok ? r.json() : {}),
       ]);
 
       if (filesRes.files) setFiles(filesRes.files);
@@ -49,7 +52,7 @@ export default function Dashboard() {
 
   const handleCreateKey = async () => {
     try {
-      const res = await fetch('/api/apikey', {
+      const res = await fetch(`${API}/api/apikey`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
         body:    JSON.stringify({ name: newKeyName || 'API Key' }),
@@ -68,7 +71,7 @@ export default function Dashboard() {
   const handleDeleteFile = async (id) => {
     if (!confirm('Bạn có chắc muốn xóa file này khỏi Cloud R2?')) return;
     try {
-      await fetch(`/api/user/files/${id}`, { method: 'DELETE', headers: authHeader });
+      await fetch(`${API}/api/user/files/${id}`, { method: 'DELETE', headers: authHeader });
       setFiles(files.filter(f => f._id !== id));
     } catch (err) {
       alert(err.message);
@@ -77,7 +80,7 @@ export default function Dashboard() {
 
   const handleDownloadFile = async (id) => {
     try {
-      const res = await fetch(`/api/storage/download/${id}`, { headers: authHeader });
+      const res = await fetch(`${API}/api/storage/download/${id}`, { headers: authHeader });
       const data = await res.json();
       if (data.downloadUrl) {
         window.open(data.downloadUrl, '_blank');
@@ -90,7 +93,7 @@ export default function Dashboard() {
   const handleRevokeKey = async (id) => {
     if (!confirm('Bạn có chắc muốn vô hiệu hóa API key này?')) return;
     try {
-      await fetch(`/api/apikey/${id}`, { method: 'DELETE', headers: authHeader });
+      await fetch(`${API}/api/apikey/${id}`, { method: 'DELETE', headers: authHeader });
       loadData();
     } catch (err) {
       alert(err.message);

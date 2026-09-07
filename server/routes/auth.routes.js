@@ -11,7 +11,28 @@ const authSvc = require('../services/auth.service');
 const User    = require('../models/User');
 const { requireAuth } = require('../middleware/auth');
 
-const CLIENT = process.env.CLIENT_URL || 'http://localhost:5173';
+function getClientUrl(req) {
+  if (process.env.CLIENT_URL && !process.env.CLIENT_URL.includes('localhost')) {
+    return process.env.CLIENT_URL.replace(/\/$/, '');
+  }
+  if (req) {
+    const host = req.get('x-forwarded-host') || req.get('host');
+    const proto = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
+    if (host && !host.includes('localhost:3002') && !host.includes('127.0.0.1:3002')) {
+      return `${proto}://${host}`;
+    }
+  }
+  return (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
+}
+
+const setCookie = (res, token) => {
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure:   process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge:   7 * 24 * 60 * 60 * 1000,
+  });
+};
 
 const validate = validations => async (req, res, next) => {
   await Promise.all(validations.map(v => v.run(req)));
@@ -20,15 +41,6 @@ const validate = validations => async (req, res, next) => {
     return res.status(400).json({ error: errors.array()[0].msg });
   }
   next();
-};
-
-const setCookie = (res, token) => {
-  res.cookie('token', token, {
-    httpOnly: true,
-    secure:   process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge:   7 * 24 * 60 * 60 * 1000,
-  });
 };
 
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
@@ -125,48 +137,57 @@ function checkTelegramAuth(data, botToken) {
 }
 
 router.get('/google', (req, res, next) => {
+  const clientUrl = getClientUrl(req);
   if (!process.env.GOOGLE_CLIENT_ID) {
-    return res.redirect(CLIENT + '/login?error=' + encodeURIComponent('Google OAuth chưa được cấu hình'));
+    return res.redirect(clientUrl + '/login?error=' + encodeURIComponent('Google OAuth chưa được cấu hình'));
   }
   passport.authenticate('google', { scope: ['profile', 'email'], session: false })(req, res, next);
 });
 
 router.get('/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: CLIENT + '/login?error=google_failed' }),
+  (req, res, next) => {
+    const clientUrl = getClientUrl(req);
+    passport.authenticate('google', { session: false, failureRedirect: clientUrl + '/login?error=google_failed' })(req, res, next);
+  },
   (req, res) => {
-    const tokens = authSvc.generateTokens ? authSvc.generateTokens(req.user._id) : { token: authSvc.signToken ? authSvc.signToken(req.user._id) : '' };
-    const token = tokens.token;
+    const clientUrl = getClientUrl(req);
+    const token = authSvc.signToken(req.user._id);
     setCookie(res, token);
-    res.redirect(CLIENT + '/dashboard?token=' + token);
+    res.redirect(`${clientUrl}/dashboard?token=${token}`);
   }
 );
 
 router.get('/github', (req, res, next) => {
+  const clientUrl = getClientUrl(req);
   if (!process.env.GITHUB_CLIENT_ID) {
-    return res.redirect(CLIENT + '/login?error=' + encodeURIComponent('GitHub OAuth chưa được cấu hình'));
+    return res.redirect(clientUrl + '/login?error=' + encodeURIComponent('GitHub OAuth chưa được cấu hình'));
   }
   passport.authenticate('github', { scope: ['user:email'], session: false })(req, res, next);
 });
 
 router.get('/github/callback',
-  passport.authenticate('github', { session: false, failureRedirect: CLIENT + '/login?error=github_failed' }),
+  (req, res, next) => {
+    const clientUrl = getClientUrl(req);
+    passport.authenticate('github', { session: false, failureRedirect: clientUrl + '/login?error=github_failed' })(req, res, next);
+  },
   (req, res) => {
-    const tokens = authSvc.generateTokens ? authSvc.generateTokens(req.user._id) : { token: authSvc.signToken ? authSvc.signToken(req.user._id) : '' };
-    const token = tokens.token;
+    const clientUrl = getClientUrl(req);
+    const token = authSvc.signToken(req.user._id);
     setCookie(res, token);
-    res.redirect(CLIENT + '/dashboard?token=' + token);
+    res.redirect(`${clientUrl}/dashboard?token=${token}`);
   }
 );
 
 router.get('/telegram/callback', async (req, res) => {
+  const clientUrl = getClientUrl(req);
   try {
     const data = req.query;
     if (process.env.TELEGRAM_BOT_TOKEN) {
       const valid = checkTelegramAuth(data, process.env.TELEGRAM_BOT_TOKEN);
-      if (!valid) return res.redirect(CLIENT + '/login?error=telegram_auth_invalid');
+      if (!valid) return res.redirect(clientUrl + '/login?error=telegram_auth_invalid');
     }
     const telegramId = data.id;
-    if (!telegramId) return res.redirect(CLIENT + '/login?error=no_telegram_id');
+    if (!telegramId) return res.redirect(clientUrl + '/login?error=no_telegram_id');
 
     const email = data.username ? (data.username + '@telegram.user') : ('tg_' + telegramId + '@telegram.user');
     const displayName = [data.first_name, data.last_name].filter(Boolean).join(' ') || data.username || ('Telegram User ' + telegramId);
@@ -191,8 +212,7 @@ router.get('/telegram/callback', async (req, res) => {
       });
     }
 
-    const tokens = authSvc.generateTokens ? authSvc.generateTokens(user._id) : { token: authSvc.signToken ? authSvc.signToken(user._id) : '' };
-    const token = tokens.token;
+    const token = authSvc.signToken(user._id);
     setCookie(res, token);
     res.send(`
       <!DOCTYPE html>
@@ -201,10 +221,10 @@ router.get('/telegram/callback', async (req, res) => {
         <body style="background:#0a0a0f;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
           <script>
             if (window.opener) {
-              window.opener.location.href = "${CLIENT}/dashboard?token=${token}";
+              window.opener.location.href = "${clientUrl}/dashboard?token=${token}";
               window.close();
             } else {
-              window.location.href = "${CLIENT}/dashboard?token=${token}";
+              window.location.href = "${clientUrl}/dashboard?token=${token}";
             }
           </script>
           <p>Đăng nhập thành công! Đang chuyển hướng đến Dashboard...</p>
@@ -213,7 +233,7 @@ router.get('/telegram/callback', async (req, res) => {
     `);
   } catch (err) {
     console.error('Telegram auth error:', err);
-    res.redirect(CLIENT + '/login?error=telegram_failed');
+    res.redirect(clientUrl + '/login?error=telegram_failed');
   }
 });
 

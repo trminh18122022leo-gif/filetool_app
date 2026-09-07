@@ -5,19 +5,19 @@ const passport = require('passport');
 require('dotenv').config();
 
 const dns = require('dns');
-try { dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']); } catch (_) {}
+try { dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']); } catch (_) { }
 
-const express      = require('express');
-const http         = require('http');
-const cors         = require('cors');
-const helmet       = require('helmet');
-const compression  = require('compression');
+const express = require('express');
+const http = require('http');
+const cors = require('cors');
+const helmet = require('helmet');
+const compression = require('compression');
 const cookieParser = require('cookie-parser');
-const path         = require('path');
-const fs           = require('fs');
-const winston      = require('winston');
-const cron         = require('node-cron');
-const mongoose     = require('mongoose');
+const path = require('path');
+const fs = require('fs');
+const winston = require('winston');
+const cron = require('node-cron');
+const mongoose = require('mongoose');
 const { execSync } = require('child_process');
 
 const { initSocket } = require('./socket');
@@ -53,9 +53,9 @@ if (process.env.MONGODB_URI) {
 }
 
 // ── Khởi tạo App & Server ─────────────────────────────────────────────────────
-const app    = express();
+const app = express();
 const server = http.createServer(app);
-const PORT   = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3001;
 
 // Khởi tạo Socket.io
 initSocket(server);
@@ -72,9 +72,9 @@ app.use(helmet({
 }));
 app.use(compression());
 app.use(cors({
-  origin:      process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: true,
   credentials: true,
-  methods:     ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
 }));
 
@@ -95,24 +95,24 @@ app.use('/uploads', express.static(path.resolve('uploads')));
 
 // ── Routes ───────────────────────────────────────────────────────────────────
 // Auth & User & Billing
-app.use('/api/auth',     authRateLimit, require('./routes/auth.routes'));
-app.use('/api/user',     require('./routes/user.routes'));
-app.use('/api/payment',  require('./routes/payment.routes'));
-app.use('/api/apikey',   require('./routes/apikey.routes'));
-app.use('/api/storage',  require('./routes/storage.routes'));
+app.use('/api/auth', authRateLimit, require('./routes/auth.routes'));
+app.use('/api/user', require('./routes/user.routes'));
+app.use('/api/payment', require('./routes/payment.routes'));
+app.use('/api/apikey', require('./routes/apikey.routes'));
+app.use('/api/storage', require('./routes/storage.routes'));
 
 // Tool Routes (có gắn toolRateLimit để bảo vệ CPU)
-app.use('/api/pdf',       toolRateLimit, require('./routes/pdf.routes'));
-app.use('/api/image',     toolRateLimit, require('./routes/image.routes'));
-app.use('/api/office',    toolRateLimit, require('./routes/office.routes'));
-app.use('/api/ocr',       toolRateLimit, require('./routes/ocr.routes'));
-app.use('/api/archive',   toolRateLimit, require('./routes/archive.routes'));
-app.use('/api/batch',     toolRateLimit, require('./routes/batch.routes'));
-app.use('/api/qr',        toolRateLimit, require('./routes/qr.routes'));
+app.use('/api/pdf', toolRateLimit, require('./routes/pdf.routes'));
+app.use('/api/image', toolRateLimit, require('./routes/image.routes'));
+app.use('/api/office', toolRateLimit, require('./routes/office.routes'));
+app.use('/api/ocr', toolRateLimit, require('./routes/ocr.routes'));
+app.use('/api/archive', toolRateLimit, require('./routes/archive.routes'));
+app.use('/api/batch', toolRateLimit, require('./routes/batch.routes'));
+app.use('/api/qr', toolRateLimit, require('./routes/qr.routes'));
 app.use('/api/signature', toolRateLimit, require('./routes/signature.routes'));
-app.use('/api/ai',        toolRateLimit, require('./routes/ai.routes'));
-app.use('/api/convert',   toolRateLimit, require('./routes/convert.routes'));
-app.use('/api/creative',  toolRateLimit, require('./routes/creative.routes'));
+app.use('/api/ai', toolRateLimit, require('./routes/ai.routes'));
+app.use('/api/convert', toolRateLimit, require('./routes/convert.routes'));
+app.use('/api/creative', toolRateLimit, require('./routes/creative.routes'));
 
 // Download file kết quả local an toàn
 app.get('/api/download/:filename', (req, res) => {
@@ -151,15 +151,15 @@ app.get('/api/health', (req, res) => {
     : 'libreoffice --version';
 
   res.json({
-    status:    'ok',
+    status: 'ok',
     timestamp: new Date().toISOString(),
-    uptime:    process.uptime(),
+    uptime: process.uptime(),
     systemTools: {
       ghostscript: chk(gsCmd),
       libreoffice: chk(loCmd),
-      tesseract:   chk('tesseract --version'),
-      qpdf:        chk('qpdf --version'),
-      pdftohtml:   chk('pdftohtml -v'),
+      tesseract: chk('tesseract --version'),
+      qpdf: chk('qpdf --version'),
+      pdftohtml: chk('pdftohtml -v'),
     },
     database: {
       connected: mongoose.connection.readyState === 1,
@@ -175,7 +175,7 @@ app.get('/ping', (req, res) => res.send('pong'));
 const SELF_PING_INTERVAL = 4 * 60 * 1000; // 4 phút
 setInterval(() => {
   const url = process.env.SERVER_URL || `http://localhost:${PORT}`;
-  http.get(`${url}/ping`, () => {}).on('error', () => {});
+  http.get(`${url}/ping`, () => { }).on('error', () => { });
 }, SELF_PING_INTERVAL);
 
 // ── Frontend Static Serving ───────────────────────────────────────────────────
@@ -216,7 +216,7 @@ cron.schedule('*/30 * * * *', () => {
 // ── Error Handler ─────────────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
   logger.error(`${req.method} ${req.url} - ${err.message}`);
-  
+
   if (err instanceof multer.MulterError || err.name === 'MulterError') {
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ error: 'Dung lượng file vượt quá giới hạn 100MB' });

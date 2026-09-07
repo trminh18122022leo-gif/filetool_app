@@ -5,14 +5,21 @@ const crypto   = require('crypto');
 const User     = require('../models/User');
 const emailSvc = require('./email.service');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_here_change_in_production';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET;
+
 function generateTokens(userId) {
-  const token = jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+  const token = jwt.sign({ id: userId }, JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   });
-  const refreshToken = jwt.sign({ id: userId }, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET, {
+  const refreshToken = jwt.sign({ id: userId }, JWT_REFRESH_SECRET, {
     expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
   });
   return { token, refreshToken };
+}
+
+function signToken(userId) {
+  return generateTokens(userId).token;
 }
 
 async function register({ email, password, name }) {
@@ -136,4 +143,6 @@ module.exports = {
   resetPassword,
   refreshAccessToken,
   formatUser,
+  generateTokens,
+  signToken,
 };
