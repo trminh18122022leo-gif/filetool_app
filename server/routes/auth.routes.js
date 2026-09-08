@@ -10,6 +10,7 @@ const { body, validationResult } = require('express-validator');
 const authSvc = require('../services/auth.service');
 const User    = require('../models/User');
 const { requireAuth } = require('../middleware/auth');
+const { loginRateLimit, registerRateLimit, forgotPasswordRateLimit } = require('../middleware/rateLimit');
 
 function getClientUrl(req) {
   if (process.env.CLIENT_URL && !process.env.CLIENT_URL.includes('localhost')) {
@@ -237,9 +238,10 @@ router.get('/telegram/callback', async (req, res) => {
   }
 });
 
-router.post('/register', validate([
-  body('email').isEmail().withMessage('Email không hợp lệ'),
+router.post('/register', registerRateLimit, validate([
+  body('email').isEmail().normalizeEmail().withMessage('Email không hợp lệ'),
   body('password').isLength({ min: 6 }).withMessage('Mật khẩu tối thiểu 6 ký tự'),
+  body('name').optional().trim().isLength({ max: 60 }).withMessage('Tên quá dài'),
 ]), async (req, res) => {
   try {
     const result = await authSvc.register(req.body);
@@ -250,8 +252,8 @@ router.post('/register', validate([
   }
 });
 
-router.post('/login', validate([
-  body('email').isEmail().withMessage('Email không hợp lệ'),
+router.post('/login', loginRateLimit, validate([
+  body('email').isEmail().normalizeEmail().withMessage('Email không hợp lệ'),
   body('password').notEmpty().withMessage('Chưa nhập mật khẩu'),
 ]), async (req, res) => {
   try {
@@ -263,8 +265,18 @@ router.post('/login', validate([
   }
 });
 
-router.post('/logout', (req, res) => {
-  res.clearCookie('token');
+router.post('/logout', requireAuth, async (req, res) => {
+  try {
+    // Xóa refresh token khỏi DB để vô hiệu hóa phiên từ server
+    if (req.user?._id) {
+      await authSvc.invalidateRefreshToken(req.user._id);
+    }
+  } catch (_) {}
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  });
   res.json({ success: true, message: 'Đã đăng xuất' });
 });
 
@@ -280,11 +292,16 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
-router.post('/forgot-password', validate([
-  body('email').isEmail().withMessage('Email không hợp lệ'),
+router.post('/forgot-password', forgotPasswordRateLimit, validate([
+  body('email').isEmail().normalizeEmail().withMessage('Email không hợp lệ'),
 ]), async (req, res) => {
-  const result = await authSvc.forgotPassword(req.body.email);
-  res.json(result);
+  try {
+    const result = await authSvc.forgotPassword(req.body.email);
+    res.json(result);
+  } catch (_) {
+    // Không tiết lộ lỗi cụ thể
+    res.json({ message: 'Nếu email tồn tại, link đặt lại mật khẩu đã được gửi.' });
+  }
 });
 
 router.post('/reset-password', validate([

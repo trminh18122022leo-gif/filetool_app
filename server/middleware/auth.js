@@ -4,31 +4,49 @@ const jwt      = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const User     = require('../models/User');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback_dev_only_DO_NOT_USE_IN_PROD';
+
 /**
  * Middleware bắt buộc phải đăng nhập.
  */
 async function requireAuth(req, res, next) {
   try {
-    const token =
+    const rawToken =
       req.cookies?.token ||
-      req.headers.authorization?.replace('Bearer ', '');
+      req.headers.authorization?.replace(/^Bearer\s+/i, '');
 
-    if (!token) {
+    if (!rawToken) {
       return res.status(401).json({ error: 'Chưa đăng nhập' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    let decoded;
+    try {
+      decoded = jwt.verify(rawToken, JWT_SECRET);
+    } catch (jwtErr) {
+      return res.status(401).json({ error: 'Token không hợp lệ hoặc đã hết hạn' });
+    }
+
     if (mongoose.connection.readyState === 1) {
-      const user = await User.findById(decoded.id).select('-password');
+      const user = await User.findById(decoded.id).select('-password -refreshToken -verifyToken -resetPasswordToken');
       if (!user) return res.status(401).json({ error: 'Tài khoản không tồn tại' });
+
+      // Nếu user đổi mật khẩu SAU khi token được cấp → block token cũ
+      if (user.passwordChangedAt && decoded.iat) {
+        const changedAt = Math.floor(user.passwordChangedAt.getTime() / 1000);
+        if (decoded.iat < changedAt) {
+          return res.status(401).json({ error: 'Mật khẩu đã được thay đổi. Vui lòng đăng nhập lại' });
+        }
+      }
+
       req.user = user;
     } else {
+      // DB chưa kết nối — chỉ cho qua với info từ token (dev fallback)
       req.user = { _id: decoded.id, email: decoded.email, role: 'user', plan: 'pro' };
     }
 
     next();
   } catch (err) {
-    return res.status(401).json({ error: 'Token không hợp lệ hoặc đã hết hạn' });
+    return res.status(401).json({ error: 'Xác thực thất bại' });
   }
 }
 
@@ -37,19 +55,30 @@ async function requireAuth(req, res, next) {
  */
 async function optionalAuth(req, res, next) {
   try {
-    const token =
+    const rawToken =
       req.cookies?.token ||
-      req.headers.authorization?.replace('Bearer ', '');
+      req.headers.authorization?.replace(/^Bearer\s+/i, '');
 
-    if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    if (rawToken) {
+      const decoded = jwt.verify(rawToken, JWT_SECRET);
       if (mongoose.connection.readyState === 1) {
-        req.user = await User.findById(decoded.id).select('-password');
+        const user = await User.findById(decoded.id).select('-password -refreshToken');
+        if (user) {
+          if (user.passwordChangedAt && decoded.iat) {
+            const changedAt = Math.floor(user.passwordChangedAt.getTime() / 1000);
+            if (decoded.iat < changedAt) {
+              return next(); // Token cũ → bỏ qua, không gắn user
+            }
+          }
+          req.user = user;
+        }
       } else {
         req.user = { _id: decoded.id, email: decoded.email, role: 'user', plan: 'pro' };
       }
     }
-  } catch (_) {}
+  } catch (_) {
+    // Token lỗi → bỏ qua, không crash
+  }
   next();
 }
 

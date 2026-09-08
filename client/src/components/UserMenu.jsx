@@ -3,6 +3,55 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LayoutDashboard, LogOut, ChevronDown, Sparkles, Key, LogIn, UserPlus } from 'lucide-react';
 
+// Tạo màu gradient nhất quán theo tên (không random mỗi lần render)
+function getAvatarColors(nameOrEmail = '') {
+  const str = nameOrEmail.toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const palettes = [
+    'from-pink-500 via-rose-500 to-red-500',
+    'from-purple-500 via-violet-500 to-indigo-500',
+    'from-blue-500 via-cyan-500 to-teal-500',
+    'from-green-500 via-emerald-500 to-teal-500',
+    'from-orange-500 via-amber-500 to-yellow-500',
+    'from-pink-500 via-purple-500 to-indigo-500',
+    'from-cyan-500 via-blue-500 to-violet-500',
+    'from-rose-500 via-pink-500 to-fuchsia-500',
+  ];
+  return palettes[Math.abs(hash) % palettes.length];
+}
+
+// Chữ cái đầu từ tên hoặc email
+function getInitial(user) {
+  if (user?.name && user.name.trim().length > 0) {
+    return user.name.trim()[0].toUpperCase();
+  }
+  if (user?.email) {
+    return user.email[0].toUpperCase();
+  }
+  return 'U';
+}
+
+// Avatar gradient component — dùng chung cả nơi
+function AvatarInitial({ user, size = 'sm' }) {
+  const initial = getInitial(user);
+  const colors = getAvatarColors(user?.name || user?.email || '');
+  const sizeClass = size === 'lg'
+    ? 'w-10 h-10 text-sm font-black'
+    : 'w-8 h-8 text-xs font-black';
+
+  return (
+    <div
+      className={`${sizeClass} rounded-xl bg-gradient-to-tr ${colors} flex items-center justify-center text-white shadow-[0_0_12px_rgba(236,72,153,0.35)] group-hover:scale-105 transition-transform select-none`}
+      aria-label={`Avatar của ${user?.name || 'bạn'}`}
+    >
+      {initial}
+    </div>
+  );
+}
+
 export default function UserMenu() {
   const { user, logout } = useAuth();
   const [open, setOpen]  = useState(false);
@@ -46,8 +95,6 @@ export default function UserMenu() {
     business: 'bg-purple-950/80 text-purple-300 border-purple-700 shadow-[0_0_8px_rgba(168,85,247,0.3)]',
   };
 
-  const initial = (user.name?.[0] || user.email?.[0] || 'U').toUpperCase();
-
   return (
     <div className="relative" ref={menuRef}>
       <button
@@ -55,18 +102,8 @@ export default function UserMenu() {
         className="flex items-center gap-2.5 p-1 sm:px-3 sm:py-1.5 glass-panel rounded-2xl border border-white/10 hover:border-pink-500/40 transition-all text-left group"
         title="Tài khoản của bạn (nhấp để mở menu)"
       >
-        {/* User Avatar Image or Gradient Initial */}
-        {user.avatar ? (
-          <img
-            src={user.avatar}
-            alt={user.name || 'User'}
-            className="w-8 h-8 rounded-xl object-cover ring-2 ring-pink-500/40 shadow-[0_0_10px_rgba(236,72,153,0.3)]"
-          />
-        ) : (
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-pink-500 via-purple-500 to-indigo-500 flex items-center justify-center text-white text-xs font-black shadow-[0_0_12px_rgba(236,72,153,0.4)] group-hover:scale-105 transition-transform">
-            {initial}
-          </div>
-        )}
+        {/* Avatar luôn dùng chữ cái đầu với gradient màu */}
+        <AvatarInitial user={user} size="sm" />
 
         {/* User Info (Hidden on very small screens) */}
         <div className="hidden sm:block text-left">
@@ -84,15 +121,20 @@ export default function UserMenu() {
       {/* Dropdown Menu */}
       {open && (
         <div className="absolute right-0 mt-2 w-64 glass-panel border border-white/15 rounded-2xl p-2.5 shadow-[0_10px_40px_rgba(0,0,0,0.6)] z-50 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-2xl bg-black/90">
-          {/* Header with full name and email */}
-          <div className="px-3 py-2.5 border-b border-white/10 mb-1.5">
-            <p className="text-xs font-bold text-white truncate flex items-center gap-1.5">
-              <span>{user.name || 'Thành viên'}</span>
-              <span className={`text-[9px] uppercase font-extrabold px-1.5 py-0.2 rounded border ${planBadges[user.plan] || planBadges.free}`}>
-                {user.plan || 'Free'}
-              </span>
-            </p>
-            <p className="text-[11px] text-gray-400 truncate mt-0.5">{user.email}</p>
+          {/* Header với avatar lớn + tên + email */}
+          <div className="px-3 py-3 border-b border-white/10 mb-1.5 flex items-center gap-3">
+            <div className="group shrink-0">
+              <AvatarInitial user={user} size="lg" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-white truncate flex items-center gap-1.5">
+                <span>{user.name || 'Thành viên'}</span>
+                <span className={`text-[9px] uppercase font-extrabold px-1.5 py-0.2 rounded border ${planBadges[user.plan] || planBadges.free}`}>
+                  {user.plan || 'Free'}
+                </span>
+              </p>
+              <p className="text-[11px] text-gray-400 truncate mt-0.5">{user.email}</p>
+            </div>
           </div>
 
           <div className="space-y-1">

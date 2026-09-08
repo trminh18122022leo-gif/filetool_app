@@ -84,6 +84,7 @@ const userSchema = new mongoose.Schema({
   resetPasswordToken: String,
   resetPasswordExpires: Date,
   refreshToken:       String,
+  passwordChangedAt:  Date,   // Dùng để invalidate JWT cũ sau khi đổi mật khẩu
 }, {
   timestamps: true,
 });
