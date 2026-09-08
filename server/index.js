@@ -17,12 +17,12 @@ const path = require('path');
 const fs = require('fs');
 const winston = require('winston');
 const cron = require('node-cron');
-const mongoose = require('mongoose');
 const { execSync } = require('child_process');
 
+const { authConn, dataConn, isAuthConnected, isDataConnected } = require('./config/database');
 const { initSocket } = require('./socket');
 const { cleanDirectory, cleanupTempFiles } = require('./middleware/cleanup');
-const { apiRateLimit, authRateLimit, toolRateLimit, uploadRateLimit } = require('./middleware/rateLimit');
+const { apiRateLimit, toolRateLimit, uploadRateLimit } = require('./middleware/rateLimit');
 
 // ── Winston Logger ────────────────────────────────────────────────────────────
 const logger = winston.createLogger({
@@ -43,17 +43,10 @@ const logger = winston.createLogger({
   ],
 });
 
-// ── MongoDB Connection ────────────────────────────────────────────────────────
-if (process.env.MONGODB_URI) {
-  mongoose.connect(process.env.MONGODB_URI)
-    .then(() => logger.info('MongoDB đã kết nối thành công'))
-    .catch(err => logger.error('Lỗi kết nối MongoDB:', err.message));
-} else {
-  logger.warn('MONGODB_URI chưa được cấu hình. Auth/Payment/Cloud DB sẽ không khả dụng cho tới khi cấu hình .env');
-}
-
 // ── Khởi tạo App & Server ─────────────────────────────────────────────────────
 const app = express();
+// Trust proxy (Render, Railway, Heroku đều dùng proxy) — PHẢI đặt trước rate limiter
+app.set('trust proxy', true);
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
 
@@ -69,8 +62,12 @@ initSocket(server);
 // ── Middlewares Toàn Cục ──────────────────────────────────────────────────────
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: false, // Disable CSP để không chặn fonts/scripts bên ngoài
 }));
-app.use(compression());
+
+// Compression — mức 6 là điểm cân bằng tốc độ/kích thước tối ưu
+app.use(compression({ level: 6, threshold: 1024 }));
+
 app.use(cors({
   origin: true,
   credentials: true,
@@ -86,16 +83,28 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 app.use(passport.initialize());
 
+// Cache-control headers cho static assets (tăng tốc đáng kể lần load 2+)
+app.use((req, res, next) => {
+  if (req.url.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)(\?.*)?$/)) {
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable'); // 1 năm cho versioned assets
+  } else if (req.url.startsWith('/api/') && req.method === 'GET') {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  }
+  next();
+});
+
 // Áp dụng Rate Limit chung cho toàn bộ API
 app.use('/api', apiRateLimit);
 
 // ── Static Files ──────────────────────────────────────────────────────────────
-app.use('/outputs', express.static(path.resolve('outputs')));
-app.use('/uploads', express.static(path.resolve('uploads')));
+app.use('/outputs', express.static(path.resolve('outputs'), { maxAge: '1h' }));
+app.use('/uploads', express.static(path.resolve('uploads'), { maxAge: '1h' }));
 
 // ── Routes ───────────────────────────────────────────────────────────────────
 // Auth & User & Billing
-app.use('/api/auth', authRateLimit, require('./routes/auth.routes'));
+// authRateLimit đã được áp dụng per-route (login/register có riêng loginRateLimit/registerRateLimit)
+// Không dùng authRateLimit ở đây nữa để tránh duplicate rate limit gây lỗi ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/user', require('./routes/user.routes'));
 app.use('/api/payment', require('./routes/payment.routes'));
 app.use('/api/apikey', require('./routes/apikey.routes'));
@@ -162,7 +171,9 @@ app.get('/api/health', (req, res) => {
       pdftohtml: chk('pdftohtml -v'),
     },
     database: {
-      connected: mongoose.connection.readyState === 1,
+      authConnected: isAuthConnected(),
+      dataConnected: isDataConnected(),
+      mode: process.env.MONGODB_DATA_URI ? 'Dual-Cluster (Separated DB)' : 'Single-Cluster (Unified DB)',
     },
   });
 });

@@ -2,6 +2,7 @@
 
 const mongoose = require('mongoose');
 const crypto   = require('crypto');
+const { dataConn } = require('../config/database');
 
 const apiKeySchema = new mongoose.Schema({
   user: {
@@ -60,4 +61,4 @@ apiKeySchema.statics.generateKey = function() {
   return { rawKey: raw, keyHash: hash, keyPrefix: prefix };
 };
 
-module.exports = mongoose.model('ApiKey', apiKeySchema);
+module.exports = dataConn.model('ApiKey', apiKeySchema);

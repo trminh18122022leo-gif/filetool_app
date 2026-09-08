@@ -2,6 +2,7 @@
 
 const mongoose = require('mongoose');
 const bcrypt   = require('bcryptjs');
+const { authConn } = require('../config/database');
 
 const userSchema = new mongoose.Schema({
   email: {
@@ -106,4 +107,10 @@ userSchema.methods.isPlanActive = function() {
   return new Date() < this.planExpiresAt;
 };
 
-module.exports = mongoose.model('User', userSchema);
+// ── Indexes để tăng tốc độ truy vấn ──────────────────────────────────────────
+userSchema.index({ resetPasswordToken: 1 }, { sparse: true, expireAfterSeconds: 3600 }); // Auto-expire reset tokens
+userSchema.index({ verifyToken: 1 },        { sparse: true }); // Email verify lookup
+userSchema.index({ plan: 1, planExpiresAt: 1 }); // Plan expiry checks
+userSchema.index({ createdAt: -1 });         // Sort by newest user
+
+module.exports = authConn.model('User', userSchema);

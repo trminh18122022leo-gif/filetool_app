@@ -66,10 +66,13 @@ export default function App() {
       <header className="sticky top-0 z-50 bg-black/30 backdrop-blur-2xl border-b border-white/10 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <Link to="/" className="flex items-center gap-2 group">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-white font-black shadow-[0_0_15px_rgba(236,72,153,0.4)] group-hover:scale-105 transition-transform">
-                F
-              </div>
+            <Link to="/" className="flex items-center gap-2.5 group shrink-0">
+              <img
+                src="/logo.png"
+                alt="FileTools Pro"
+                className="h-9 w-auto group-hover:scale-105 transition-transform duration-200"
+                style={{ filter: 'brightness(1.05) drop-shadow(0 0 8px rgba(59,195,170,0.3))' }}
+              />
               <span className="font-extrabold text-lg tracking-tight text-gradient hidden sm:inline">
                 FileTools<span className="text-white text-xs ml-1 px-1.5 py-0.5 rounded-md bg-white/10 border border-white/10">PRO</span>
               </span>

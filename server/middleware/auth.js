@@ -1,8 +1,8 @@
 'use strict';
 
 const jwt      = require('jsonwebtoken');
-const mongoose = require('mongoose');
 const User     = require('../models/User');
+const { isAuthConnected } = require('../config/database');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_dev_only_DO_NOT_USE_IN_PROD';
 
@@ -26,7 +26,7 @@ async function requireAuth(req, res, next) {
       return res.status(401).json({ error: 'Token không hợp lệ hoặc đã hết hạn' });
     }
 
-    if (mongoose.connection.readyState === 1) {
+    if (isAuthConnected()) {
       const user = await User.findById(decoded.id).select('-password -refreshToken -verifyToken -resetPasswordToken');
       if (!user) return res.status(401).json({ error: 'Tài khoản không tồn tại' });
 
@@ -61,7 +61,7 @@ async function optionalAuth(req, res, next) {
 
     if (rawToken) {
       const decoded = jwt.verify(rawToken, JWT_SECRET);
-      if (mongoose.connection.readyState === 1) {
+      if (isAuthConnected()) {
         const user = await User.findById(decoded.id).select('-password -refreshToken');
         if (user) {
           if (user.passwordChangedAt && decoded.iat) {

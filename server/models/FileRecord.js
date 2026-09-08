@@ -1,6 +1,7 @@
 'use strict';
 
 const mongoose = require('mongoose');
+const { dataConn } = require('../config/database');
 
 const fileRecordSchema = new mongoose.Schema({
   user: {
@@ -37,4 +38,4 @@ const fileRecordSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-module.exports = mongoose.model('FileRecord', fileRecordSchema);
+module.exports = dataConn.model('FileRecord', fileRecordSchema);
