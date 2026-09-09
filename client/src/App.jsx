@@ -18,6 +18,13 @@ import Pricing      from './pages/Pricing';
 import Login        from './pages/Login';
 import Register     from './pages/Register';
 import Dashboard    from './pages/Dashboard';
+import SignaturePage from './pages/SignaturePage';
+import BatchTools   from './pages/BatchTools';
+import ApiDocs      from './pages/ApiDocs';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import VerifyEmail  from './pages/VerifyEmail';
+import NotFound     from './pages/NotFound';
 import GlobalSearch from './components/GlobalSearch';
 import UserMenu     from './components/UserMenu';
 import { useAuth }    from './context/AuthContext';
@@ -145,10 +152,17 @@ export default function App() {
           <Route path="/ocr" element={<OcrTools />} />
           <Route path="/archive" element={<ArchiveTools />} />
           <Route path="/qr" element={<QrTools />} />
+          <Route path="/signature" element={<SignaturePage />} />
+          <Route path="/batch" element={<BatchTools />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/api-docs" element={<ApiDocs />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
 

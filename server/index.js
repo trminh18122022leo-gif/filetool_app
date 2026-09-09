@@ -45,8 +45,8 @@ const logger = winston.createLogger({
 
 // ── Khởi tạo App & Server ─────────────────────────────────────────────────────
 const app = express();
-// Trust proxy (Render, Railway, Heroku đều dùng proxy) — PHẢI đặt trước rate limiter
-app.set('trust proxy', true);
+// Trust proxy (Render, Railway, Heroku đều dùng 1 hop reverse proxy) — PHẢI đặt trước rate limiter
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
 

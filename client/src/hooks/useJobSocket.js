@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const SOCKET_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:3002' : '');
 
 /**
  * Hook lắng nghe tiến độ real-time của một batch job qua Socket.io.
@@ -71,7 +71,7 @@ export function useJobSocket(jobId) {
 
     socket.on('job-complete', data => {
       setProgress(100);
-      setResult(data.result);
+      setResult(data.result || data);
       setIsDone(true);
       setIsRunning(false);
     });
