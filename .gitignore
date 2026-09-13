@@ -6,7 +6,11 @@ outputs/*
 logs/*
 !logs/.gitkeep
 .env
-.env.local
+.env.*
+!.env.example
+logs/*
+!logs/.gitkeep
+*.log
 client/dist
 .DS_Store
 Thumbs.db

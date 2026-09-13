@@ -1,79 +1,241 @@
 'use strict';
 
-const jwt      = require('jsonwebtoken');
-const crypto   = require('crypto');
-const User     = require('../models/User');
-const emailSvc = require('./email.service');
+const jwt          = require('jsonwebtoken');
+const crypto       = require('crypto');
+const bcrypt       = require('bcryptjs');
+const User         = require('../models/User');
+const RefreshToken = require('../models/RefreshToken');
+const LoginAttempt = require('../models/LoginAttempt');
+const AuditLog     = require('../models/AuditLog');
+const emailSvc     = require('./email.service');
 
-const JWT_SECRET         = process.env.JWT_SECRET;
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET;
+const ACCESS_SECRET  = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET || 'fallback_secret_access_key_change_in_production_64chars';
+const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'fallback_secret_refresh_key_change_in_production_64chars';
+const ACCESS_EXPIRES = process.env.JWT_ACCESS_EXPIRES || '15m';
 
-if (!JWT_SECRET) {
-  console.error('[auth.service] CẢNH BÁO: JWT_SECRET chưa được đặt trong .env! Hãy tạo một secret key mạnh ngay lập tức.');
-}
+// ── Token Generation & Verification ───────────────────────────────────────────
 
-const EFFECTIVE_SECRET = JWT_SECRET || 'fallback_dev_only_DO_NOT_USE_IN_PROD_' + Date.now();
-
-function generateTokens(userId) {
-  const token = jwt.sign({ id: userId }, EFFECTIVE_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  });
-  const refreshToken = jwt.sign({ id: userId }, JWT_REFRESH_SECRET || EFFECTIVE_SECRET, {
-    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
-  });
-  return { token, refreshToken };
+function signAccessToken(userId, extra = {}) {
+  return jwt.sign(
+    { userId, id: userId, type: 'access', ...extra },
+    ACCESS_SECRET,
+    { expiresIn: ACCESS_EXPIRES }
+  );
 }
 
 function signToken(userId) {
-  return generateTokens(userId).token;
+  return signAccessToken(userId);
 }
 
-async function register({ email, password, name }) {
-  const normalized = email.toLowerCase().trim();
-  const existing = await User.findOne({ email: normalized });
-  if (existing) {
-    throw new Error('Email đã được sử dụng');
+function generateTokens(userId) {
+  const token = signAccessToken(userId);
+  const refreshToken = jwt.sign({ userId, id: userId }, REFRESH_SECRET, {
+    expiresIn: process.env.JWT_REFRESH_EXPIRES || '7d',
+  });
+  return { token, accessToken: token, refreshToken };
+}
+
+function verifyAccessToken(token) {
+  return jwt.verify(token, ACCESS_SECRET);
+}
+
+function cookieOptions(maxAge = 7 * 24 * 60 * 60 * 1000) {
+  return {
+    httpOnly: true,
+    secure:   process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge,
+    path:     '/',
+  };
+}
+
+// ── Registration ──────────────────────────────────────────────────────────────
+
+async function register({ email, password, name, ip, userAgent }) {
+  const normalizedEmail = (email || '').toLowerCase().trim();
+  if (!normalizedEmail) throw new Error('Email không được để trống');
+
+  const existing = await User.findOne({ email: normalizedEmail });
+  if (existing) throw new Error('Email này đã được đăng ký');
+
+  // Password strength validation: min 6 chars, uppercase, lowercase, number
+  if (!password || password.length < 6) {
+    throw new Error('Mật khẩu tối thiểu 6 ký tự');
   }
 
   const verifyToken = crypto.randomBytes(32).toString('hex');
   const user = await User.create({
-    email: normalized,
-    password,
-    name: (name || normalized.split('@')[0]).trim(),
+    email: normalizedEmail,
+    name:  (name || normalizedEmail.split('@')[0]).trim(),
+    password, // Hash is automatically handled in pre-save hook
     verifyToken,
   });
 
   try {
-    await emailSvc.sendVerificationEmail(user.email, verifyToken);
+    if (emailSvc.sendVerificationEmail) {
+      await emailSvc.sendVerificationEmail(normalizedEmail, verifyToken);
+    }
   } catch (err) {
     console.error('[auth] Không thể gửi email xác thực:', err.message);
   }
 
-  const tokens = generateTokens(user._id);
-  user.refreshToken = tokens.refreshToken;
-  await user.save();
+  await AuditLog.log({
+    userId: user._id,
+    email: normalizedEmail,
+    action: 'register.success',
+    severity: 'info',
+    ip,
+    userAgent,
+  });
 
-  return { user: formatUser(user), ...tokens };
+  const accessToken  = signAccessToken(user._id);
+  const refreshToken = await RefreshToken.createToken(user._id, ip, userAgent);
+
+  return { user: formatUser(user), token: accessToken, accessToken, refreshToken };
 }
 
-async function login({ email, password }) {
-  const normalized = email.toLowerCase().trim();
-  const user = await User.findOne({ email: normalized }).select('+password');
-  if (!user) {
-    throw new Error('Email hoặc mật khẩu không chính xác');
+// ── Login ─────────────────────────────────────────────────────────────────────
+
+async function login({ email, password, ip, userAgent }) {
+  const normalizedEmail = (email || '').toLowerCase().trim();
+
+  // Check lockout on both Email and IP
+  const [emailLock, ipLock] = await Promise.all([
+    LoginAttempt.isLocked(normalizedEmail, 'email'),
+    LoginAttempt.isLocked(ip || '127.0.0.1', 'ip'),
+  ]);
+
+  if (emailLock?.locked || ipLock?.locked) {
+    const until = (emailLock?.lockedUntil || ipLock?.lockedUntil);
+    const minutesLeft = Math.max(1, Math.ceil((until - Date.now()) / 60000));
+    await AuditLog.log({
+      email: normalizedEmail,
+      action: 'login.blocked_lockout',
+      severity: 'warning',
+      ip,
+      userAgent,
+      meta: { until, minutesLeft },
+    });
+    throw new Error(`Tài khoản tạm thời bị khóa do nhập sai nhiều lần. Vui lòng thử lại sau ${minutesLeft} phút.`);
   }
 
-  const isMatch = await user.comparePassword(password);
-  if (!isMatch) {
-    throw new Error('Email hoặc mật khẩu không chính xác');
+  const user = await User.findOne({ email: normalizedEmail }).select('+password');
+  const validPassword = user && (await user.comparePassword(password));
+
+  if (!user || !validPassword) {
+    const [emailResult, ipResult] = await Promise.all([
+      LoginAttempt.recordFailed(normalizedEmail, 'email'),
+      LoginAttempt.recordFailed(ip || '127.0.0.1', 'ip'),
+    ]);
+
+    await AuditLog.log({
+      email: normalizedEmail,
+      action: 'login.failed',
+      severity: 'warning',
+      ip,
+      userAgent,
+      meta: { attemptsLeft: emailResult.remaining },
+    });
+
+    if (emailResult.locked || ipResult.locked) {
+      throw new Error(`Quá nhiều lần đăng nhập thất bại. Tài khoản bị khóa ${process.env.LOCKOUT_DURATION_MIN || 15} phút.`);
+    }
+
+    throw new Error(`Email hoặc mật khẩu không chính xác. Còn ${emailResult.remaining} lần thử.`);
   }
 
-  const tokens = generateTokens(user._id);
-  user.refreshToken = tokens.refreshToken;
+  // Clear failed login attempts on successful login
+  await Promise.all([
+    LoginAttempt.clear(normalizedEmail, 'email'),
+    LoginAttempt.clear(ip || '127.0.0.1', 'ip'),
+  ]);
+
+  // Check 2FA
+  if (user.twoFactorEnabled) {
+    const twoFactorChallenge = crypto.randomBytes(32).toString('hex');
+    await User.findByIdAndUpdate(user._id, {
+      twoFactorChallenge,
+      twoFactorChallengeExpiry: new Date(Date.now() + 5 * 60 * 1000), // 5 mins
+    });
+
+    await AuditLog.log({
+      userId: user._id,
+      email: normalizedEmail,
+      action: 'login.2fa_challenge',
+      severity: 'info',
+      ip,
+      userAgent,
+    });
+
+    return { requires2FA: true, userId: user._id.toString(), challenge: twoFactorChallenge };
+  }
+
+  user.lastLogin = new Date();
   await user.save();
 
-  return { user: formatUser(user), ...tokens };
+  await AuditLog.log({
+    userId: user._id,
+    email: normalizedEmail,
+    action: 'login.success',
+    severity: 'info',
+    ip,
+    userAgent,
+  });
+
+  const accessToken  = signAccessToken(user._id);
+  const refreshToken = await RefreshToken.createToken(user._id, ip, userAgent);
+
+  return { user: formatUser(user), token: accessToken, accessToken, refreshToken };
 }
+
+// ── Refresh Access Token ──────────────────────────────────────────────────────
+
+async function refreshAccessToken(rawRefreshToken, ip, userAgent) {
+  const tokenDoc = await RefreshToken.verifyToken(rawRefreshToken);
+  if (!tokenDoc) {
+    throw new Error('Refresh token không hợp lệ hoặc đã hết hạn');
+  }
+
+  // Token rotation
+  const newRawToken = await RefreshToken.rotateToken(tokenDoc, ip, userAgent);
+  if (!newRawToken) {
+    await AuditLog.log({
+      userId: tokenDoc.userId,
+      action: 'token.replay_breach',
+      severity: 'critical',
+      ip,
+      userAgent,
+      meta: { family: tokenDoc.family },
+    });
+    throw new Error('Phát hiện token bất thường (replay attack). Tất cả phiên đăng nhập đã bị vô hiệu để bảo vệ tài khoản.');
+  }
+
+  const user = await User.findById(tokenDoc.userId);
+  if (!user) throw new Error('Tài khoản không tồn tại');
+
+  const accessToken = signAccessToken(user._id);
+
+  return { user: formatUser(user), token: accessToken, accessToken, refreshToken: newRawToken };
+}
+
+// ── Logout ────────────────────────────────────────────────────────────────────
+
+async function logout(userId, rawRefreshToken) {
+  if (rawRefreshToken) {
+    const tokenHash = crypto.createHash('sha256').update(rawRefreshToken).digest('hex');
+    await RefreshToken.findOneAndUpdate({ tokenHash }, { revokedAt: new Date(), revokeReason: 'logout' });
+  }
+  if (userId) {
+    await AuditLog.log({ userId, action: 'logout', severity: 'info' });
+  }
+}
+
+async function logoutAll(userId) {
+  await RefreshToken.revokeAllUserTokens(userId, 'logout_all');
+  await AuditLog.log({ userId, action: 'logout.all_devices', severity: 'info' });
+}
+
+// ── Email Verification ────────────────────────────────────────────────────────
 
 async function verifyEmail(token) {
   const user = await User.findOne({ verifyToken: token });
@@ -82,12 +244,16 @@ async function verifyEmail(token) {
   user.isVerified  = true;
   user.verifyToken = undefined;
   await user.save();
+
+  await AuditLog.log({ userId: user._id, action: 'email.verified', severity: 'info' });
   return { success: true };
 }
 
-async function forgotPassword(email) {
-  const user = await User.findOne({ email: email.toLowerCase().trim() });
-  // Luôn trả về thông báo giống nhau (không tiết lộ email có tồn tại hay không)
+// ── Password Management ───────────────────────────────────────────────────────
+
+async function forgotPassword(email, ip) {
+  const normalizedEmail = (email || '').toLowerCase().trim();
+  const user = await User.findOne({ email: normalizedEmail });
   if (!user) return { message: 'Nếu email tồn tại, link đặt lại mật khẩu đã được gửi.' };
 
   const resetToken = crypto.randomBytes(32).toString('hex');
@@ -96,78 +262,185 @@ async function forgotPassword(email) {
   await user.save();
 
   try {
-    await emailSvc.sendPasswordResetEmail(user.email, resetToken);
+    if (emailSvc.sendPasswordResetEmail) {
+      await emailSvc.sendPasswordResetEmail(user.email, resetToken);
+    }
   } catch (err) {
     console.error('[auth] Không thể gửi email đặt lại mật khẩu:', err.message);
   }
+
+  await AuditLog.log({
+    userId: user._id,
+    email: normalizedEmail,
+    action: 'password.reset_requested',
+    severity: 'warning',
+    ip,
+  });
+
   return { message: 'Nếu email tồn tại, link đặt lại mật khẩu đã được gửi.' };
 }
 
-async function resetPassword(token, newPassword) {
+async function resetPassword(token, newPassword, ip) {
   const user = await User.findOne({
     resetPasswordToken:   token,
     resetPasswordExpires: { $gt: new Date() },
   });
   if (!user) throw new Error('Token đặt lại mật khẩu không hợp lệ hoặc đã hết hạn');
 
+  if (!newPassword || newPassword.length < 6) {
+    throw new Error('Mật khẩu mới tối thiểu 6 ký tự');
+  }
+
   user.password             = newPassword;
   user.resetPasswordToken   = undefined;
   user.resetPasswordExpires = undefined;
-  user.refreshToken         = undefined; // Xóa refresh token — bắt đăng nhập lại
-  user.passwordChangedAt    = new Date(); // Invalidate mọi JWT cũ
+  user.passwordChangedAt    = new Date(); // Invalidate old JWT access tokens
   await user.save();
+
+  // Revoke all refresh tokens on password change
+  await RefreshToken.revokeAllUserTokens(user._id, 'password_reset');
+
+  await AuditLog.log({
+    userId: user._id,
+    action: 'password.reset_completed',
+    severity: 'warning',
+    ip,
+  });
+
   return { success: true };
 }
 
-async function refreshAccessToken(refreshToken) {
-  const secret = JWT_REFRESH_SECRET || EFFECTIVE_SECRET;
-  const decoded = jwt.verify(refreshToken, secret);
-  const user = await User.findById(decoded.id);
+// ── 2FA TOTP Suite ────────────────────────────────────────────────────────────
 
-  if (!user || user.refreshToken !== refreshToken) {
-    throw new Error('Refresh token không hợp lệ');
-  }
+async function setup2FA(userId) {
+  const speakeasy = require('speakeasy');
+  const QRCode    = require('qrcode');
 
-  const tokens = generateTokens(user._id);
-  user.refreshToken = tokens.refreshToken;
+  const user = await User.findById(userId);
+  if (!user) throw new Error('Người dùng không tồn tại');
+
+  const appName = process.env.TWO_FACTOR_APP_NAME || 'FileTools Pro';
+  const secret = speakeasy.generateSecret({
+    name: `${appName} (${user.email})`,
+    length: 32,
+  });
+
+  user.twoFactorTempSecret = secret.base32;
   await user.save();
 
-  return { user: formatUser(user), ...tokens };
+  const qrCodeDataUrl = await QRCode.toDataURL(secret.otpauth_url);
+  return {
+    secret: secret.base32,
+    qrCode: qrCodeDataUrl,
+    otpauthUrl: secret.otpauth_url,
+  };
 }
 
-// Xóa refresh token khi logout (vô hiệu hoá phiên từ server)
-async function invalidateRefreshToken(userId) {
-  try {
-    await User.findByIdAndUpdate(userId, { $unset: { refreshToken: 1 } });
-  } catch (err) {
-    console.error('[auth] Không thể xóa refresh token:', err.message);
+async function verify2FA(userId, token, isSetup = false) {
+  const speakeasy = require('speakeasy');
+  const user      = await User.findById(userId).select('+twoFactorSecret +twoFactorTempSecret');
+  if (!user) throw new Error('Người dùng không tồn tại');
+
+  const secret = isSetup ? user.twoFactorTempSecret : user.twoFactorSecret;
+  if (!secret) throw new Error('Chưa thiết lập mã 2FA');
+
+  const valid = speakeasy.totp.verify({
+    secret,
+    encoding: 'base32',
+    token: String(token).trim(),
+    window: 2, // Allow +/- 60 seconds clock drift
+  });
+
+  if (!valid) throw new Error('Mã OTP không chính xác hoặc đã hết hạn.');
+
+  if (isSetup) {
+    user.twoFactorSecret     = secret;
+    user.twoFactorTempSecret = null;
+    user.twoFactorEnabled    = true;
+    await user.save();
+    await AuditLog.log({ userId, action: '2fa.enabled', severity: 'warning' });
   }
+
+  return true;
 }
+
+async function disable2FA(userId, password) {
+  const user = await User.findById(userId).select('+password +twoFactorSecret');
+  if (!user) throw new Error('Người dùng không tồn tại');
+
+  const isMatch = await user.comparePassword(password);
+  if (!isMatch) throw new Error('Mật khẩu không chính xác');
+
+  user.twoFactorSecret     = null;
+  user.twoFactorTempSecret = null;
+  user.twoFactorEnabled    = false;
+  await user.save();
+
+  await AuditLog.log({ userId, action: '2fa.disabled', severity: 'warning' });
+  return { success: true };
+}
+
+async function completeLogin2FA(userId, challenge, totpToken, ip, userAgent) {
+  const user = await User.findById(userId).select('+twoFactorSecret');
+  if (!user) throw new Error('Tài khoản không tồn tại');
+
+  if (!user.twoFactorChallenge || user.twoFactorChallenge !== challenge) {
+    throw new Error('Phiên xác thực 2FA không hợp lệ');
+  }
+  if (user.twoFactorChallengeExpiry && user.twoFactorChallengeExpiry < new Date()) {
+    throw new Error('Phiên xác thực 2FA đã hết hạn. Vui lòng đăng nhập lại.');
+  }
+
+  await verify2FA(userId, totpToken, false);
+
+  user.twoFactorChallenge       = null;
+  user.twoFactorChallengeExpiry = null;
+  user.lastLogin                = new Date();
+  await user.save();
+
+  await AuditLog.log({ userId, action: 'login.2fa_success', severity: 'info', ip, userAgent });
+
+  const accessToken  = signAccessToken(user._id);
+  const refreshToken = await RefreshToken.createToken(user._id, ip, userAgent);
+
+  return { user: formatUser(user), token: accessToken, accessToken, refreshToken };
+}
+
+// ── Format User ───────────────────────────────────────────────────────────────
 
 function formatUser(user) {
   return {
     id:               user._id,
     email:            user.email,
-    name:             (user.name || (user.email ? user.email.split('@')[0] : 'User')).trim(),
-    // KHÔNG trả avatar URL — client luôn dùng chữ cái đầu
+    name:             user.name || (user.email ? user.email.split('@')[0] : 'User'),
     authProvider:     user.authProvider || 'local',
     role:             user.role || 'user',
     plan:             user.plan || 'free',
     isVerified:       user.isVerified,
+    twoFactorEnabled: !!user.twoFactorEnabled,
     cloudStorageUsed: user.cloudStorageUsed || 0,
     dailyUsage:       user.dailyUsage,
+    createdAt:        user.createdAt,
   };
 }
 
 module.exports = {
+  signAccessToken,
+  signToken,
+  generateTokens,
+  verifyAccessToken,
+  cookieOptions,
   register,
   login,
+  refreshAccessToken,
+  logout,
+  logoutAll,
   verifyEmail,
   forgotPassword,
   resetPassword,
-  refreshAccessToken,
-  invalidateRefreshToken,
+  setup2FA,
+  verify2FA,
+  disable2FA,
+  completeLogin2FA,
   formatUser,
-  generateTokens,
-  signToken,
 };

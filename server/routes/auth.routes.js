@@ -7,8 +7,9 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const GitHubStrategy = require('passport-github2').Strategy;
 const { body, validationResult } = require('express-validator');
-const authSvc = require('../services/auth.service');
-const User    = require('../models/User');
+const authSvc      = require('../services/auth.service');
+const User         = require('../models/User');
+const RefreshToken = require('../models/RefreshToken');
 const { requireAuth } = require('../middleware/auth');
 const { loginRateLimit, registerRateLimit, forgotPasswordRateLimit } = require('../middleware/rateLimit');
 
@@ -26,13 +27,12 @@ function getClientUrl(req) {
   return (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
 }
 
-const setCookie = (res, token) => {
-  res.cookie('token', token, {
-    httpOnly: true,
-    secure:   process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge:   7 * 24 * 60 * 60 * 1000,
-  });
+const setCookies = (res, accessToken, refreshToken) => {
+  res.cookie('token', accessToken, authSvc.cookieOptions(15 * 60 * 1000));
+  res.cookie('accessToken', accessToken, authSvc.cookieOptions(15 * 60 * 1000));
+  if (refreshToken) {
+    res.cookie('refreshToken', refreshToken, authSvc.cookieOptions(7 * 24 * 60 * 60 * 1000));
+  }
 };
 
 const validate = validations => async (req, res, next) => {
@@ -44,6 +44,7 @@ const validate = validations => async (req, res, next) => {
   next();
 };
 
+// ── Google OAuth Strategy ─────────────────────────────────────────────────────
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   passport.use(new GoogleStrategy(
     {
@@ -85,6 +86,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   ));
 }
 
+// ── GitHub OAuth Strategy ─────────────────────────────────────────────────────
 if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
   passport.use(new GitHubStrategy(
     {
@@ -137,6 +139,7 @@ function checkTelegramAuth(data, botToken) {
   return hmac === hash;
 }
 
+// ── Google Routes ─────────────────────────────────────────────────────────────
 router.get('/google', (req, res, next) => {
   const clientUrl = getClientUrl(req);
   if (!process.env.GOOGLE_CLIENT_ID) {
@@ -150,14 +153,16 @@ router.get('/google/callback',
     const clientUrl = getClientUrl(req);
     passport.authenticate('google', { session: false, failureRedirect: clientUrl + '/login?error=google_failed' })(req, res, next);
   },
-  (req, res) => {
+  async (req, res) => {
     const clientUrl = getClientUrl(req);
-    const token = authSvc.signToken(req.user._id);
-    setCookie(res, token);
+    const token = authSvc.signAccessToken(req.user._id);
+    const refreshToken = await RefreshToken.createToken(req.user._id, req.ip, req.headers['user-agent']);
+    setCookies(res, token, refreshToken);
     res.redirect(`${clientUrl}/dashboard?token=${token}`);
   }
 );
 
+// ── GitHub Routes ─────────────────────────────────────────────────────────────
 router.get('/github', (req, res, next) => {
   const clientUrl = getClientUrl(req);
   if (!process.env.GITHUB_CLIENT_ID) {
@@ -171,14 +176,16 @@ router.get('/github/callback',
     const clientUrl = getClientUrl(req);
     passport.authenticate('github', { session: false, failureRedirect: clientUrl + '/login?error=github_failed' })(req, res, next);
   },
-  (req, res) => {
+  async (req, res) => {
     const clientUrl = getClientUrl(req);
-    const token = authSvc.signToken(req.user._id);
-    setCookie(res, token);
+    const token = authSvc.signAccessToken(req.user._id);
+    const refreshToken = await RefreshToken.createToken(req.user._id, req.ip, req.headers['user-agent']);
+    setCookies(res, token, refreshToken);
     res.redirect(`${clientUrl}/dashboard?token=${token}`);
   }
 );
 
+// ── Telegram Routes ───────────────────────────────────────────────────────────
 router.get('/telegram/callback', async (req, res) => {
   const clientUrl = getClientUrl(req);
   try {
@@ -213,8 +220,9 @@ router.get('/telegram/callback', async (req, res) => {
       });
     }
 
-    const token = authSvc.signToken(user._id);
-    setCookie(res, token);
+    const token = authSvc.signAccessToken(user._id);
+    const refreshToken = await RefreshToken.createToken(user._id, req.ip, req.headers['user-agent']);
+    setCookies(res, token, refreshToken);
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -238,14 +246,20 @@ router.get('/telegram/callback', async (req, res) => {
   }
 });
 
+// ── Standard Authentication ───────────────────────────────────────────────────
+
 router.post('/register', registerRateLimit, validate([
   body('email').isEmail().normalizeEmail().withMessage('Email không hợp lệ'),
   body('password').isLength({ min: 6 }).withMessage('Mật khẩu tối thiểu 6 ký tự'),
   body('name').optional().trim().isLength({ max: 60 }).withMessage('Tên quá dài'),
 ]), async (req, res) => {
   try {
-    const result = await authSvc.register(req.body);
-    setCookie(res, result.token);
+    const result = await authSvc.register({
+      ...req.body,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+    setCookies(res, result.accessToken, result.refreshToken);
     res.status(201).json({ success: true, ...result });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -257,38 +271,68 @@ router.post('/login', loginRateLimit, validate([
   body('password').notEmpty().withMessage('Chưa nhập mật khẩu'),
 ]), async (req, res) => {
   try {
-    const result = await authSvc.login(req.body);
-    setCookie(res, result.token);
+    const result = await authSvc.login({
+      ...req.body,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    if (result.requires2FA) {
+      return res.json({ success: true, ...result });
+    }
+
+    setCookies(res, result.accessToken, result.refreshToken);
     res.json({ success: true, ...result });
   } catch (err) {
     res.status(401).json({ error: err.message });
   }
 });
 
-router.post('/logout', requireAuth, async (req, res) => {
+router.post('/logout', async (req, res) => {
   try {
-    // Xóa refresh token khỏi DB để vô hiệu hóa phiên từ server
-    if (req.user?._id) {
-      await authSvc.invalidateRefreshToken(req.user._id);
+    const rawRefreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+    const rawAccessToken = req.cookies?.accessToken || req.cookies?.token || req.headers.authorization?.replace(/^Bearer\s+/i, '');
+    let userId = null;
+    if (rawAccessToken) {
+      try {
+        const decoded = authSvc.verifyAccessToken(rawAccessToken);
+        userId = decoded.userId || decoded.id;
+      } catch (_) {}
     }
+    await authSvc.logout(userId, rawRefreshToken);
   } catch (_) {}
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-  });
+
+  res.clearCookie('token', authSvc.cookieOptions());
+  res.clearCookie('accessToken', authSvc.cookieOptions());
+  res.clearCookie('refreshToken', authSvc.cookieOptions());
   res.json({ success: true, message: 'Đã đăng xuất' });
+});
+
+router.post('/logout-all', requireAuth, async (req, res) => {
+  try {
+    await authSvc.logoutAll(req.user._id);
+    res.clearCookie('token', authSvc.cookieOptions());
+    res.clearCookie('accessToken', authSvc.cookieOptions());
+    res.clearCookie('refreshToken', authSvc.cookieOptions());
+    res.json({ success: true, message: 'Đã đăng xuất khỏi tất cả thiết bị' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/refresh', async (req, res) => {
   try {
-    const { refreshToken } = req.body;
-    if (!refreshToken) return res.status(400).json({ error: 'Thiếu refresh token' });
-    const result = await authSvc.refreshAccessToken(refreshToken);
-    setCookie(res, result.token);
+    const rawRefreshToken = req.cookies?.refreshToken || req.body.refreshToken;
+    if (!rawRefreshToken) return res.status(401).json({ error: 'Thiếu refresh token', code: 'NO_REFRESH' });
+
+    const result = await authSvc.refreshAccessToken(rawRefreshToken, req.ip, req.headers['user-agent']);
+    setCookies(res, result.accessToken, result.refreshToken);
     res.json({ success: true, ...result });
   } catch (err) {
-    res.status(401).json({ error: err.message });
+    res.clearCookie('token', authSvc.cookieOptions());
+    res.clearCookie('accessToken', authSvc.cookieOptions());
+    res.clearCookie('refreshToken', authSvc.cookieOptions());
+    res.status(401).json({ error: err.message, code: 'REFRESH_FAILED' });
   }
 });
 
@@ -296,10 +340,9 @@ router.post('/forgot-password', forgotPasswordRateLimit, validate([
   body('email').isEmail().normalizeEmail().withMessage('Email không hợp lệ'),
 ]), async (req, res) => {
   try {
-    const result = await authSvc.forgotPassword(req.body.email);
+    const result = await authSvc.forgotPassword(req.body.email, req.ip);
     res.json(result);
   } catch (_) {
-    // Không tiết lộ lỗi cụ thể
     res.json({ message: 'Nếu email tồn tại, link đặt lại mật khẩu đã được gửi.' });
   }
 });
@@ -309,7 +352,7 @@ router.post('/reset-password', validate([
   body('password').isLength({ min: 6 }).withMessage('Mật khẩu mới tối thiểu 6 ký tự'),
 ]), async (req, res) => {
   try {
-    const result = await authSvc.resetPassword(req.body.token, req.body.password);
+    const result = await authSvc.resetPassword(req.body.token, req.body.password, req.ip);
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -324,6 +367,80 @@ router.get('/verify-email', async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// ── Active Sessions Management ────────────────────────────────────────────────
+
+router.get('/sessions', requireAuth, async (req, res) => {
+  try {
+    const sessions = await RefreshToken.find({
+      userId: req.user._id,
+      revokedAt: null,
+      expiresAt: { $gt: new Date() },
+    }).select('tokenPrefix ip userAgent createdAt expiresAt').sort({ createdAt: -1 }).lean();
+
+    res.json({ success: true, sessions });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/sessions/:id', requireAuth, async (req, res) => {
+  try {
+    await RefreshToken.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      { revokedAt: new Date(), revokeReason: 'manual_revoke' }
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 2FA TOTP Endpoints ────────────────────────────────────────────────────────
+
+router.post('/2fa/setup', requireAuth, async (req, res) => {
+  try {
+    const data = await authSvc.setup2FA(req.user._id);
+    res.json({ success: true, ...data });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/2fa/verify', requireAuth, async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: 'Thiếu mã OTP' });
+    await authSvc.verify2FA(req.user._id, token, true);
+    res.json({ success: true, message: 'Xác thực hai yếu tố (2FA) đã được kích hoạt thành công!' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/2fa/disable', requireAuth, async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) return res.status(400).json({ error: 'Thiếu mật khẩu xác nhận' });
+    await authSvc.disable2FA(req.user._id, password);
+    res.json({ success: true, message: 'Xác thực hai yếu tố (2FA) đã được tắt' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/2fa/complete', async (req, res) => {
+  try {
+    const { userId, challenge, token } = req.body;
+    if (!userId || !challenge || !token) return res.status(400).json({ error: 'Thiếu thông tin xác thực 2FA' });
+
+    const result = await authSvc.completeLogin2FA(userId, challenge, token, req.ip, req.headers['user-agent']);
+    setCookies(res, result.accessToken, result.refreshToken);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(401).json({ error: err.message });
   }
 });
 

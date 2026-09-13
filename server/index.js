@@ -1,5 +1,3 @@
-const multer = require('multer');
-const passport = require('passport');
 'use strict';
 
 require('dotenv').config();
@@ -17,12 +15,19 @@ const path = require('path');
 const fs = require('fs');
 const winston = require('winston');
 const cron = require('node-cron');
+const multer = require('multer');
+const passport = require('passport');
+const mongoSanitize = require('express-mongo-sanitize');
+const hpp = require('hpp');
+const slowDown = require('express-slow-down');
 const { execSync } = require('child_process');
 
-const { authConn, dataConn, isAuthConnected, isDataConnected } = require('./config/database');
+const { authDB, dataDB, isAuthConnected, isDataConnected } = require('./config/database');
+const AuditLog = require('./models/AuditLog');
 const { initSocket } = require('./socket');
-const { cleanDirectory, cleanupTempFiles } = require('./middleware/cleanup');
+const { cleanupTempFiles } = require('./middleware/cleanup');
 const { apiRateLimit, toolRateLimit, uploadRateLimit } = require('./middleware/rateLimit');
+const { sanitizeBody, detectSuspicious, validateUploadedFiles } = require('./middleware/security');
 
 // ── Winston Logger ────────────────────────────────────────────────────────────
 const logger = winston.createLogger({
@@ -48,7 +53,7 @@ const app = express();
 // Trust proxy (Render, Railway, Heroku đều dùng 1 hop reverse proxy) — PHẢI đặt trước rate limiter
 app.set('trust proxy', 1);
 const server = http.createServer(app);
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 // Khởi tạo Socket.io
 initSocket(server);
@@ -59,41 +64,88 @@ initSocket(server);
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 });
 
-// ── Middlewares Toàn Cục ──────────────────────────────────────────────────────
+// ── Middlewares Bảo Mật Toàn Cục ──────────────────────────────────────────────
+
+// 1. Security Headers (Helmet + HSTS + CSP an toàn)
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
-  contentSecurityPolicy: false, // Disable CSP để không chặn fonts/scripts bên ngoài
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc:  ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com", "https://cdn.jsdelivr.net"],
+      styleSrc:   ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc:    ["'self'", "https://fonts.gstatic.com", "data:"],
+      imgSrc:     ["'self'", "data:", "blob:", "https:", "http:"],
+      connectSrc: ["'self'", "https://generativelanguage.googleapis.com", "https://api.groq.com", "https://openrouter.ai", "wss:", "ws:", "*"],
+      workerSrc:  ["'self'", "blob:", "https://cdnjs.cloudflare.com"],
+      frameSrc:   ["'self'"],
+      objectSrc:  ["'none'"],
+    },
+  },
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
 }));
 
-// Compression — mức 6 là điểm cân bằng tốc độ/kích thước tối ưu
+// 2. Compression — mức 6 là điểm cân bằng tốc độ/kích thước tối ưu
 app.use(compression({ level: 6, threshold: 1024 }));
 
+// 3. CORS — bảo vệ truy cập đa nguồn có xác thực
 app.use(cors({
   origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'x-api-key'],
 }));
 
-// Route Stripe webhook cần raw body — phải đặt TRƯỚC express.json()
+// 4. Route Stripe webhook cần raw body — phải đặt TRƯỚC express.json()
 app.use('/api/payment/webhook', express.raw({ type: 'application/json' }));
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// 5. Body Parsers với giới hạn kích thước payload an toàn
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: false, limit: '20mb' }));
 app.use(cookieParser());
 app.use(passport.initialize());
 
-// Cache-control headers cho static assets (tăng tốc đáng kể lần load 2+)
+// 6. NoSQL Injection Prevention (Lọc các toán tử $ trong request query & body)
+app.use(mongoSanitize({
+  replaceWith: '_',
+  onSanitize: ({ req, key }) => {
+    logger.warn(`[SECURITY] Phát hiện NoSQL Injection payload: ${key} từ IP: ${req.ip}`);
+    AuditLog.log({
+      action: 'security.nosql_injection_attempt',
+      severity: 'warning',
+      ip: req.ip,
+      meta: { key, path: req.path },
+    });
+  },
+}));
+
+// 7. HTTP Parameter Pollution (HPP) Prevention
+app.use(hpp({ whitelist: ['files', 'pages', 'format', 'quality', 'angle'] }));
+
+// 8. Custom Body Sanitization & Suspicious Request Detection
+app.use(sanitizeBody);
+app.use(detectSuspicious);
+
+// 9. Slow down sau 60 request liên tục trong 15 phút (tránh DDOS / Crawl)
+const speedLimiter = slowDown({
+  windowMs:   15 * 60 * 1000,
+  delayAfter: 60,
+  delayMs:    (hits) => (hits - 60) * 100,
+  validate:   { trustProxy: false, xForwardedForHeader: false, default: false },
+});
+app.use('/api/', speedLimiter);
+
+// 10. Cache-control headers cho static assets (tăng tốc đáng kể lần load 2+)
 app.use((req, res, next) => {
   if (req.url.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)(\?.*)?$/)) {
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable'); // 1 năm cho versioned assets
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable'); // 1 năm cho assets
   } else if (req.url.startsWith('/api/') && req.method === 'GET') {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   }
   next();
 });
 
-// Áp dụng Rate Limit chung cho toàn bộ API
+// 11. Áp dụng Rate Limit chung cho toàn bộ API
 app.use('/api', apiRateLimit);
 
 // ── Static Files ──────────────────────────────────────────────────────────────
@@ -102,28 +154,26 @@ app.use('/uploads', express.static(path.resolve('uploads'), { maxAge: '1h' }));
 
 // ── Routes ───────────────────────────────────────────────────────────────────
 // Auth & User & Billing
-// authRateLimit đã được áp dụng per-route (login/register có riêng loginRateLimit/registerRateLimit)
-// Không dùng authRateLimit ở đây nữa để tránh duplicate rate limit gây lỗi ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/user', require('./routes/user.routes'));
 app.use('/api/payment', require('./routes/payment.routes'));
 app.use('/api/apikey', require('./routes/apikey.routes'));
 app.use('/api/storage', require('./routes/storage.routes'));
 
-// Tool Routes (có gắn toolRateLimit để bảo vệ CPU)
-app.use('/api/pdf', toolRateLimit, require('./routes/pdf.routes'));
-app.use('/api/image', toolRateLimit, require('./routes/image.routes'));
-app.use('/api/office', toolRateLimit, require('./routes/office.routes'));
-app.use('/api/ocr', toolRateLimit, require('./routes/ocr.routes'));
-app.use('/api/archive', toolRateLimit, require('./routes/archive.routes'));
-app.use('/api/batch', toolRateLimit, require('./routes/batch.routes'));
-app.use('/api/qr', toolRateLimit, require('./routes/qr.routes'));
-app.use('/api/signature', toolRateLimit, require('./routes/signature.routes'));
-app.use('/api/ai', toolRateLimit, require('./routes/ai.routes'));
-app.use('/api/convert', toolRateLimit, require('./routes/convert.routes'));
-app.use('/api/creative', toolRateLimit, require('./routes/creative.routes'));
+// Tool Routes (có gắn toolRateLimit và validateUploadedFiles)
+app.use('/api/pdf', toolRateLimit, validateUploadedFiles, require('./routes/pdf.routes'));
+app.use('/api/image', toolRateLimit, validateUploadedFiles, require('./routes/image.routes'));
+app.use('/api/office', toolRateLimit, validateUploadedFiles, require('./routes/office.routes'));
+app.use('/api/ocr', toolRateLimit, validateUploadedFiles, require('./routes/ocr.routes'));
+app.use('/api/archive', toolRateLimit, validateUploadedFiles, require('./routes/archive.routes'));
+app.use('/api/batch', toolRateLimit, validateUploadedFiles, require('./routes/batch.routes'));
+app.use('/api/qr', toolRateLimit, validateUploadedFiles, require('./routes/qr.routes'));
+app.use('/api/signature', toolRateLimit, validateUploadedFiles, require('./routes/signature.routes'));
+app.use('/api/ai', toolRateLimit, validateUploadedFiles, require('./routes/ai.routes'));
+app.use('/api/convert', toolRateLimit, validateUploadedFiles, require('./routes/convert.routes'));
+app.use('/api/creative', toolRateLimit, validateUploadedFiles, require('./routes/creative.routes'));
 
-// Download file kết quả local an toàn
+// Download file kết quả local an toàn (chống Directory Traversal tuyệt đối)
 app.get('/api/download/:filename', (req, res) => {
   const safeName = path.basename(req.params.filename);
   const filePath = path.join(path.resolve('outputs'), safeName);
@@ -173,16 +223,15 @@ app.get('/api/health', (req, res) => {
     database: {
       authConnected: isAuthConnected(),
       dataConnected: isDataConnected(),
-      mode: process.env.MONGODB_DATA_URI ? 'Dual-Cluster (Separated DB)' : 'Single-Cluster (Unified DB)',
+      mode: process.env.DATA_DB_URI || process.env.MONGODB_DATA_URI ? 'Dual-Cluster (Separated DB)' : 'Single-Cluster (Unified DB)',
     },
   });
 });
 
-// Endpoint cực nhẹ cho ping — không check DB, không check system tools
+// Endpoint cực nhẹ cho ping
 app.get('/ping', (req, res) => res.send('pong'));
 
 // ── Self-Ping Keep Alive ──────────────────────────────────────────────────────
-// Tự ping chính mình mỗi 4 phút để server không bao giờ ngủ (Render, Railway free)
 const SELF_PING_INTERVAL = 4 * 60 * 1000; // 4 phút
 setInterval(() => {
   const url = process.env.SERVER_URL || `http://localhost:${PORT}`;
@@ -204,7 +253,7 @@ if (fs.existsSync(clientDist)) {
     res.send(`
       <div style="font-family: system-ui, sans-serif; background: #0a0a0f; color: #fff; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
         <h1 style="background: linear-gradient(to right, #ec4899, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 2.5rem; margin-bottom: 10px;">⚡ FileTools Pro Backend API</h1>
-        <p style="color: #94a3b8; max-width: 500px; margin-bottom: 25px;">Server backend đang chạy tại cổng 3002. Giao diện frontend Vite chạy tại cổng 5173.</p>
+        <p style="color: #94a3b8; max-width: 500px; margin-bottom: 25px;">Server backend đang chạy tại cổng ${PORT}. Giao diện frontend Vite chạy tại cổng 5173.</p>
         <a href="http://localhost:5173" style="background: linear-gradient(to right, #db2777, #9333ea); color: white; padding: 12px 24px; border-radius: 12px; text-decoration: none; font-weight: bold; box-shadow: 0 0 20px rgba(236,72,153,0.4);">Mở Giao Diện Web (localhost:5173) →</a>
       </div>
     `);
@@ -228,16 +277,27 @@ cron.schedule('*/30 * * * *', () => {
 app.use((err, req, res, next) => {
   logger.error(`${req.method} ${req.url} - ${err.message}`);
 
+  AuditLog.log({
+    userId: req.user?._id,
+    action: 'server.error',
+    severity: err.status >= 500 || !err.status ? 'critical' : 'warning',
+    ip: req.ip,
+    method: req.method,
+    path: req.path,
+    meta: { message: err.message, status: err.status || 500 },
+  });
+
   if (err instanceof multer.MulterError || err.name === 'MulterError') {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'Dung lượng file vượt quá giới hạn 100MB' });
+      return res.status(400).json({ error: 'Dung lượng file vượt quá giới hạn 100MB', code: 'FILE_TOO_LARGE' });
     }
-    return res.status(400).json({ error: `Lỗi file tải lên: ${err.message}` });
+    return res.status(400).json({ error: `Lỗi file tải lên: ${err.message}`, code: 'UPLOAD_ERROR' });
   }
 
   const status = err.status || err.statusCode || 500;
   res.status(status).json({
     error: err.message || 'Lỗi hệ thống máy chủ',
+    code: err.code || 'INTERNAL_ERROR',
     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
   });
 });

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { LogIn, UserPlus, Loader2, AlertCircle, CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react';
+import { LogIn, UserPlus, Loader2, AlertCircle, CheckCircle2, ArrowRight, ArrowLeft, ShieldCheck, KeyRound } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -17,6 +17,13 @@ export default function Auth({ defaultMode = 'login' }) {
   const [loginPassword, setLoginPassword] = useState('');
   const [loginLoading, setLoginLoading]   = useState(false);
   const [loginError, setLoginError]       = useState(null);
+
+  // 2FA Challenge state
+  const [twoFactorChallenge, setTwoFactorChallenge] = useState(null);
+  const [twoFactorUserId, setTwoFactorUserId]       = useState(null);
+  const [totpCode, setTotpCode]                     = useState('');
+  const [twoFactorLoading, setTwoFactorLoading]     = useState(false);
+  const [twoFactorError, setTwoFactorError]         = useState(null);
 
   // Register form state
   const [regName, setRegName]             = useState('');
@@ -37,6 +44,7 @@ export default function Auth({ defaultMode = 'login' }) {
     setLoginError(null);
     setRegError(null);
     setRegSuccess(null);
+    setTwoFactorChallenge(null);
     const newPath = targetIsRegister ? '/register' : '/login';
     window.history.replaceState(null, '', newPath);
   };
@@ -52,12 +60,39 @@ export default function Auth({ defaultMode = 'login' }) {
         password: loginPassword,
       }, { withCredentials: true });
 
+      if (data.requires2FA) {
+        setTwoFactorUserId(data.userId);
+        setTwoFactorChallenge(data.challenge);
+        return;
+      }
+
       login(data.user, data.token);
       navigate('/dashboard');
     } catch (err) {
       setLoginError(err.response?.data?.error || 'Đăng nhập thất bại. Vui lòng kiểm tra lại email/mật khẩu.');
     } finally {
       setLoginLoading(false);
+    }
+  };
+
+  const handle2FASubmit = async (e) => {
+    e.preventDefault();
+    setTwoFactorLoading(true);
+    setTwoFactorError(null);
+
+    try {
+      const { data } = await axios.post(`${API}/api/auth/2fa/complete`, {
+        userId: twoFactorUserId,
+        challenge: twoFactorChallenge,
+        token: totpCode.trim(),
+      }, { withCredentials: true });
+
+      login(data.user, data.token);
+      navigate('/dashboard');
+    } catch (err) {
+      setTwoFactorError(err.response?.data?.error || 'Mã xác thực 2FA không chính xác hoặc đã hết hạn.');
+    } finally {
+      setTwoFactorLoading(false);
     }
   };
 
@@ -87,7 +122,7 @@ export default function Auth({ defaultMode = 'login' }) {
   };
 
   const handleTelegramLogin = () => {
-    const botId = '8432535340'; // Numeric Bot ID from BotFather
+    const botId = '8432535340';
     const callbackUrl = `${API}/api/auth/telegram/callback`;
     const url = `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(window.location.origin)}&embed=1&request_access=write&return_to=${encodeURIComponent(callbackUrl)}`;
     window.open(
@@ -139,7 +174,7 @@ export default function Auth({ defaultMode = 'login' }) {
 
   return (
     <div className="w-full max-w-4xl mx-auto py-4">
-      {/* Mobile Mode Switcher (< md) */}
+      {/* Mobile Mode Switcher */}
       <div className="md:hidden mb-6 flex p-1.5 bg-black/40 border border-white/10 rounded-2xl backdrop-blur-xl">
         <button
           onClick={() => toggleMode(false)}
@@ -166,75 +201,135 @@ export default function Auth({ defaultMode = 'login' }) {
       {/* Main Container */}
       <div className="relative overflow-hidden rounded-3xl glass-panel shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/10 min-h-[620px] flex">
 
-        {/* 1. Left Section: Login Form (Fixed to Left 50% on Desktop) */}
+        {/* 1. Left Section: Login Form */}
         <div className={`w-full md:w-1/2 p-8 sm:p-10 flex flex-col justify-center transition-all duration-500 ${
           isRegister ? 'hidden md:flex opacity-30 pointer-events-none md:pointer-events-auto' : 'flex opacity-100'
         }`}>
           <div className="max-w-sm mx-auto w-full">
-            <h2 className="text-3xl font-extrabold text-gradient flex items-center gap-2.5 mb-2">
-              <LogIn size={26} className="text-pink-400" /> Đăng Nhập
-            </h2>
-            <p className="text-xs text-gray-400 mb-6">Chào mừng bạn quay lại với FileTools Pro!</p>
 
-            {(loginError || urlError) && (
-              <div className="mb-4 p-3 bg-red-950/50 border border-red-800/60 rounded-xl flex items-start gap-2.5 text-red-400 text-xs">
-                <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
-                <span>{loginError || urlError}</span>
+            {twoFactorChallenge ? (
+              // 2FA Verification View
+              <div className="space-y-4">
+                <div className="w-12 h-12 rounded-2xl bg-purple-950/80 border border-purple-500/50 flex items-center justify-center text-purple-400 mx-auto">
+                  <ShieldCheck size={26} />
+                </div>
+                <div className="text-center">
+                  <h2 className="text-2xl font-bold text-white">Xác thực 2 Bước (2FA)</h2>
+                  <p className="text-xs text-gray-400 mt-1">Nhập mã 6 chữ số từ ứng dụng Authenticator của bạn</p>
+                </div>
+
+                {twoFactorError && (
+                  <div className="p-3 bg-red-950/50 border border-red-800/60 rounded-xl flex items-start gap-2.5 text-red-400 text-xs">
+                    <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                    <span>{twoFactorError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handle2FASubmit} className="space-y-4">
+                  <div>
+                    <input
+                      type="text"
+                      maxLength="6"
+                      autoFocus
+                      value={totpCode}
+                      onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
+                      className="glass-input text-center text-2xl tracking-[0.5em] font-mono py-3"
+                      placeholder="000000"
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={twoFactorLoading || totpCode.length < 6}
+                    className="w-full bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl shadow-[0_0_20px_rgba(236,72,153,0.4)] flex items-center justify-center gap-2 text-sm transition-all disabled:opacity-50"
+                  >
+                    {twoFactorLoading ? <><Loader2 size={18} className="animate-spin" /> Đang xác thực...</> : 'Xác Nhận & Đăng Nhập'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTwoFactorChallenge(null)}
+                    className="w-full text-xs text-gray-400 hover:text-white py-1 transition-colors"
+                  >
+                    ← Quay lại đăng nhập
+                  </button>
+                </form>
               </div>
+            ) : (
+              // Normal Login View
+              <>
+                <h2 className="text-3xl font-extrabold text-gradient flex items-center gap-2.5 mb-2">
+                  <LogIn size={26} className="text-pink-400" /> Đăng Nhập
+                </h2>
+                <p className="text-xs text-gray-400 mb-6">Chào mừng bạn quay lại với FileTools Pro!</p>
+
+                {(loginError || urlError) && (
+                  <div className="mb-4 p-3 bg-red-950/50 border border-red-800/60 rounded-xl flex items-start gap-2.5 text-red-400 text-xs">
+                    <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                    <span>{loginError || urlError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-300 mb-1.5">Email</label>
+                    <input
+                      type="email"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      className="glass-input text-sm py-2.5"
+                      placeholder="name@company.com"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="text-xs font-medium text-gray-300">Mật khẩu</label>
+                      <Link to="/forgot-password" className="text-[11px] text-pink-400 hover:underline">
+                        Quên mật khẩu?
+                      </Link>
+                    </div>
+                    <input
+                      type="password"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      className="glass-input text-sm py-2.5"
+                      placeholder="••••••••"
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loginLoading}
+                    className="w-full mt-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl shadow-[0_0_20px_rgba(236,72,153,0.4)] flex items-center justify-center gap-2 text-sm transition-all disabled:opacity-50"
+                  >
+                    {loginLoading ? <><Loader2 size={18} className="animate-spin" /> Đang đăng nhập...</> : 'Đăng Nhập'}
+                  </button>
+                </form>
+
+                <div className="flex items-center gap-3 my-5">
+                  <div className="flex-1 h-px bg-white/10" />
+                  <span className="text-gray-400 text-[11px] uppercase font-medium">Hoặc tiếp tục với</span>
+                  <div className="flex-1 h-px bg-white/10" />
+                </div>
+
+                <SocialButtons />
+
+                <p className="mt-6 text-center text-xs text-gray-400 md:hidden">
+                  Chưa có tài khoản?{' '}
+                  <button onClick={() => toggleMode(true)} className="text-pink-400 hover:underline font-bold ml-1">
+                    Đăng ký ngay
+                  </button>
+                </p>
+              </>
             )}
-
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-300 mb-1.5">Email</label>
-                <input
-                  type="email"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  className="glass-input text-sm py-2.5"
-                  placeholder="name@company.com"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-300 mb-1.5">Mật khẩu</label>
-                <input
-                  type="password"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  className="glass-input text-sm py-2.5"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loginLoading}
-                className="w-full mt-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl shadow-[0_0_20px_rgba(236,72,153,0.4)] flex items-center justify-center gap-2 text-sm transition-all disabled:opacity-50"
-              >
-                {loginLoading ? <><Loader2 size={18} className="animate-spin" /> Đang đăng nhập...</> : 'Đăng Nhập'}
-              </button>
-            </form>
-
-            <div className="flex items-center gap-3 my-5">
-              <div className="flex-1 h-px bg-white/10" />
-              <span className="text-gray-400 text-[11px] uppercase font-medium">Hoặc tiếp tục với</span>
-              <div className="flex-1 h-px bg-white/10" />
-            </div>
-
-            <SocialButtons />
-
-            <p className="mt-6 text-center text-xs text-gray-400 md:hidden">
-              Chưa có tài khoản?{' '}
-              <button onClick={() => toggleMode(true)} className="text-pink-400 hover:underline font-bold ml-1">
-                Đăng ký ngay
-              </button>
-            </p>
           </div>
         </div>
 
-        {/* 2. Right Section: Register Form (Fixed to Right 50% on Desktop) */}
+        {/* 2. Right Section: Register Form */}
         <div className={`w-full md:w-1/2 p-8 sm:p-10 flex flex-col justify-center transition-all duration-500 ${
           !isRegister ? 'hidden md:flex opacity-30 pointer-events-none md:pointer-events-auto' : 'flex opacity-100'
         }`}>
@@ -258,9 +353,9 @@ export default function Auth({ defaultMode = 'login' }) {
               </div>
             )}
 
-            <form onSubmit={handleRegister} className="space-y-3.5">
+            <form onSubmit={handleRegister} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-300 mb-1">Họ và tên</label>
+                <label className="block text-xs font-medium text-gray-300 mb-1.5">Họ và tên</label>
                 <input
                   type="text"
                   value={regName}
@@ -272,7 +367,7 @@ export default function Auth({ defaultMode = 'login' }) {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-300 mb-1">Email</label>
+                <label className="block text-xs font-medium text-gray-300 mb-1.5">Email</label>
                 <input
                   type="email"
                   value={regEmail}
@@ -284,7 +379,7 @@ export default function Auth({ defaultMode = 'login' }) {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-300 mb-1">Mật khẩu</label>
+                <label className="block text-xs font-medium text-gray-300 mb-1.5">Mật khẩu</label>
                 <input
                   type="password"
                   value={regPassword}
@@ -301,19 +396,19 @@ export default function Auth({ defaultMode = 'login' }) {
                 disabled={regLoading}
                 className="w-full mt-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl shadow-[0_0_20px_rgba(236,72,153,0.4)] flex items-center justify-center gap-2 text-sm transition-all disabled:opacity-50"
               >
-                {regLoading ? <><Loader2 size={18} className="animate-spin" /> Đang tạo tài khoản...</> : 'Đăng Ký Miễn Phí'}
+                {regLoading ? <><Loader2 size={18} className="animate-spin" /> Đang tạo tài khoản...</> : 'Tạo Tài Khoản'}
               </button>
             </form>
 
-            <div className="flex items-center gap-3 my-4">
+            <div className="flex items-center gap-3 my-5">
               <div className="flex-1 h-px bg-white/10" />
-              <span className="text-gray-400 text-[11px] uppercase font-medium">Hoặc đăng ký bằng</span>
+              <span className="text-gray-400 text-[11px] uppercase font-medium">Hoặc tiếp tục với</span>
               <div className="flex-1 h-px bg-white/10" />
             </div>
 
             <SocialButtons />
 
-            <p className="mt-5 text-center text-xs text-gray-400 md:hidden">
+            <p className="mt-6 text-center text-xs text-gray-400 md:hidden">
               Đã có tài khoản?{' '}
               <button onClick={() => toggleMode(false)} className="text-pink-400 hover:underline font-bold ml-1">
                 Đăng nhập ngay
@@ -322,57 +417,40 @@ export default function Auth({ defaultMode = 'login' }) {
           </div>
         </div>
 
-        {/* 3. Sliding Overlay Panel (Desktop Only) */}
+        {/* 3. Sliding Overlay (Desktop Only >= md) */}
         <div
-          className={`hidden md:flex absolute top-0 bottom-0 w-1/2 z-30 transition-transform duration-700 cubic-bezier(0.4, 0, 0.2, 1) ${
-            isRegister ? 'translate-x-0' : 'translate-x-full'
+          className={`hidden md:flex absolute top-0 w-1/2 h-full bg-gradient-to-br from-pink-600 via-purple-700 to-indigo-900 z-20 transition-all duration-700 ease-in-out items-center justify-center text-center p-12 text-white shadow-2xl backdrop-blur-3xl ${
+            isRegister ? 'translate-x-0 left-0 rounded-r-3xl' : 'translate-x-full left-0 rounded-l-3xl'
           }`}
-          style={{ left: 0 }}
         >
-          <div className="w-full h-full bg-gradient-to-br from-purple-900/95 via-pink-900/90 to-black/95 backdrop-blur-3xl p-10 flex flex-col items-center justify-center text-center relative overflow-hidden border-x border-white/15 shadow-[0_0_30px_rgba(236,72,153,0.3)]">
-            
-            {/* Background glowing orbs */}
-            <div className="absolute -top-20 -left-20 w-60 h-60 bg-pink-500/20 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-20 -right-20 w-60 h-60 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
-
-            {/* Content for Register Mode (Overlay on Left, Prompting Login) */}
-            <div className={`transition-all duration-500 flex flex-col items-center max-w-xs ${
-              isRegister ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none absolute'
-            }`}>
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-white font-black text-2xl shadow-[0_0_20px_rgba(236,72,153,0.5)] mb-5">
-                F
-              </div>
-              <h3 className="text-3xl font-extrabold text-white mb-3 tracking-tight">Chào mừng trở lại!</h3>
-              <p className="text-gray-300 text-xs leading-relaxed mb-8">
-                Đã có tài khoản trên FileTools Pro? Đăng nhập để tiếp tục quản lý và xử lý tài liệu của bạn.
-              </p>
-              <button
-                onClick={() => toggleMode(false)}
-                className="glass-button px-8 py-3 rounded-xl font-bold text-xs flex items-center gap-2 hover:scale-105 transition-all text-white border-white/20 hover:border-pink-400 shadow-[0_0_20px_rgba(255,255,255,0.1)]"
-              >
-                <ArrowLeft size={16} /> Đăng nhập ngay
-              </button>
-            </div>
-
-            {/* Content for Login Mode (Overlay on Right, Prompting Register) */}
-            <div className={`transition-all duration-500 flex flex-col items-center max-w-xs ${
-              !isRegister ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none absolute'
-            }`}>
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-white font-black text-2xl shadow-[0_0_20px_rgba(236,72,153,0.5)] mb-5">
-                ✦
-              </div>
-              <h3 className="text-3xl font-extrabold text-white mb-3 tracking-tight">Hello, Friend!</h3>
-              <p className="text-gray-300 text-xs leading-relaxed mb-8">
-                Khám phá bộ công cụ xử lý file PDF, Convert, Ảnh và AI mạnh mẽ, miễn phí 100% không giới hạn.
-              </p>
-              <button
-                onClick={() => toggleMode(true)}
-                className="glass-button px-8 py-3 rounded-xl font-bold text-xs flex items-center gap-2 hover:scale-105 transition-all text-white border-white/20 hover:border-pink-400 shadow-[0_0_20px_rgba(255,255,255,0.1)]"
-              >
-                Tạo tài khoản mới <ArrowRight size={16} />
-              </button>
-            </div>
-
+          <div className="space-y-6 max-w-xs">
+            {isRegister ? (
+              <>
+                <h3 className="text-3xl font-black tracking-tight">Đã Có Tài Khoản?</h3>
+                <p className="text-sm text-pink-100/90 leading-relaxed">
+                  Đăng nhập để tiếp tục làm việc với các file của bạn và tận hưởng tính năng Pro!
+                </p>
+                <button
+                  onClick={() => toggleMode(false)}
+                  className="px-8 py-3 rounded-xl bg-white text-purple-950 font-extrabold hover:bg-white/90 transition-all shadow-xl hover:scale-105 active:scale-95 text-sm flex items-center justify-center gap-2 mx-auto"
+                >
+                  <ArrowLeft size={16} /> Đăng Nhập Ngay
+                </button>
+              </>
+            ) : (
+              <>
+                <h3 className="text-3xl font-black tracking-tight">Chào Bạn Mới!</h3>
+                <p className="text-sm text-pink-100/90 leading-relaxed">
+                  Tạo tài khoản miễn phí để mở khóa xử lý hàng loạt, lưu trữ đám mây và bảo vệ file.
+                </p>
+                <button
+                  onClick={() => toggleMode(true)}
+                  className="px-8 py-3 rounded-xl bg-white text-purple-950 font-extrabold hover:bg-white/90 transition-all shadow-xl hover:scale-105 active:scale-95 text-sm flex items-center justify-center gap-2 mx-auto"
+                >
+                  Đăng Ký Ngay <ArrowRight size={16} />
+                </button>
+              </>
+            )}
           </div>
         </div>
 

@@ -2,65 +2,77 @@
 
 const mongoose = require('mongoose');
 
-const connectionOptions = {
-  maxPoolSize:          10,   // Tối đa 10 connection song song
-  minPoolSize:          2,    // Giữ tối thiểu 2 connection sẵn sàng
-  serverSelectionTimeoutMS: 5000,  // Timeout nếu không chọn được server sau 5s
-  socketTimeoutMS:      45000,     // Đóng socket idle sau 45s
-  heartbeatFrequencyMS: 10000,     // Ping MongoDB mỗi 10s để giữ kết nối
-  maxIdleTimeMS:        30000,     // Đóng connection idle sau 30s
+const DB_OPTIONS = {
+  maxPoolSize:              10,
+  minPoolSize:              2,
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS:          45000,
+  heartbeatFrequencyMS:     10000,
+  maxIdleTimeMS:            30000,
 };
 
-// ── 1. Cluster 0: AUTH & SECURITY DATABASE ────────────────────────────────────
-// Lưu trữ: User, Authentication, Hash Password, Token, Role, Subscription
-const authUri = process.env.MONGODB_AUTH_URI || process.env.MONGODB_URI;
-let authConn;
+// ── 1. AUTH & SECURITY DATABASE (Cluster 0) ──────────────────────────────────
+// Lưu trữ: User, RefreshToken, LoginAttempt, ApiKey (Dữ liệu xác thực & bảo mật)
+const authUri = process.env.AUTH_DB_URI || process.env.MONGODB_AUTH_URI || process.env.MONGODB_URI;
+let authDB;
 
 if (authUri) {
-  authConn = mongoose.createConnection(authUri, connectionOptions);
-  authConn.on('connected', () => {
-    console.log('🔒 [DB-Cluster-0] Auth & Security Database đã kết nối thành công');
+  authDB = mongoose.createConnection(authUri, {
+    ...DB_OPTIONS,
+    maxPoolSize: 5,
   });
-  authConn.on('error', (err) => {
-    console.error('❌ [DB-Cluster-0] Lỗi kết nối Auth Database:', err.message);
-  });
-  authConn.on('disconnected', () => {
-    console.warn('⚠️ [DB-Cluster-0] Auth Database mất kết nối, đang thử lại...');
-  });
+  authDB.on('connected',    () => console.log('🔒 [AuthDB] Đã kết nối Auth & Security Database'));
+  authDB.on('disconnected', () => console.warn('⚠️ [AuthDB] Auth Database mất kết nối, đang thử lại...'));
+  authDB.on('error',        (err) => console.error('❌ [AuthDB] Lỗi kết nối Auth Database:', err.message));
 } else {
-  authConn = mongoose.createConnection();
-  console.warn('⚠️ [DB-Cluster-0] Chưa cấu hình MONGODB_AUTH_URI hoặc MONGODB_URI trong .env');
+  authDB = mongoose.createConnection();
+  console.warn('⚠️ [AuthDB] Chưa cấu hình AUTH_DB_URI hoặc MONGODB_AUTH_URI');
 }
 
-// ── 2. Cluster 1: DATA & PROCESSING DATABASE ──────────────────────────────────
-// Lưu trữ: FileRecord, Cloud Uploads, Storage Metadata, ApiKey, Usage Logs
-const dataUri = process.env.MONGODB_DATA_URI || authUri;
-let dataConn;
+// ── 2. DATA & PROCESSING DATABASE (Cluster 1) ────────────────────────────────
+// Lưu trữ: FileRecord, AuditLog, Processing History (Dữ liệu xử lý file & logs)
+const dataUri = process.env.DATA_DB_URI || process.env.MONGODB_DATA_URI || authUri;
+let dataDB;
 
 if (dataUri) {
-  // Nếu dataUri giống authUri thì dùng luôn authConn để tối ưu connection
-  if (dataUri === authUri && authConn) {
-    dataConn = authConn;
+  if (dataUri === authUri && authDB) {
+    dataDB = authDB;
   } else {
-    dataConn = mongoose.createConnection(dataUri, connectionOptions);
-    dataConn.on('connected', () => {
-      console.log('📦 [DB-Cluster-1] Data & Storage Database đã kết nối thành công');
+    dataDB = mongoose.createConnection(dataUri, {
+      ...DB_OPTIONS,
+      maxPoolSize: 15,
     });
-    dataConn.on('error', (err) => {
-      console.error('❌ [DB-Cluster-1] Lỗi kết nối Data Database:', err.message);
-    });
-    dataConn.on('disconnected', () => {
-      console.warn('⚠️ [DB-Cluster-1] Data Database mất kết nối, đang thử lại...');
-    });
+    dataDB.on('connected',    () => console.log('📦 [DataDB] Đã kết nối Data & Processing Database'));
+    dataDB.on('disconnected', () => console.warn('⚠️ [DataDB] Data Database mất kết nối, đang thử lại...'));
+    dataDB.on('error',        (err) => console.error('❌ [DataDB] Lỗi kết nối Data Database:', err.message));
   }
 } else {
-  dataConn = mongoose.createConnection();
-  console.warn('⚠️ [DB-Cluster-1] Chưa cấu hình MONGODB_DATA_URI trong .env');
+  dataDB = mongoose.createConnection();
+  console.warn('⚠️ [DataDB] Chưa cấu hình DATA_DB_URI hoặc MONGODB_DATA_URI');
 }
 
+// ── Graceful Shutdown ────────────────────────────────────────────────────────
+async function closeConnections() {
+  try {
+    const promises = [];
+    if (authDB && authDB.readyState !== 0) promises.push(authDB.close());
+    if (dataDB && dataDB !== authDB && dataDB.readyState !== 0) promises.push(dataDB.close());
+    await Promise.all(promises);
+    console.log('✅ Đã đóng an toàn tất cả DB connections');
+  } catch (err) {
+    console.error('Lỗi khi đóng DB connections:', err.message);
+  }
+}
+
+process.on('SIGINT',  () => closeConnections().then(() => process.exit(0)));
+process.on('SIGTERM', () => closeConnections().then(() => process.exit(0)));
+
 module.exports = {
-  authConn,
-  dataConn,
-  isAuthConnected: () => authConn && authConn.readyState === 1,
-  isDataConnected: () => dataConn && dataConn.readyState === 1,
+  authDB,
+  dataDB,
+  authConn: authDB,
+  dataConn: dataDB,
+  isAuthConnected: () => authDB && authDB.readyState === 1,
+  isDataConnected: () => dataDB && dataDB.readyState === 1,
+  closeConnections,
 };

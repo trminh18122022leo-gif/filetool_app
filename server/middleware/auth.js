@@ -1,52 +1,56 @@
 'use strict';
 
-const jwt      = require('jsonwebtoken');
-const User     = require('../models/User');
+const authSvc = require('../services/auth.service');
+const User    = require('../models/User');
 const { isAuthConnected } = require('../config/database');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_dev_only_DO_NOT_USE_IN_PROD';
 
 /**
  * Middleware bắt buộc phải đăng nhập.
+ * Hỗ trợ Token trong Cookie (accessToken / token) hoặc Header (Authorization: Bearer ...)
  */
 async function requireAuth(req, res, next) {
   try {
     const rawToken =
+      req.cookies?.accessToken ||
       req.cookies?.token ||
       req.headers.authorization?.replace(/^Bearer\s+/i, '');
 
     if (!rawToken) {
-      return res.status(401).json({ error: 'Chưa đăng nhập' });
+      return res.status(401).json({ error: 'Chưa đăng nhập', code: 'NO_TOKEN' });
     }
 
     let decoded;
     try {
-      decoded = jwt.verify(rawToken, JWT_SECRET);
+      decoded = authSvc.verifyAccessToken(rawToken);
     } catch (jwtErr) {
-      return res.status(401).json({ error: 'Token không hợp lệ hoặc đã hết hạn' });
+      if (jwtErr.name === 'TokenExpiredError') {
+        return res.status(401).json({ error: 'Phiên đăng nhập đã hết hạn', code: 'TOKEN_EXPIRED' });
+      }
+      return res.status(401).json({ error: 'Token không hợp lệ', code: 'INVALID_TOKEN' });
     }
 
-    if (isAuthConnected()) {
-      const user = await User.findById(decoded.id).select('-password -refreshToken -verifyToken -resetPasswordToken');
-      if (!user) return res.status(401).json({ error: 'Tài khoản không tồn tại' });
+    const userId = decoded.userId || decoded.id;
 
-      // Nếu user đổi mật khẩu SAU khi token được cấp → block token cũ
+    if (isAuthConnected()) {
+      const user = await User.findById(userId).select('-password -verifyToken -resetPasswordToken -twoFactorSecret -twoFactorTempSecret');
+      if (!user) return res.status(401).json({ error: 'Tài khoản không tồn tại', code: 'USER_NOT_FOUND' });
+
+      // Nếu user đổi mật khẩu SAU khi token được cấp -> block token cũ
       if (user.passwordChangedAt && decoded.iat) {
         const changedAt = Math.floor(user.passwordChangedAt.getTime() / 1000);
         if (decoded.iat < changedAt) {
-          return res.status(401).json({ error: 'Mật khẩu đã được thay đổi. Vui lòng đăng nhập lại' });
+          return res.status(401).json({ error: 'Mật khẩu đã được thay đổi. Vui lòng đăng nhập lại', code: 'PASSWORD_CHANGED' });
         }
       }
 
       req.user = user;
     } else {
-      // DB chưa kết nối — chỉ cho qua với info từ token (dev fallback)
-      req.user = { _id: decoded.id, email: decoded.email, role: 'user', plan: 'pro' };
+      req.user = { _id: userId, email: decoded.email, role: 'user', plan: 'pro' };
     }
 
     next();
   } catch (err) {
-    return res.status(401).json({ error: 'Xác thực thất bại' });
+    return res.status(401).json({ error: 'Xác thực thất bại', code: 'AUTH_FAILED' });
   }
 }
 
@@ -56,56 +60,57 @@ async function requireAuth(req, res, next) {
 async function optionalAuth(req, res, next) {
   try {
     const rawToken =
+      req.cookies?.accessToken ||
       req.cookies?.token ||
       req.headers.authorization?.replace(/^Bearer\s+/i, '');
 
     if (rawToken) {
-      const decoded = jwt.verify(rawToken, JWT_SECRET);
+      const decoded = authSvc.verifyAccessToken(rawToken);
+      const userId  = decoded.userId || decoded.id;
       if (isAuthConnected()) {
-        const user = await User.findById(decoded.id).select('-password -refreshToken');
+        const user = await User.findById(userId).select('-password -verifyToken -resetPasswordToken -twoFactorSecret');
         if (user) {
           if (user.passwordChangedAt && decoded.iat) {
             const changedAt = Math.floor(user.passwordChangedAt.getTime() / 1000);
-            if (decoded.iat < changedAt) {
-              return next(); // Token cũ → bỏ qua, không gắn user
-            }
+            if (decoded.iat < changedAt) return next();
           }
           req.user = user;
         }
       } else {
-        req.user = { _id: decoded.id, email: decoded.email, role: 'user', plan: 'pro' };
+        req.user = { _id: userId, email: decoded.email, role: 'user', plan: 'pro' };
       }
     }
-  } catch (_) {
-    // Token lỗi → bỏ qua, không crash
-  }
+  } catch (_) {}
   next();
 }
 
 /**
- * Kiểm tra quyền role tối thiểu (vd: requireRole('admin')).
+ * Kiểm tra quyền role (vd: requireRole('admin')).
  */
 function requireRole(role) {
   return (req, res, next) => {
     if (!req.user || req.user.role !== role) {
-      return res.status(403).json({ error: 'Không có quyền truy cập' });
+      return res.status(403).json({ error: 'Không có quyền truy cập', code: 'FORBIDDEN' });
     }
     next();
   };
 }
 
 /**
- * Kiểm tra gói tối thiểu (vd: requirePlan('pro')).
+ * Kiểm tra gói tối thiểu (vd: requirePlan('pro', 'business')).
  */
-function requirePlan(minPlan) {
+function requirePlan(...minPlans) {
   const ranks = { free: 0, pro: 1, business: 2 };
   return (req, res, next) => {
-    const userPlan = req.user?.plan || 'free';
-    if ((ranks[userPlan] ?? 0) < (ranks[minPlan] ?? 0)) {
+    if (!req.user) return res.status(401).json({ error: 'Cần đăng nhập', code: 'UNAUTHENTICATED' });
+    const userPlan = req.user.plan || 'free';
+    const hasAccess = minPlans.some(p => (ranks[userPlan] ?? 0) >= (ranks[p] ?? 0));
+    if (!hasAccess) {
       return res.status(403).json({
-        error: `Tính năng yêu cầu gói ${minPlan.toUpperCase()} trở lên`,
+        error: `Tính năng yêu cầu gói ${minPlans.join(' hoặc ').toUpperCase()} trở lên`,
+        code: 'INSUFFICIENT_PLAN',
         currentPlan: userPlan,
-        requiredPlan: minPlan,
+        requiredPlans: minPlans,
         upgradeUrl: '/pricing',
       });
     }
@@ -129,4 +134,10 @@ function freeModeUpgrade(req, res, next) {
   next();
 }
 
-module.exports = { freeModeUpgrade, requireAuth, optionalAuth, requireRole, requirePlan };
+module.exports = {
+  requireAuth,
+  optionalAuth,
+  requireRole,
+  requirePlan,
+  freeModeUpgrade,
+};

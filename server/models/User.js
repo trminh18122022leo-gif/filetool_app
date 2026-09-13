@@ -2,7 +2,7 @@
 
 const mongoose = require('mongoose');
 const bcrypt   = require('bcryptjs');
-const { authConn } = require('../config/database');
+const { authDB } = require('../config/database');
 
 const userSchema = new mongoose.Schema({
   email: {
@@ -85,14 +85,43 @@ const userSchema = new mongoose.Schema({
   resetPasswordToken: String,
   resetPasswordExpires: Date,
   refreshToken:       String,
-  passwordChangedAt:  Date,   // Dùng để invalidate JWT cũ sau khi đổi mật khẩu
+  passwordChangedAt:  Date,
+
+  // ── 2FA TOTP Fields ────────────────────────────────────────────────────────
+  twoFactorEnabled: {
+    type:    Boolean,
+    default: false,
+  },
+  twoFactorSecret: {
+    type:    String,
+    select:  false,
+    default: null,
+  },
+  twoFactorTempSecret: {
+    type:    String,
+    select:  false,
+    default: null,
+  },
+  twoFactorChallenge: {
+    type:    String,
+    default: null,
+  },
+  twoFactorChallengeExpiry: {
+    type:    Date,
+    default: null,
+  },
+  lastLogin: {
+    type:    Date,
+    default: null,
+  },
 }, {
   timestamps: true,
 });
 
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password') || !this.password) return next();
-  this.password = await bcrypt.hash(this.password, 12);
+  const ROUNDS = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
+  this.password = await bcrypt.hash(this.password, ROUNDS);
   next();
 });
 
@@ -107,10 +136,26 @@ userSchema.methods.isPlanActive = function() {
   return new Date() < this.planExpiresAt;
 };
 
-// ── Indexes để tăng tốc độ truy vấn ──────────────────────────────────────────
-userSchema.index({ resetPasswordToken: 1 }, { sparse: true, expireAfterSeconds: 3600 }); // Auto-expire reset tokens
-userSchema.index({ verifyToken: 1 },        { sparse: true }); // Email verify lookup
-userSchema.index({ plan: 1, planExpiresAt: 1 }); // Plan expiry checks
-userSchema.index({ createdAt: -1 });         // Sort by newest user
+userSchema.methods.toPublic = function() {
+  return {
+    id:               this._id,
+    email:            this.email,
+    name:             this.name,
+    authProvider:     this.authProvider,
+    role:             this.role,
+    plan:             this.plan,
+    isVerified:       this.isVerified,
+    twoFactorEnabled: this.twoFactorEnabled,
+    cloudStorageUsed: this.cloudStorageUsed || 0,
+    dailyUsage:       this.dailyUsage,
+    createdAt:        this.createdAt,
+  };
+};
 
-module.exports = authConn.model('User', userSchema);
+// ── Indexes để tăng tốc độ truy vấn ──────────────────────────────────────────
+userSchema.index({ resetPasswordToken: 1 }, { sparse: true, expireAfterSeconds: 3600 });
+userSchema.index({ verifyToken: 1 },        { sparse: true });
+userSchema.index({ plan: 1, planExpiresAt: 1 });
+userSchema.index({ createdAt: -1 });
+
+module.exports = authDB.model('User', userSchema);

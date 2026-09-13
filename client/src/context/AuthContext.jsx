@@ -29,6 +29,32 @@ export function AuthProvider({ children }) {
 
   const [loading, setLoading] = useState(true);
 
+  const refreshSession = async () => {
+    try {
+      const res = await fetch(`${API}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const newToken = data.accessToken || data.token;
+        if (newToken) {
+          localStorage.setItem('token', newToken);
+          setToken(newToken);
+          if (data.user) {
+            setUser(data.user);
+            localStorage.setItem('user', JSON.stringify(data.user));
+          }
+          return newToken;
+        }
+      }
+    } catch (err) {
+      console.warn('[auth] Không thể làm mới token:', err);
+    }
+    return null;
+  };
+
   // 3. Load / verify user info khi app khởi động hoặc khi token thay đổi
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -43,6 +69,7 @@ export function AuthProvider({ children }) {
 
       fetch(`${API}/api/auth/me`, {
         headers: { Authorization: `Bearer ${activeToken}` },
+        credentials: 'include',
       })
         .then(async (r) => {
           if (r.ok) {
@@ -52,22 +79,30 @@ export function AuthProvider({ children }) {
               localStorage.setItem('user', JSON.stringify(d.user));
             }
           } else if (r.status === 401) {
-            // Only logout when token is strictly rejected as unauthorized
-            logout();
+            // Thử tự động làm mới token qua refresh cookie
+            const refreshedToken = await refreshSession();
+            if (!refreshedToken) {
+              logout();
+            }
           }
         })
         .catch((err) => {
-          console.warn('[auth] Cannot reach /api/auth/me:', err);
+          console.warn('[auth] Không thể kết nối tới /api/auth/me:', err);
         })
         .finally(() => setLoading(false));
     } else {
-      setLoading(false);
+      // Thử refresh session qua cookie nếu chưa có token trong storage
+      refreshSession()
+        .then((tok) => {
+          if (!tok) setLoading(false);
+        })
+        .finally(() => setLoading(false));
     }
   }, [token]);
 
   const login = (userData, jwtToken) => {
-    localStorage.setItem('token', jwtToken);
-    localStorage.setItem('user', JSON.stringify(userData));
+    if (jwtToken) localStorage.setItem('token', jwtToken);
+    if (userData) localStorage.setItem('user', JSON.stringify(userData));
     setToken(jwtToken);
     setUser(userData);
   };
@@ -77,7 +112,15 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
-    fetch(`${API}/api/auth/logout`, { method: 'POST' }).catch(() => {});
+    fetch(`${API}/api/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
+  };
+
+  const logoutAll = async () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setToken(null);
+    setUser(null);
+    await fetch(`${API}/api/auth/logout-all`, { method: 'POST', credentials: 'include' }).catch(() => {});
   };
 
   const updateUser = fields => {
@@ -89,7 +132,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, logoutAll, updateUser, refreshSession }}>
       {children}
     </AuthContext.Provider>
   );
