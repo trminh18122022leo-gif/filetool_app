@@ -1,6 +1,9 @@
 {
   "name": "filetools-app",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "start": "node server/index.js",
     "dev": "nodemon --config nodemon.json server/index.js",
@@ -23,7 +26,6 @@
     "compression": "^1.7.5",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "crypto": "^1.0.1",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-mongo-sanitize": "^2.2.0",
@@ -48,7 +50,7 @@
     "passport-microsoft": "^2.1.0",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
-    "puppeteer": "^22.15.0",
+    "puppeteer": "^24.2.0",
     "qrcode": "^1.5.4",
     "sharp": "^0.33.5",
     "socket.io": "^4.8.1",
