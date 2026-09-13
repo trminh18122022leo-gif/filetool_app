@@ -8,8 +8,9 @@ const { v4: uuidv4 } = require('uuid');
 const OUT = path.resolve('outputs');
 
 /**
- * Nhúng chữ ký (base64 PNG) vào trang PDF được chỉ định.
+ * Nhúng chữ ký (base64 PNG/JPG) vào trang PDF được chỉ định.
  * Tọa độ x, y tính từ góc trên-trái trang (PDF gốc tính từ dưới, hàm này tự flip).
+ * Hỗ trợ cả tọa độ tương đối (0-1) lẫn pixel tuyệt đối.
  */
 async function embedSignature(pdfPath, signatureBase64, opts = {}) {
   const {
@@ -27,17 +28,35 @@ async function embedSignature(pdfPath, signatureBase64, opts = {}) {
   const pdfBytes = fs.readFileSync(pdfPath);
   const doc      = await PDFDocument.load(pdfBytes);
   const pages    = doc.getPages();
-  const target   = pages[Math.min(Number(page), pages.length - 1)];
-  const { height: ph } = target.getSize();
+  const pageIdx  = Math.max(0, Math.min(Number(page), pages.length - 1));
+  const target   = pages[pageIdx];
+  const { width: pw, height: ph } = target.getSize();
 
-  // pdf-lib gốc tọa độ từ dưới-trái -> flip y
-  const sigImg = await doc.embedPng(imgBuf);
+  // Chuyển đổi tọa độ nếu truyền dạng tỷ lệ 0-1
+  const numX = Number(x);
+  const numY = Number(y);
+  const numW = Number(width);
+  const numH = Number(height);
+
+  const finalW = (numW > 0 && numW <= 1) ? numW * pw : (numW || 180);
+  const finalH = (numH > 0 && numH <= 1) ? numH * ph : (numH || 70);
+  const finalX = (numX >= 0 && numX <= 1) ? numX * (pw - finalW) : (numX || 50);
+  const finalY = (numY >= 0 && numY <= 1) ? numY * (ph - finalH) : (numY || 100);
+
+  // Nhúng ảnh vào PDF (hỗ trợ PNG hoặc JPEG)
+  let sigImg;
+  try {
+    sigImg = await doc.embedPng(imgBuf);
+  } catch (_) {
+    sigImg = await doc.embedJpg(imgBuf);
+  }
+
   target.drawImage(sigImg, {
-    x:       Number(x),
-    y:       ph - Number(y) - Number(height),
-    width:   Number(width),
-    height:  Number(height),
-    opacity: 0.95,
+    x:       Math.max(0, Math.min(finalX, pw - finalW)),
+    y:       Math.max(0, ph - finalY - finalH),
+    width:   finalW,
+    height:  finalH,
+    opacity: 0.98,
   });
 
   const out = path.join(OUT, `signed_${uuidv4()}.pdf`);

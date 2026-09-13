@@ -20,6 +20,7 @@ import Register     from './pages/Register';
 import Dashboard    from './pages/Dashboard';
 import SignaturePage from './pages/SignaturePage';
 import BatchTools   from './pages/BatchTools';
+import SpeechToText from './pages/SpeechToText';
 import ApiDocs      from './pages/ApiDocs';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
@@ -154,6 +155,7 @@ export default function App() {
           <Route path="/qr" element={<QrTools />} />
           <Route path="/signature" element={<SignaturePage />} />
           <Route path="/batch" element={<BatchTools />} />
+          <Route path="/speech" element={<SpeechToText />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />

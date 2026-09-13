@@ -23,6 +23,9 @@ const allowedMimes = new Set([
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   'application/msword', 'application/vnd.ms-excel', 'application/vnd.ms-powerpoint',
   'text/plain', 'text/csv', 'text/markdown', 'text/html', 'text/xml', 'application/json',
+  'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/webm',
+  'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/flac', 'audio/x-flac',
+  'video/mp4', 'video/webm', 'video/quicktime',
   'application/octet-stream', // rất phổ biến khi browser upload file nhị phân
 ]);
 
@@ -31,6 +34,7 @@ const allowedExtensions = new Set([
   '.zip', '.tar', '.gz', '.7z', '.rar',
   '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt',
   '.txt', '.csv', '.md', '.json', '.html', '.xml',
+  '.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.webm', '.mp4', '.mov',
 ]);
 
 const fileFilter = (req, file, cb) => {
@@ -45,5 +49,5 @@ const fileFilter = (req, file, cb) => {
 module.exports = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB
 });

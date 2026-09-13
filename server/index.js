@@ -172,6 +172,7 @@ app.use('/api/signature', toolRateLimit, validateUploadedFiles, require('./route
 app.use('/api/ai', toolRateLimit, validateUploadedFiles, require('./routes/ai.routes'));
 app.use('/api/convert', toolRateLimit, validateUploadedFiles, require('./routes/convert.routes'));
 app.use('/api/creative', toolRateLimit, validateUploadedFiles, require('./routes/creative.routes'));
+app.use('/api/speech', toolRateLimit, validateUploadedFiles, require('./routes/speech.routes'));
 
 // Download file kết quả local an toàn (chống Directory Traversal tuyệt đối)
 app.get('/api/download/:filename', (req, res) => {

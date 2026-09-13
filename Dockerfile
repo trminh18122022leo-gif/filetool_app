@@ -3,7 +3,7 @@ FROM node:20-bookworm-slim
 # Tránh prompts tương tác khi cài apt
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Cài các công cụ hệ thống (chỉ dùng các package TỒN TẠI trong Debian bookworm)
+# Cài các công cụ hệ thống 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # PDF tools
     ghostscript \
@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Chromium for Puppeteer (chữ viết tay)
     chromium \
     chromium-driver \
-    # Fonts cơ bản (fonts chữ viết tay load từ Google Fonts CDN qua HTML)
+    # Fonts cơ bản (fonts chữ viết tay load từ Google fonts CDN qua html)
     fonts-liberation \
     fonts-noto \
     fonts-noto-cjk \

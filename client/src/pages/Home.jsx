@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   FileText, Image, Archive, Sparkles,
   FileOutput, ScanText, PenLine, Layers,
-  QrCode, ChevronRight, Zap, Shield, Cloud
+  QrCode, ChevronRight, Zap, Shield, Cloud, Mic
 } from 'lucide-react';
 
 const TOOL_GROUPS = [
@@ -34,6 +34,10 @@ const TOOL_GROUPS = [
   {
     label: 'E-Signature', icon: PenLine, to: '/signature', color: 'from-pink-900/40 to-pink-800/20 border-pink-800/50',
     tools: ['Ký tay', 'Đặt chữ ký', 'Tùy chỉnh vị trí'],
+  },
+  {
+    label: 'Speech to Text', icon: Mic, to: '/speech', color: 'from-rose-900/40 to-rose-800/20 border-rose-800/50',
+    tools: ['Ghi âm trực tiếp', 'Upload MP3/WAV/MP4', 'Xuất PDF / SRT / TXT', 'AI Whisper & Gemini'],
   },
   {
     label: 'Batch Processing', icon: Layers, to: '/batch', color: 'from-cyan-900/40 to-cyan-800/20 border-cyan-800/50',

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, X, ChevronRight, FileText, Image, ArrowRightLeft, Wand2, Sparkles, ScanText, Archive, QrCode } from 'lucide-react';
+import { Search, X, ChevronRight, FileText, Image, ArrowRightLeft, Wand2, Sparkles, ScanText, Archive, QrCode, Mic } from 'lucide-react';
 
 const ALL_TOOLS = [
   { name: 'Gộp PDF (Visual)',  path: '/pdf/merge',      category: 'PDF Tools', icon: FileText, tags: ['merge','pdf','gộp','kết hợp'] },
@@ -28,6 +28,7 @@ const ALL_TOOLS = [
   { name: 'Resize ảnh',        path: '/image',          category: 'Image Tools', icon: Image, tags: ['resize','kích thước','ảnh'] },
   { name: 'Xóa nền ảnh (AI)',  path: '/image',          category: 'Image Tools', icon: Image, tags: ['remove background','nền','xóa nền'] },
   { name: 'OCR nhận dạng chữ', path: '/ocr',            category: 'AI & OCR',  icon: ScanText, tags: ['ocr','nhận dạng','text','chữ'] },
+  { name: 'Speech to Text (Ghi âm)', path: '/speech',   category: 'AI & Speech', icon: Mic, tags: ['speech','voice','ghi âm','giọng nói','âm thanh','whisper','transcribe'] },
   { name: 'AI Tóm tắt văn bản',path: '/ai',             category: 'AI & OCR',  icon: Sparkles, tags: ['summarize','tóm tắt','ai','gemini'] },
   { name: 'AI Dịch thuật',     path: '/ai',             category: 'AI & OCR',  icon: Sparkles, tags: ['translate','dịch','dịch thuật'] },
   { name: 'Chat với PDF',      path: '/ai',             category: 'AI & OCR',  icon: Sparkles, tags: ['chat','hỏi đáp','ai'] },
