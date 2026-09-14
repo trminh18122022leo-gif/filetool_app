@@ -29,6 +29,7 @@ import VerifyEmail  from './pages/VerifyEmail';
 import NotFound     from './pages/NotFound';
 import GlobalSearch from './components/GlobalSearch';
 import UserMenu     from './components/UserMenu';
+import FloatingTabBar from './components/FloatingTabBar';
 import { useAuth }    from './context/AuthContext';
 import {
   FileText, Image, Sparkles, Layers,
@@ -71,8 +72,16 @@ export default function App() {
   }, [location]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#0A0A0F] text-[#E2E8F0] selection:bg-pink-500 selection:text-white">
-      <header className="sticky top-0 z-50 bg-black/30 backdrop-blur-2xl border-b border-white/10 shadow-lg">
+    <div className="min-h-screen flex flex-col bg-[#08080C] text-[#F3F4F6] selection:bg-amber-500 selection:text-black relative">
+      {/* ── 3 AMBIENT ORBS (Champagne Gold, Warm Coral, Bronze) ── */}
+      <div className="ambient-orb-container" aria-hidden="true">
+        <div className="ambient-orb-gold" />
+        <div className="ambient-orb-coral" />
+        <div className="ambient-orb-bronze" />
+      </div>
+
+      {/* ── STICKY SOLID LIQUID GLASS HEADER ── */}
+      <header className="sticky top-0 z-50 bg-[#08080C]/90 backdrop-blur-2xl border-b border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Link to="/" className="flex items-center gap-2.5 group shrink-0">
@@ -80,10 +89,10 @@ export default function App() {
                 src="/logo.png"
                 alt="FileTools Pro"
                 className="h-9 w-auto group-hover:scale-105 transition-transform duration-200"
-                style={{ filter: 'brightness(1.05) drop-shadow(0 0 8px rgba(59,195,170,0.3))' }}
+                style={{ filter: 'brightness(1.05) drop-shadow(0 0 10px rgba(245,158,11,0.35))' }}
               />
-              <span className="font-extrabold text-lg tracking-tight text-gradient hidden sm:inline">
-                FileTools<span className="text-white text-xs ml-1 px-1.5 py-0.5 rounded-md bg-white/10 border border-white/10">PRO</span>
+              <span className="font-black text-lg tracking-tight text-gradient hidden sm:inline">
+                FileTools<span className="text-amber-300 text-xs ml-1 px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-400/30">PRO</span>
               </span>
             </Link>
             <GlobalSearch />
@@ -98,11 +107,11 @@ export default function App() {
                   to={path}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                     active
-                      ? 'bg-white/10 text-white border border-white/10 shadow-inner'
+                      ? 'bg-amber-500/15 text-amber-300 border border-amber-400/30 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
                       : 'text-gray-400 hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  <Icon size={14} className={active ? 'text-pink-400' : 'text-gray-400'} />
+                  <Icon size={14} className={active ? 'text-amber-400' : 'text-gray-400'} />
                   <span>{label}</span>
                 </Link>
               );
@@ -114,7 +123,8 @@ export default function App() {
 
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-xl glass-button"
+              className="lg:hidden p-2 rounded-xl glass-button text-gray-300 hover:text-white"
+              aria-label="Toggle Menu"
             >
               {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
@@ -122,23 +132,31 @@ export default function App() {
         </div>
 
         {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-white/10 bg-black/90 backdrop-blur-2xl px-4 py-4 space-y-1">
-            {NAV.map(({ path, label, icon: Icon }) => (
-              <Link
-                key={path}
-                to={path}
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-300 hover:text-white hover:bg-white/10"
-              >
-                <Icon size={16} className="text-pink-400" />
-                <span>{label}</span>
-              </Link>
-            ))}
+          <div className="lg:hidden border-t border-white/10 bg-[#0C0C12]/95 backdrop-blur-2xl px-4 py-4 space-y-1 shadow-2xl">
+            {NAV.map(({ path, label, icon: Icon }) => {
+              const active = location.pathname.startsWith(path);
+              return (
+                <Link
+                  key={path}
+                  to={path}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                    active
+                      ? 'bg-amber-500/15 text-amber-300 border border-amber-400/30'
+                      : 'text-gray-300 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <Icon size={16} className={active ? 'text-amber-400' : 'text-gray-400'} />
+                  <span>{label}</span>
+                </Link>
+              );
+            })}
           </div>
         )}
       </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
+      {/* ── MAIN CONTENT ── */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 pb-28">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/pdf" element={<PdfTools />} />
@@ -170,7 +188,11 @@ export default function App() {
         </Routes>
       </main>
 
-      <footer className="border-t border-white/5 bg-black/40 backdrop-blur-xl py-6 text-center text-xs text-gray-500">
+      {/* ── FLOATING BOTTOM TAB BAR (iOS Style) ── */}
+      <FloatingTabBar />
+
+      {/* ── FOOTER ── */}
+      <footer className="border-t border-white/5 bg-[#08080C]/70 backdrop-blur-xl py-6 text-center text-xs text-gray-500 relative z-10">
         <p>© 2026 FileTools Pro — Nền tảng xử lý file trực tuyến tốc độ cao & bảo mật.</p>
       </footer>
     </div>

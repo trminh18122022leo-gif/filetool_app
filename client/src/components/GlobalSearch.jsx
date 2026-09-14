@@ -121,49 +121,48 @@ export default function GlobalSearch() {
       {/* Search trigger button in Navbar */}
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-3 py-1.5 bg-[#252526] hover:bg-[#2d2d2d] border border-[#3c3c3c] hover:border-[#007fd4] rounded-md text-xs text-[#cccccc] hover:text-white transition-all shadow-sm"
+        className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-amber-400/40 rounded-xl text-xs text-gray-300 hover:text-white transition-all shadow-sm cursor-pointer group"
         title="Tìm kiếm công cụ (Ctrl + K)"
       >
-        <Search size={13} className="text-[#007fd4]" />
-        <span className="hidden sm:inline">Tìm công cụ...</span>
-        <kbd className="hidden sm:inline text-[10px] bg-[#1e1e1e] text-[#858585] px-1.5 py-0.5 rounded border border-[#3c3c3c] font-mono">
+        <Search size={13} className="text-amber-400 group-hover:scale-110 transition-transform" />
+        <span className="hidden sm:inline font-medium">Tìm công cụ...</span>
+        <kbd className="hidden sm:inline text-[10px] bg-white/5 text-amber-300/80 px-1.5 py-0.5 rounded-md border border-white/10 font-mono">
           Ctrl K
         </kbd>
       </button>
 
-      {/* VS Code Command Palette Modal */}
+      {/* Luxury Command Palette Modal */}
       {open && (
         <div
-          className="fixed inset-0 z-[9999] flex items-start justify-center pt-[10vh] px-4 bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-[9999] flex items-start justify-center pt-[10vh] px-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200"
           onClick={() => { setOpen(false); setQuery(''); }}
         >
-          {/* Main Palette Box (100% OPAQUE, Solid VS Code Theme) */}
+          {/* Main Box */}
           <div
-            className="w-full max-w-2xl bg-[#1e1e1e] text-[#cccccc] border border-[#007fd4] rounded-lg shadow-[0_20px_50px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col font-sans"
-            style={{ backgroundColor: '#1e1e1e', opacity: 1 }}
+            className="w-full max-w-2xl bg-[#0E0E14]/95 text-gray-200 border border-amber-400/30 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col font-sans backdrop-blur-2xl"
             onClick={e => e.stopPropagation()}
           >
             {/* Search Input Bar */}
-            <div className="flex items-center gap-3 px-4 py-3 bg-[#252526] border-b border-[#3c3c3c]">
-              <span className="text-[#007fd4] font-bold text-sm font-mono">&gt;</span>
+            <div className="flex items-center gap-3 px-4 py-3.5 bg-white/5 border-b border-white/10">
+              <span className="text-amber-400 font-bold text-sm font-mono">&gt;</span>
               <input
                 ref={inputRef}
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Nhập tên công cụ, chức năng (gộp pdf, nén, ocr, ai...)"
-                className="flex-1 bg-transparent text-white placeholder-[#757575] outline-none text-sm"
+                className="flex-1 bg-transparent text-white placeholder-gray-500 outline-none text-sm font-medium"
                 autoFocus
               />
               {query && (
-                <button onClick={() => setQuery('')} className="text-[#858585] hover:text-white">
+                <button onClick={() => setQuery('')} className="text-gray-400 hover:text-white p-1">
                   <X size={15} />
                 </button>
               )}
             </div>
 
             {/* Results List */}
-            <div className="py-1 max-h-[380px] overflow-y-auto bg-[#1e1e1e]">
+            <div className="py-2 max-h-[380px] overflow-y-auto">
               {results.length > 0 ? (
                 results.map((tool, idx) => {
                   const isSelected = selectedIndex === idx;
@@ -173,35 +172,35 @@ export default function GlobalSearch() {
                       key={idx}
                       onClick={() => go(tool.path)}
                       onMouseEnter={() => setSelectedIndex(idx)}
-                      className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer text-sm transition-colors ${
+                      className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-xl cursor-pointer text-sm transition-all ${
                         isSelected
-                          ? 'bg-[#04395e] text-white border-l-2 border-[#007fd4]'
-                          : 'text-[#cccccc] hover:bg-[#2a2d2e] hover:text-white'
+                          ? 'bg-amber-500/20 text-amber-200 border border-amber-400/40 shadow-[0_0_15px_rgba(245,158,11,0.15)] font-semibold'
+                          : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'
                       }`}
                     >
-                      <Icon size={16} className={isSelected ? 'text-[#007fd4]' : 'text-[#858585]'} />
+                      <Icon size={16} className={isSelected ? 'text-amber-300' : 'text-gray-400'} />
                       <span className="font-medium">{tool.name}</span>
-                      <span className="ml-auto text-xs px-2 py-0.5 rounded bg-[#252526] text-[#858585] border border-[#333333] font-mono">
+                      <span className="ml-auto text-xs px-2.5 py-0.5 rounded-lg bg-white/5 text-amber-300/80 border border-white/10 font-mono">
                         {tool.category}
                       </span>
                     </div>
                   );
                 })
               ) : (
-                <div className="py-10 text-center text-[#858585] text-sm bg-[#1e1e1e]">
-                  Không tìm thấy công cụ nào phù hợp với "<span className="text-white font-semibold">{query}</span>"
+                <div className="py-10 text-center text-gray-400 text-sm">
+                  Không tìm thấy công cụ nào phù hợp với "<span className="text-amber-300 font-semibold">{query}</span>"
                 </div>
               )}
             </div>
 
             {/* Footer status bar */}
-            <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-t border-[#3c3c3c] text-[11px] text-[#858585]">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-black/40 border-t border-white/10 text-[11px] text-gray-400">
               <div className="flex gap-3 items-center">
-                <span><kbd className="bg-[#1e1e1e] px-1.5 py-0.5 rounded text-white border border-[#3c3c3c]">↑↓</kbd> Di chuyển</span>
-                <span><kbd className="bg-[#1e1e1e] px-1.5 py-0.5 rounded text-white border border-[#3c3c3c]">↵</kbd> Chọn</span>
-                <span><kbd className="bg-[#1e1e1e] px-1.5 py-0.5 rounded text-white border border-[#3c3c3c]">Esc</kbd> Đóng</span>
+                <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-gray-200 border border-white/10">↑↓</kbd> Di chuyển</span>
+                <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-gray-200 border border-white/10">↵</kbd> Chọn</span>
+                <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-gray-200 border border-white/10">Esc</kbd> Đóng</span>
               </div>
-              <span>FileTools Command Palette</span>
+              <span className="text-amber-400/80 font-mono text-[10px]">FileTools Command Palette</span>
             </div>
           </div>
         </div>

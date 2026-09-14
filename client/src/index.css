@@ -3,92 +3,305 @@
 /* Custom scrollbar */
 ::-webkit-scrollbar       { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #08080A; }
-::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #555; }
+::-webkit-scrollbar-thumb { background: #2a2723; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #453c30; }
 
-/* Smooth transitions toàn cục */
-* {
-  transition-property: color, background-color, border-color, opacity, transform, box-shadow, filter;
-  transition-duration: 200ms;
-}
-
-/* File input hidden nhưng clickable */
+/* File input hidden */
 input[type="file"] { display: none; }
 
 body {
-  background-color: #0A0A0F; /* Deep dark background */
-  color: #E2E8F0;
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  background-color: #08080C;
+  color: #F3F4F6;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow-x: hidden;
 }
 
-/* Background gradient mesh effect */
-body::before {
-  content: "";
+/* ── AMBIENT GLOW ORBS (Champagne Gold, Warm Coral, Bronze) ── */
+@keyframes orbFloat1 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(80px, 60px) scale(1.15);
+  }
+  66% {
+    transform: translate(-50px, 90px) scale(0.9);
+  }
+}
+
+@keyframes orbFloat2 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(-90px, 70px) scale(1.1);
+  }
+  66% {
+    transform: translate(60px, -50px) scale(0.95);
+  }
+}
+
+@keyframes orbFloat3 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(50px, -70px) scale(1.2);
+  }
+  66% {
+    transform: translate(-70px, 40px) scale(0.85);
+  }
+}
+
+.ambient-orb-container {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: 
-    radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
-    radial-gradient(circle at 85% 30%, rgba(236, 72, 153, 0.08) 0%, transparent 50%);
+  inset: 0;
   pointer-events: none;
-  z-index: -1;
+  z-index: 0;
+  overflow: hidden;
 }
 
-/* ── LIQUID GLASS CLASSES ── */
+.ambient-orb-gold {
+  position: absolute;
+  top: -10%;
+  left: 10%;
+  width: 650px;
+  height: 650px;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.16) 0%, rgba(217, 119, 6, 0.05) 50%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(80px);
+  animation: orbFloat1 22s ease-in-out infinite;
+  will-change: transform;
+}
 
-.glass-panel {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+.ambient-orb-coral {
+  position: absolute;
+  top: 25%;
+  right: -5%;
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(251, 113, 133, 0.14) 0%, rgba(244, 63, 94, 0.04) 50%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(90px);
+  animation: orbFloat2 26s ease-in-out infinite;
+  will-change: transform;
+}
+
+.ambient-orb-bronze {
+  position: absolute;
+  bottom: 5%;
+  left: 20%;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(180, 83, 9, 0.14) 0%, rgba(146, 64, 14, 0.04) 50%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(85px);
+  animation: orbFloat3 30s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* ── LIQUID GLASS (iOS Style) ── */
+
+.liquid-glass {
+  background: rgba(18, 18, 24, 0.65);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 1.5rem;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  border-top: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 10px 35px -5px rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
 }
 
+.liquid-glass-card {
+  position: relative;
+  background: rgba(20, 20, 28, 0.55);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 1.25rem;
+  overflow: hidden;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.liquid-glass-card:hover {
+  background: rgba(26, 26, 36, 0.75);
+  border-color: rgba(245, 158, 11, 0.35);
+  border-top-color: rgba(255, 255, 255, 0.45);
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px -10px rgba(245, 158, 11, 0.15), 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+/* Specular Sheen sweep effect on hover */
+.specular-sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.specular-sheen::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -150%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    60deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.08) 35%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.08) 65%,
+    transparent 80%
+  );
+  transform: rotate(25deg);
+  transition: transform 0.85s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.specular-sheen:hover::after {
+  transform: translateX(180%) rotate(25deg);
+  opacity: 1;
+}
+
+/* Glass Buttons */
 .glass-button {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 0.875rem;
   color: white;
-}
-.glass-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.glass-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(245, 158, 11, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Luxury Gold Button */
+.liquid-gold-button {
+  background: linear-gradient(135deg, #FDE68A 0%, #F59E0B 45%, #D97706 100%);
+  color: #0B0B10;
+  font-weight: 700;
+  border-radius: 0.875rem;
+  border: 1px solid rgba(254, 240, 138, 0.8);
+  box-shadow: 0 4px 25px rgba(245, 158, 11, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.liquid-gold-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #FEF08A 0%, #FBBF24 45%, #EA580C 100%);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 35px rgba(245, 158, 11, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+/* Glass Inputs */
 .glass-input {
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(12, 12, 16, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.875rem;
   color: white;
   padding: 0.75rem 1rem;
   width: 100%;
   outline: none;
-}
-.glass-input:focus {
-  background: rgba(0, 0, 0, 0.6);
-  border-color: rgba(236, 72, 153, 0.5); /* Pinkish highlight */
-  box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.2);
-}
-
-.glass-card {
-  background: rgba(255, 255, 255, 0.02);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 1rem;
-}
-.glass-card:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.15);
+  transition: all 0.2s ease;
 }
 
-/* Gradient text */
-.text-gradient {
-  background: linear-gradient(to right, #818cf8, #c084fc, #f472b6);
+.glass-input:focus {
+  background: rgba(16, 16, 22, 0.85);
+  border-color: rgba(245, 158, 11, 0.6);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+}
+
+/* ── LUXURY GRADIENT TEXT ── */
+
+.gold-gradient-text {
+  background: linear-gradient(135deg, #FFFBEB 0%, #FDE68A 25%, #F59E0B 65%, #FB7185 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+.coral-gradient-text {
+  background: linear-gradient(135deg, #FDE68A 0%, #FB7185 50%, #E11D48 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, #FFFBEB 0%, #FDE68A 30%, #F59E0B 70%, #FB7185 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Luxury Badge */
+.luxury-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-top: 1px solid rgba(253, 230, 138, 0.5);
+  color: #FDE68A;
+  font-size: 0.75rem;
+  font-weight: 600;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 2px 15px rgba(245, 158, 11, 0.12);
+}
+
+/* ── MARQUEE ANIMATION (Jacob & Co Editorial Ticker) ── */
+
+@keyframes marqueeScroll {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-container {
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+  mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+}
+
+.marquee-track {
+  display: inline-flex;
+  gap: 2.5rem;
+  animation: marqueeScroll 35s linear infinite;
+  will-change: transform;
+}
+
+.marquee-container:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+/* ── REVEAL FADE UP ── */
+@keyframes fadeUpAnim {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reveal-fade-up {
+  animation: fadeUpAnim 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
