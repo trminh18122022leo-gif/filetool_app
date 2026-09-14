@@ -1,40 +1,53 @@
-import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import Home         from './pages/Home';
-import PdfTools     from './pages/PdfTools';
-import PdfMergeTool from './pages/PdfMergeTool';
-import PdfSplitTool from './pages/PdfSplitTool';
-import PdfSignTool  from './pages/PdfSignTool';
-import PdfDeleteTool from './pages/PdfDeleteTool';
-import PdfOrganizeTool from './pages/PdfOrganizeTool';
-import ImageTools   from './pages/ImageTools';
-import ConvertTools from './pages/ConvertTools';
-import CreativeTools from './pages/CreativeTools';
-import OfficeTools  from './pages/OfficeTools';
-import AiTools      from './pages/AiTools';
-import OcrTools     from './pages/OcrTools';
-import ArchiveTools from './pages/ArchiveTools';
-import QrTools      from './pages/QrTools';
-import Pricing      from './pages/Pricing';
-import Login        from './pages/Login';
-import Register     from './pages/Register';
-import Dashboard    from './pages/Dashboard';
-import SignaturePage from './pages/SignaturePage';
-import BatchTools   from './pages/BatchTools';
-import SpeechToText from './pages/SpeechToText';
-import ApiDocs      from './pages/ApiDocs';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import VerifyEmail  from './pages/VerifyEmail';
-import NotFound     from './pages/NotFound';
+import { lazy, Suspense, useState, useEffect } from 'react';
+import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import Home from './pages/Home';
 import GlobalSearch from './components/GlobalSearch';
-import UserMenu     from './components/UserMenu';
+import UserMenu from './components/UserMenu';
 import FloatingTabBar from './components/FloatingTabBar';
-import { useAuth }    from './context/AuthContext';
+import { useAuth } from './context/AuthContext';
 import {
   FileText, Image, Sparkles, Layers,
   ScanText, Archive, QrCode, ArrowRightLeft, Wand2, Menu, X
 } from 'lucide-react';
+
+// Code Splitting & Lazy Loading for all 25 secondary pages
+const PdfTools      = lazy(() => import('./pages/PdfTools'));
+const PdfMergeTool  = lazy(() => import('./pages/PdfMergeTool'));
+const PdfSplitTool  = lazy(() => import('./pages/PdfSplitTool'));
+const PdfSignTool   = lazy(() => import('./pages/PdfSignTool'));
+const PdfDeleteTool = lazy(() => import('./pages/PdfDeleteTool'));
+const PdfOrganizeTool = lazy(() => import('./pages/PdfOrganizeTool'));
+const ImageTools    = lazy(() => import('./pages/ImageTools'));
+const ConvertTools  = lazy(() => import('./pages/ConvertTools'));
+const CreativeTools = lazy(() => import('./pages/CreativeTools'));
+const OfficeTools   = lazy(() => import('./pages/OfficeTools'));
+const AiTools       = lazy(() => import('./pages/AiTools'));
+const OcrTools      = lazy(() => import('./pages/OcrTools'));
+const ArchiveTools  = lazy(() => import('./pages/ArchiveTools'));
+const QrTools       = lazy(() => import('./pages/QrTools'));
+const Pricing       = lazy(() => import('./pages/Pricing'));
+const Login         = lazy(() => import('./pages/Login'));
+const Register      = lazy(() => import('./pages/Register'));
+const Dashboard     = lazy(() => import('./pages/Dashboard'));
+const SignaturePage = lazy(() => import('./pages/SignaturePage'));
+const BatchTools    = lazy(() => import('./pages/BatchTools'));
+const SpeechToText  = lazy(() => import('./pages/SpeechToText'));
+const ApiDocs       = lazy(() => import('./pages/ApiDocs'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const VerifyEmail   = lazy(() => import('./pages/VerifyEmail'));
+const NotFound      = lazy(() => import('./pages/NotFound'));
+
+function PageLoader() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+      <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-400/30 flex items-center justify-center text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.25)]">
+        <Sparkles size={22} className="animate-spin" style={{ animationDuration: '3s' }} />
+      </div>
+      <p className="text-xs text-gray-400 font-mono tracking-wider animate-pulse">Đang tải công cụ...</p>
+    </div>
+  );
+}
 
 const NAV = [
   { path: '/pdf',       label: 'PDF',       icon: FileText },
@@ -59,7 +72,6 @@ export default function App() {
     if (token) {
       localStorage.setItem('token', token);
       window.history.replaceState({}, document.title, window.location.pathname);
-      // Fetch user info for OAuth login
       fetch('/api/auth/me', {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -73,7 +85,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#08080C] text-[#F3F4F6] selection:bg-amber-500 selection:text-black relative">
-      {/* ── 3 AMBIENT ORBS (Champagne Gold, Warm Coral, Bronze) ── */}
+      {/* ── 3 AMBIENT ORBS (High-Performance GPU composition) ── */}
       <div className="ambient-orb-container" aria-hidden="true">
         <div className="ambient-orb-gold" />
         <div className="ambient-orb-coral" />
@@ -81,7 +93,7 @@ export default function App() {
       </div>
 
       {/* ── STICKY SOLID LIQUID GLASS HEADER ── */}
-      <header className="sticky top-0 z-50 bg-[#08080C]/90 backdrop-blur-2xl border-b border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
+      <header className="sticky top-0 z-50 bg-[#08080C]/90 backdrop-blur-xl border-b border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Link to="/" className="flex items-center gap-2.5 group shrink-0">
@@ -155,37 +167,39 @@ export default function App() {
         )}
       </header>
 
-      {/* ── MAIN CONTENT ── */}
+      {/* ── MAIN CONTENT (Lazy Loaded with Suspense) ── */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 pb-28">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/pdf" element={<PdfTools />} />
-          <Route path="/pdf/merge" element={<PdfMergeTool />} />
-          <Route path="/pdf/split" element={<PdfSplitTool />} />
-          <Route path="/pdf/sign"  element={<PdfSignTool />} />
-          <Route path="/pdf/delete" element={<PdfDeleteTool />} />
-          <Route path="/pdf/organize" element={<PdfOrganizeTool />} />
-          <Route path="/image" element={<ImageTools />} />
-          <Route path="/convert" element={<ConvertTools />} />
-          <Route path="/creative" element={<CreativeTools />} />
-          <Route path="/office" element={<OfficeTools />} />
-          <Route path="/ai" element={<AiTools />} />
-          <Route path="/ocr" element={<OcrTools />} />
-          <Route path="/archive" element={<ArchiveTools />} />
-          <Route path="/qr" element={<QrTools />} />
-          <Route path="/signature" element={<SignaturePage />} />
-          <Route path="/batch" element={<BatchTools />} />
-          <Route path="/speech" element={<SpeechToText />} />
-          <Route path="/pricing" element={<Pricing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/api-docs" element={<ApiDocs />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/verify-email" element={<VerifyEmail />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/pdf" element={<PdfTools />} />
+            <Route path="/pdf/merge" element={<PdfMergeTool />} />
+            <Route path="/pdf/split" element={<PdfSplitTool />} />
+            <Route path="/pdf/sign"  element={<PdfSignTool />} />
+            <Route path="/pdf/delete" element={<PdfDeleteTool />} />
+            <Route path="/pdf/organize" element={<PdfOrganizeTool />} />
+            <Route path="/image" element={<ImageTools />} />
+            <Route path="/convert" element={<ConvertTools />} />
+            <Route path="/creative" element={<CreativeTools />} />
+            <Route path="/office" element={<OfficeTools />} />
+            <Route path="/ai" element={<AiTools />} />
+            <Route path="/ocr" element={<OcrTools />} />
+            <Route path="/archive" element={<ArchiveTools />} />
+            <Route path="/qr" element={<QrTools />} />
+            <Route path="/signature" element={<SignaturePage />} />
+            <Route path="/batch" element={<BatchTools />} />
+            <Route path="/speech" element={<SpeechToText />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/api-docs" element={<ApiDocs />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
       </main>
 
       {/* ── FLOATING BOTTOM TAB BAR (iOS Style) ── */}
