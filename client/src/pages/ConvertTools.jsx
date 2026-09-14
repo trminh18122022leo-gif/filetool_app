@@ -6,16 +6,22 @@ import axios          from 'axios';
 import {
   Images, Globe, FileCode, Table2,
   FileJson, BarChart3, ArrowRightLeft, ArrowLeft,
-  Trash2, Plus, ArrowLeftRight, ChevronLeft, ChevronRight, GripVertical, File
+  Trash2, Plus, ArrowLeftRight, ChevronLeft, ChevronRight, GripVertical, File,
+  FileCode2, FileSpreadsheet, Presentation, ScanLine
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
 
 const TOOLS = [
   { id: 'images-to-pdf',   icon: Images,          label: 'Ảnh → PDF',       desc: 'Nhiều ảnh gộp thành 1 PDF với thứ tự tùy chỉnh', needFiles: true,  multi: true,  accept: 'image/*',         endpoint: '/api/convert/images-to-pdf' },
+  { id: 'scan-to-pdf',     icon: ScanLine,        label: 'Scan Ảnh → PDF',  desc: 'Tối ưu ảnh scan, tăng nét và OCR searchable',    needFiles: true,  multi: true,  accept: 'image/*',         endpoint: '/api/pdf/scan-to-pdf' },
   { id: 'pdf-to-images',   icon: Images,          label: 'PDF → Ảnh',       desc: 'Mỗi trang PDF thành 1 ảnh (ZIP)',              needFiles: true,  multi: false, accept: '.pdf',            endpoint: '/api/convert/pdf-to-images' },
-  { id: 'url-to-pdf',      icon: Globe,           label: 'URL → PDF',       desc: 'Chụp trang web thành PDF',                    needFiles: false, multi: false, accept: '',                endpoint: '/api/convert/url-to-pdf' },
-  { id: 'markdown-to-pdf', icon: FileCode,        label: 'Markdown → PDF',  desc: 'File .md thành PDF đẹp',                      needFiles: true,  multi: false, accept: '.md,.txt',        endpoint: '/api/convert/markdown-to-pdf' },
+  { id: 'pdf-to-markdown', icon: FileCode2,       label: 'PDF → Markdown',  desc: 'Trích xuất văn bản sang Markdown chuẩn giữ cấu trúc', needFiles: true, multi: false, accept: '.pdf',      endpoint: '/api/pdf/to-markdown' },
+  { id: 'pdf-to-excel',    icon: FileSpreadsheet, label: 'PDF → Excel',     desc: 'AI trích xuất toàn bộ bảng thành file XLSX',   needFiles: true,  multi: false, accept: '.pdf',            endpoint: '/api/pdf/to-excel' },
+  { id: 'pdf-to-pptx',     icon: Presentation,    label: 'PDF → PowerPoint',desc: 'Chuyển đổi các trang PDF thành slide trình chiếu', needFiles: true, multi: false, accept: '.pdf',       endpoint: '/api/pdf/to-pptx' },
+  { id: 'html-to-pdf',     icon: Globe,           label: 'HTML → PDF',      desc: 'Chuyển đổi tệp .html thành tài liệu PDF',       needFiles: true,  multi: false, accept: '.html,.htm',      endpoint: '/api/pdf/html-to-pdf' },
+  { id: 'url-to-pdf',      icon: Globe,           label: 'URL → PDF',       desc: 'Chụp trang web từ đường dẫn thành PDF',        needFiles: false, multi: false, accept: '',                endpoint: '/api/convert/url-to-pdf' },
+  { id: 'markdown-to-pdf', icon: FileCode,        label: 'Markdown → PDF',  desc: 'File .md thành PDF có định dạng đẹp',          needFiles: true,  multi: false, accept: '.md,.txt',        endpoint: '/api/convert/markdown-to-pdf' },
   { id: 'json-to-excel',   icon: FileJson,        label: 'JSON → Excel',    desc: 'Array JSON thành bảng XLSX',                  needFiles: false, multi: false, accept: '',                endpoint: '/api/convert/json-to-excel' },
   { id: 'csv-to-excel',    icon: Table2,          label: 'CSV → Excel',     desc: 'File CSV thành XLSX',                         needFiles: true,  multi: false, accept: '.csv',            endpoint: '/api/convert/csv-to-excel' },
   { id: 'doc-stats',       icon: BarChart3,       label: 'Thống kê PDF',    desc: 'Đếm từ, trang, thời gian đọc',               needFiles: true,  multi: false, accept: '.pdf',            endpoint: '/api/convert/doc-stats' },

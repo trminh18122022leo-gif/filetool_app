@@ -169,4 +169,159 @@ router.post('/stats', upload.single('file'), wrap(async (req, res) => {
   res.json({ success: true, stats });
 }));
 
+// ── PDF Advanced Routes (converted.md) ─────────────────────────────────────────
+const pdfAdv = require('../services/pdfAdvanced.service');
+
+// 1. PDF → Markdown
+router.post('/to-markdown', optionalAuth, upload.single('file'), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Chưa tải lên file PDF' });
+  const { language = 'vi' } = req.body;
+  const { path: out, wordCount } = await pdfAdv.pdfToMarkdown(req.file.path, { language });
+  await respondFile(req, res, out, 'pdf-to-markdown', { wordCount });
+}));
+
+// 2. Scan ảnh → PDF
+router.post('/scan-to-pdf', optionalAuth, upload.array('files', 50), wrap(async (req, res) => {
+  if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'Chưa có file ảnh' });
+  const { mode = 'auto', enhance = 'true', searchable = 'true', paperSize = 'A4' } = req.body;
+  const { path: out, pageCount } = await pdfAdv.scanToPdf(
+    req.files.map(f => f.path),
+    {
+      mode,
+      enhance: enhance === 'true' || enhance === true,
+      searchable: searchable === 'true' || searchable === true,
+      paperSize,
+    }
+  );
+  await respondFile(req, res, out, 'scan-to-pdf', { pageCount });
+}));
+
+// 3. So sánh nội dung 2 PDF
+router.post('/compare-text', optionalAuth, upload.array('files', 2), wrap(async (req, res) => {
+  if (!req.files || req.files.length < 2) return res.status(400).json({ error: 'Cần đúng 2 file PDF để so sánh' });
+  const { outputFormat = 'pdf' } = req.body;
+  const result = await pdfAdv.comparePdfText(req.files[0].path, req.files[1].path, { outputFormat });
+  if (outputFormat === 'json') {
+    return res.json({ success: true, ...result });
+  }
+  await respondFile(req, res, result.path, 'compare-pdf-text', { stats: result.stats });
+}));
+
+// 4. HTML file → PDF
+router.post('/html-to-pdf', optionalAuth, upload.single('file'), wrap(async (req, res) => {
+  const { format = 'A4' } = req.body;
+  let out;
+  if (req.file) {
+    out = await pdfAdv.htmlFileToPdf(req.file.path, { format });
+  } else if (req.body.html) {
+    const tmpPath = path.join('uploads', `html_${Date.now()}.html`);
+    fs.writeFileSync(tmpPath, req.body.html, 'utf-8');
+    out = await pdfAdv.htmlFileToPdf(tmpPath, { format });
+    try { fs.unlinkSync(tmpPath); } catch (_) {}
+  } else {
+    return res.status(400).json({ error: 'Cần upload file .html hoặc gửi raw HTML trong body.html' });
+  }
+  await respondFile(req, res, out, 'html-to-pdf');
+}));
+
+// 5. Sắp xếp lại trang
+router.post('/reorder', optionalAuth, upload.single('file'), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Chưa tải lên file PDF' });
+  const { order } = req.body;
+  if (!order) return res.status(400).json({ error: 'Thiếu thứ tự trang (order)' });
+  const newOrder = String(order).split(',').map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n));
+  const { path: out, pageCount } = await pdfAdv.reorderPages(req.file.path, newOrder);
+  await respondFile(req, res, out, 'reorder-pdf', { pageCount });
+}));
+
+// 6. Cắt PDF (Crop)
+router.post('/crop', optionalAuth, upload.single('file'), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Chưa tải lên file PDF' });
+  const { x = 0, y = 0, width = 400, height = 600, pages = 'all' } = req.body;
+  const { path: out, pagesProcessed } = await pdfAdv.cropPdf(req.file.path, {
+    x: Number(x),
+    y: Number(y),
+    width: Number(width),
+    height: Number(height),
+    pages,
+  });
+  await respondFile(req, res, out, 'crop-pdf', { pagesProcessed });
+}));
+
+// 7. PDF → Excel
+router.post('/to-excel', optionalAuth, upload.single('file'), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Chưa tải lên file PDF' });
+  const { language = 'vi' } = req.body;
+  const { path: out, tableCount } = await pdfAdv.pdfToExcel(req.file.path, { language });
+  await respondFile(req, res, out, 'pdf-to-excel', { tableCount });
+}));
+
+// 8. PDF → PowerPoint
+router.post('/to-pptx', optionalAuth, upload.single('file'), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Chưa tải lên file PDF' });
+  const { dpi = 150 } = req.body;
+  const { path: out, slideCount } = await pdfAdv.pdfToPptx(req.file.path, { dpi: Number(dpi) });
+  await respondFile(req, res, out, 'pdf-to-pptx', { slideCount });
+}));
+
+// 9. Thêm ảnh vào PDF
+router.post('/add-image', optionalAuth, upload.fields([{ name: 'file', maxCount: 1 }, { name: 'image', maxCount: 1 }]), wrap(async (req, res) => {
+  const pdfFile = req.files?.['file']?.[0];
+  const imgFile = req.files?.['image']?.[0];
+  if (!pdfFile || !imgFile) return res.status(400).json({ error: 'Cần cả file PDF và file hình ảnh' });
+  const { page = 0, x = 50, y = 50, width = 200, height = 150, opacity = 1 } = req.body;
+  const { path: out } = await pdfAdv.addImageToPdf(pdfFile.path, imgFile.path, {
+    page: Number(page),
+    x: Number(x),
+    y: Number(y),
+    width: Number(width),
+    height: Number(height),
+    opacity: Number(opacity),
+  });
+  await respondFile(req, res, out, 'add-image-to-pdf');
+}));
+
+// 10. Flatten PDF
+router.post('/flatten', optionalAuth, upload.single('file'), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Chưa tải lên file PDF' });
+  const { path: out } = pdfAdv.flattenPdf(req.file.path);
+  await respondFile(req, res, out, 'flatten-pdf');
+}));
+
+// 11. Chuyển sang PDF/A
+router.post('/to-pdfa', optionalAuth, upload.single('file'), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Chưa tải lên file PDF' });
+  const { level = '2b' } = req.body;
+  const { path: out } = pdfAdv.toPdfA(req.file.path, { level });
+  await respondFile(req, res, out, 'to-pdfa', { level });
+}));
+
+// 12. Sửa chữa PDF
+router.post('/repair', optionalAuth, upload.single('file'), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Chưa tải lên file PDF' });
+  const { path: out, origSize, newSize } = pdfAdv.repairPdf(req.file.path);
+  await respondFile(req, res, out, 'repair-pdf', {
+    origSize,
+    newSize,
+    saving: origSize > 0 ? Math.round((1 - newSize / origSize) * 100) + '%' : '0%',
+  });
+}));
+
+// 13. Chèn trang từ PDF khác
+router.post('/insert-pages', optionalAuth, upload.fields([{ name: 'base', maxCount: 1 }, { name: 'insert', maxCount: 1 }]), wrap(async (req, res) => {
+  const baseFile   = req.files?.['base']?.[0];
+  const insertFile = req.files?.['insert']?.[0];
+  if (!baseFile || !insertFile) {
+    return res.status(400).json({ error: 'Cần cả file PDF gốc (base) và file PDF cần chèn (insert)' });
+  }
+  const { afterPage = 0 } = req.body;
+  const result = await pdfAdv.insertPages(baseFile.path, insertFile.path, Number(afterPage));
+  await respondFile(req, res, result.path, 'insert-pages', {
+    totalPages: result.totalPages,
+    insertedPages: result.insertedPages,
+    insertedAfter: result.insertedAfter,
+  });
+}));
+
 module.exports = router;
+

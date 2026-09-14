@@ -6,6 +6,7 @@ import PdfMergeTool from './pages/PdfMergeTool';
 import PdfSplitTool from './pages/PdfSplitTool';
 import PdfSignTool  from './pages/PdfSignTool';
 import PdfDeleteTool from './pages/PdfDeleteTool';
+import PdfOrganizeTool from './pages/PdfOrganizeTool';
 import ImageTools   from './pages/ImageTools';
 import ConvertTools from './pages/ConvertTools';
 import CreativeTools from './pages/CreativeTools';
@@ -145,6 +146,7 @@ export default function App() {
           <Route path="/pdf/split" element={<PdfSplitTool />} />
           <Route path="/pdf/sign"  element={<PdfSignTool />} />
           <Route path="/pdf/delete" element={<PdfDeleteTool />} />
+          <Route path="/pdf/organize" element={<PdfOrganizeTool />} />
           <Route path="/image" element={<ImageTools />} />
           <Route path="/convert" element={<ConvertTools />} />
           <Route path="/creative" element={<CreativeTools />} />
