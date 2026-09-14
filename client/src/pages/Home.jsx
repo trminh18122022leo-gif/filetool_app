@@ -4,8 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   FileText, Image, Archive, Sparkles,
   FileOutput, ScanText, PenLine, Layers,
-  QrCode, ChevronRight, Zap, Shield, Cloud, Mic,
-  Upload, ArrowUpRight, CheckCircle2, Lock, Cpu, Trash2
+  QrCode, Mic, Upload, ArrowUpRight, CheckCircle2, Lock, Zap
 } from 'lucide-react';
 
 const TOOL_GROUPS = [
@@ -117,36 +116,6 @@ const MARQUEE_ITEMS = [
   'TRANSLATE', 'DOCX → PDF', 'EXCEL CONVERT', 'POWERPOINT SLIDES', 'CROP PDF'
 ];
 
-const FEATURES = [
-  {
-    icon: Zap,
-    title: 'Xử lý thực tế 100%',
-    desc: 'Tích hợp Ghostscript, LibreOffice và Tesseract ngay trên máy bạn — không qua server trung gian.',
-  },
-  {
-    icon: Shield,
-    title: 'Bảo mật & Riêng tư',
-    desc: 'Tệp của bạn được mã hóa khi truyền và tự động xóa hoàn toàn sau 1 giờ xử lý.',
-  },
-  {
-    icon: Cloud,
-    title: 'Lưu trữ Cloud R2',
-    desc: 'Đăng nhập để đồng bộ kết quả trên Cloudflare R2 với tốc độ tải cực nhanh.',
-  },
-  {
-    icon: Sparkles,
-    title: 'Trợ lý AI thông minh',
-    desc: 'Tóm tắt, dịch và hỏi đáp trực tiếp trên tài liệu bằng mô hình AI tiên tiến.',
-  },
-];
-
-const STATS = [
-  { value: '50+', label: 'Công cụ chuyên sâu', icon: Sparkles },
-  { value: '10', label: 'Nhóm chức năng', icon: Layers },
-  { value: '100%', label: 'Xử lý cục bộ', icon: Cpu },
-  { value: '1h', label: 'Tự động xóa file', icon: Trash2 },
-];
-
 export default function Home() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -182,7 +151,7 @@ export default function Home() {
   };
 
   return (
-    <div className="space-y-24 py-4 relative z-10">
+    <div className="space-y-20 py-4 relative z-10">
       {/* ── 1. HERO SECTION ── */}
       <section id="hero" className="pt-6 sm:pt-10 scroll-mt-24">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
@@ -345,7 +314,7 @@ export default function Home() {
       </section>
 
       {/* ── 3. TOOL LIBRARY (10 Tool Groups) ── */}
-      <section id="tools" className="scroll-mt-24 space-y-8">
+      <section id="tools" className="scroll-mt-24 space-y-8 pb-12">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="space-y-1">
             <span className="text-xs font-bold tracking-widest uppercase text-amber-400 font-mono">
@@ -404,107 +373,6 @@ export default function Home() {
               </div>
             </Link>
           ))}
-        </div>
-      </section>
-
-      {/* ── 4. WHY CHOOSE FILETOOLS ── */}
-      <section className="space-y-8 pt-6">
-        <div className="text-center space-y-2 max-w-2xl mx-auto">
-          <span className="text-xs font-bold tracking-widest uppercase text-amber-400 font-mono">
-            Vì sao chọn FileTools
-          </span>
-          <h2 className="text-3xl font-extrabold text-white tracking-tight">
-            Nhanh, riêng tư và thông minh
-          </h2>
-          <p className="text-xs sm:text-sm text-gray-400">
-            Chúng tôi xây dựng trên những công nghệ xử lý tệp tốt nhất để bạn không phải chờ đợi.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {FEATURES.map(({ icon: Icon, title, desc }, i) => (
-            <div
-              key={i}
-              className="liquid-glass-card specular-sheen p-6 space-y-3.5 hover:border-amber-400/30"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500/20 to-rose-500/20 border border-amber-400/30 flex items-center justify-center text-amber-300">
-                <Icon size={22} />
-              </div>
-              <h4 className="font-bold text-white text-sm">{title}</h4>
-              <p className="text-xs text-gray-400 leading-relaxed">{desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── 5. LIVE STATS SECTION ── */}
-      <section className="liquid-glass-card specular-sheen p-8 sm:p-10 border border-amber-400/20">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 text-center divide-y sm:divide-y-0 sm:divide-x divide-white/10">
-          {STATS.map(({ value, label, icon: Icon }, idx) => (
-            <div key={idx} className="space-y-2 pt-4 sm:pt-0">
-              <div className="w-10 h-10 mx-auto rounded-xl bg-amber-500/10 border border-amber-400/20 flex items-center justify-center text-amber-400">
-                <Icon size={20} />
-              </div>
-              <div className="text-3xl sm:text-4xl font-black text-white gold-gradient-text tracking-tight">
-                {value}
-              </div>
-              <div className="text-xs font-medium text-gray-400">
-                {label}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── 6. PERSONAL / CTA SECTION ── */}
-      <section id="personal" className="scroll-mt-24">
-        <div className="liquid-glass-card specular-sheen p-8 sm:p-14 text-center relative overflow-hidden border border-amber-400/30 shadow-[0_20px_50px_rgba(245,158,11,0.12)]">
-          <div className="max-w-2xl mx-auto space-y-6 relative z-10">
-            <div className="luxury-badge mx-auto">
-              <Sparkles size={13} className="text-amber-400" />
-              <span>Bắt đầu miễn phí, không cần thẻ tín dụng</span>
-            </div>
-
-            <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
-              Sẵn sàng xử lý mọi tệp{' '}
-              <span className="gold-gradient-text block sm:inline">
-                trong vài giây?
-              </span>
-            </h2>
-
-            <p className="text-sm text-gray-300/90 leading-relaxed max-w-lg mx-auto">
-              Tạo tài khoản để đồng bộ kết quả, lưu lịch sử và mở khóa toàn bộ sức mạnh của FileTools Pro.
-            </p>
-
-            <div className="flex flex-wrap items-center justify-center gap-3.5 pt-2">
-              {!user ? (
-                <Link
-                  to="/register"
-                  className="liquid-gold-button px-7 py-3.5 text-sm font-bold"
-                >
-                  Đăng ký miễn phí
-                </Link>
-              ) : (
-                <Link
-                  to="/dashboard"
-                  className="liquid-gold-button px-7 py-3.5 text-sm font-bold"
-                >
-                  Vào Không gian Cá nhân →
-                </Link>
-              )}
-
-              <a
-                href="#tools"
-                onClick={(e) => {
-                  e.preventDefault();
-                  document.getElementById('tools')?.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className="glass-button px-6 py-3.5 text-sm font-semibold text-gray-200 hover:text-white cursor-pointer"
-              >
-                Xem công cụ
-              </a>
-            </div>
-          </div>
         </div>
       </section>
     </div>

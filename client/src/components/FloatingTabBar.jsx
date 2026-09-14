@@ -11,7 +11,7 @@ export default function FloatingTabBar() {
 
   const isHomePage = location.pathname === '/';
 
-  // Scroll Spy for Home Page
+  // Scroll Spy & Route tracker
   useEffect(() => {
     if (!isHomePage) {
       if (location.pathname.startsWith('/dashboard') || location.pathname.startsWith('/login') || location.pathname.startsWith('/register')) {
@@ -24,18 +24,10 @@ export default function FloatingTabBar() {
 
     const handleScroll = () => {
       const scrollY = window.scrollY;
-      const windowHeight = window.innerHeight;
-
-      const heroEl = document.getElementById('hero');
       const toolsEl = document.getElementById('tools');
-      const personalEl = document.getElementById('personal');
+      const toolsTop = toolsEl ? toolsEl.offsetTop - 280 : 500;
 
-      const toolsTop = toolsEl ? toolsEl.offsetTop - 200 : 600;
-      const personalTop = personalEl ? personalEl.offsetTop - 300 : 1800;
-
-      if (scrollY >= personalTop) {
-        setActiveTab('personal');
-      } else if (scrollY >= toolsTop) {
+      if (scrollY >= toolsTop) {
         setActiveTab('tools');
       } else {
         setActiveTab('home');
@@ -64,22 +56,16 @@ export default function FloatingTabBar() {
         }
       } else {
         navigate('/#tools');
+        // Sau khi chuyển hướng về home, cuộn đến tools
+        setTimeout(() => {
+          const toolsEl = document.getElementById('tools');
+          if (toolsEl) {
+            toolsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 100);
       }
     } else if (tabId === 'personal') {
-      if (user) {
-        navigate('/dashboard');
-      } else {
-        if (isHomePage) {
-          const personalEl = document.getElementById('personal');
-          if (personalEl) {
-            personalEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          } else {
-            navigate('/login');
-          }
-        } else {
-          navigate('/login');
-        }
-      }
+      navigate('/dashboard');
     }
   };
 
@@ -90,10 +76,22 @@ export default function FloatingTabBar() {
   ];
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
+    <div
+      style={{
+        position: 'fixed',
+        bottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
+        left: '50%',
+        transform: 'translateX(-50%) translateZ(0)',
+        zIndex: 9999,
+        pointerEvents: 'auto',
+        touchAction: 'manipulation',
+        WebkitTransform: 'translateX(-50%) translateZ(0)',
+      }}
+      className="select-none"
+    >
       <nav
         aria-label="Thanh điều hướng nhanh iOS"
-        className="relative flex items-center gap-1.5 p-1.5 rounded-full bg-[#0E0E14]/85 backdrop-blur-2xl border border-white/15 border-t-white/30 shadow-[0_16px_45px_rgba(0,0,0,0.85)]"
+        className="relative flex items-center gap-1.5 p-1.5 rounded-full bg-[#0E0E14]/90 backdrop-blur-2xl border border-white/20 shadow-[0_16px_50px_rgba(0,0,0,0.9)] transition-all duration-300"
       >
         {tabs.map((tab) => {
           const Icon = tab.icon;
@@ -103,19 +101,19 @@ export default function FloatingTabBar() {
             <button
               key={tab.id}
               onClick={() => handleTabClick(tab.id)}
-              className={`relative flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold transition-all duration-300 select-none cursor-pointer ${
+              className={`relative flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition-all duration-300 select-none cursor-pointer whitespace-nowrap ${
                 isActive
-                  ? 'text-amber-300 bg-gradient-to-r from-amber-500/25 via-amber-400/20 to-amber-500/25 border border-amber-400/40 shadow-[0_0_20px_rgba(245,158,11,0.25)] scale-[1.03]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+                  ? 'text-amber-300 bg-gradient-to-r from-amber-500/30 via-amber-400/25 to-amber-500/30 border border-amber-400/50 shadow-[0_0_20px_rgba(245,158,11,0.3)] scale-[1.03]'
+                  : 'text-gray-400 hover:text-white hover:bg-white/10 border border-transparent active:scale-95'
               }`}
             >
               <Icon
                 size={16}
-                className={`transition-transform duration-300 ${
-                  isActive ? 'text-amber-300 scale-110 drop-shadow-[0_0_6px_rgba(245,158,11,0.5)]' : 'text-gray-400'
+                className={`transition-transform duration-300 shrink-0 ${
+                  isActive ? 'text-amber-300 scale-110 drop-shadow-[0_0_6px_rgba(245,158,11,0.6)]' : 'text-gray-400'
                 }`}
               />
-              <span className="tracking-wide">{tab.label}</span>
+              <span className="tracking-wide font-medium">{tab.label}</span>
             </button>
           );
         })}
