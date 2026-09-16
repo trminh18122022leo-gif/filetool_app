@@ -3,40 +3,42 @@ import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import Home from './pages/Home';
 import GlobalSearch from './components/GlobalSearch';
 import UserMenu from './components/UserMenu';
+import ThemeToggle from './components/ThemeToggle';
 import FloatingTabBar from './components/FloatingTabBar';
 import { useAuth } from './context/AuthContext';
 import {
   FileText, Image, Sparkles, Layers,
-  ScanText, Archive, QrCode, ArrowRightLeft, Wand2, Menu, X
+  ScanText, Archive, QrCode, ArrowRightLeft, Wand2, FileCode, Menu, X
 } from 'lucide-react';
 
-// Code Splitting & Lazy Loading for all 25 secondary pages
-const PdfTools      = lazy(() => import('./pages/PdfTools'));
-const PdfMergeTool  = lazy(() => import('./pages/PdfMergeTool'));
-const PdfSplitTool  = lazy(() => import('./pages/PdfSplitTool'));
-const PdfSignTool   = lazy(() => import('./pages/PdfSignTool'));
-const PdfDeleteTool = lazy(() => import('./pages/PdfDeleteTool'));
+// Code Splitting & Lazy Loading for all 26 secondary pages
+const PdfTools       = lazy(() => import('./pages/PdfTools'));
+const PdfMergeTool   = lazy(() => import('./pages/PdfMergeTool'));
+const PdfSplitTool   = lazy(() => import('./pages/PdfSplitTool'));
+const PdfSignTool    = lazy(() => import('./pages/PdfSignTool'));
+const PdfDeleteTool  = lazy(() => import('./pages/PdfDeleteTool'));
 const PdfOrganizeTool = lazy(() => import('./pages/PdfOrganizeTool'));
-const ImageTools    = lazy(() => import('./pages/ImageTools'));
-const ConvertTools  = lazy(() => import('./pages/ConvertTools'));
-const CreativeTools = lazy(() => import('./pages/CreativeTools'));
-const OfficeTools   = lazy(() => import('./pages/OfficeTools'));
-const AiTools       = lazy(() => import('./pages/AiTools'));
-const OcrTools      = lazy(() => import('./pages/OcrTools'));
-const ArchiveTools  = lazy(() => import('./pages/ArchiveTools'));
-const QrTools       = lazy(() => import('./pages/QrTools'));
-const Pricing       = lazy(() => import('./pages/Pricing'));
-const Login         = lazy(() => import('./pages/Login'));
-const Register      = lazy(() => import('./pages/Register'));
-const Dashboard     = lazy(() => import('./pages/Dashboard'));
-const SignaturePage = lazy(() => import('./pages/SignaturePage'));
-const BatchTools    = lazy(() => import('./pages/BatchTools'));
-const SpeechToText  = lazy(() => import('./pages/SpeechToText'));
-const ApiDocs       = lazy(() => import('./pages/ApiDocs'));
+const ImageTools     = lazy(() => import('./pages/ImageTools'));
+const ConvertTools   = lazy(() => import('./pages/ConvertTools'));
+const CreativeTools  = lazy(() => import('./pages/CreativeTools'));
+const OfficeTools    = lazy(() => import('./pages/OfficeTools'));
+const AiTools        = lazy(() => import('./pages/AiTools'));
+const OcrTools       = lazy(() => import('./pages/OcrTools'));
+const ArchiveTools   = lazy(() => import('./pages/ArchiveTools'));
+const QrTools        = lazy(() => import('./pages/QrTools'));
+const AdvancedEditor = lazy(() => import('./pages/AdvancedEditor'));
+const Pricing        = lazy(() => import('./pages/Pricing'));
+const Login          = lazy(() => import('./pages/Login'));
+const Register       = lazy(() => import('./pages/Register'));
+const Dashboard      = lazy(() => import('./pages/Dashboard'));
+const SignaturePage  = lazy(() => import('./pages/SignaturePage'));
+const BatchTools     = lazy(() => import('./pages/BatchTools'));
+const SpeechToText   = lazy(() => import('./pages/SpeechToText'));
+const ApiDocs        = lazy(() => import('./pages/ApiDocs'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
-const ResetPassword = lazy(() => import('./pages/ResetPassword'));
-const VerifyEmail   = lazy(() => import('./pages/VerifyEmail'));
-const NotFound      = lazy(() => import('./pages/NotFound'));
+const ResetPassword  = lazy(() => import('./pages/ResetPassword'));
+const VerifyEmail    = lazy(() => import('./pages/VerifyEmail'));
+const NotFound       = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
   return (
@@ -56,6 +58,7 @@ const NAV = [
   { path: '/creative',  label: 'Creative',  icon: Wand2 },
   { path: '/office',    label: 'Office',    icon: Layers },
   { path: '/ai',        label: 'AI Tools',  icon: Sparkles },
+  { path: '/editor',    label: 'Editor',    icon: FileCode },
   { path: '/ocr',       label: 'OCR',       icon: ScanText },
   { path: '/archive',   label: 'Nén file',  icon: Archive },
   { path: '/qr',        label: 'QR Code',   icon: QrCode },
@@ -131,6 +134,7 @@ export default function App() {
           </nav>
 
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <UserMenu />
 
             <button
@@ -145,6 +149,10 @@ export default function App() {
 
         {mobileMenuOpen && (
           <div className="lg:hidden border-t border-white/10 bg-[#0C0C12]/95 backdrop-blur-2xl px-4 py-4 space-y-1 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 mb-2 border-b border-white/10 px-1">
+              <span className="text-xs text-gray-400 font-medium">Giao diện:</span>
+              <ThemeToggle />
+            </div>
             {NAV.map(({ path, label, icon: Icon }) => {
               const active = location.pathname.startsWith(path);
               return (
@@ -183,6 +191,7 @@ export default function App() {
             <Route path="/creative" element={<CreativeTools />} />
             <Route path="/office" element={<OfficeTools />} />
             <Route path="/ai" element={<AiTools />} />
+            <Route path="/editor" element={<AdvancedEditor />} />
             <Route path="/ocr" element={<OcrTools />} />
             <Route path="/archive" element={<ArchiveTools />} />
             <Route path="/qr" element={<QrTools />} />

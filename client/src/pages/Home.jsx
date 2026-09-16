@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   FileText, Image, Archive, Sparkles,
   FileOutput, ScanText, PenLine, Layers,
-  QrCode, Mic, Upload, ArrowUpRight, CheckCircle2, Lock, Zap
+  QrCode, Mic, Upload, ArrowUpRight, CheckCircle2, Lock, Zap, FileCode
 } from 'lucide-react';
 
 const TOOL_GROUPS = [
@@ -27,6 +27,16 @@ const TOOL_GROUPS = [
     haloColor: 'hover:shadow-[0_20px_45px_rgba(251,113,133,0.18)] hover:border-rose-400/40',
     desc: 'Chuyển đổi, thay đổi kích thước và tối ưu hình ảnh hàng loạt.',
     tools: ['Convert', 'Resize', 'Compress', 'Crop', 'Filter', 'Remove BG'],
+  },
+  {
+    id: 'editor',
+    label: 'Advanced Editor',
+    icon: FileCode,
+    to: '/editor',
+    accentColor: 'text-amber-300',
+    haloColor: 'hover:shadow-[0_20px_45px_rgba(245,158,11,0.18)] hover:border-amber-400/40',
+    desc: 'Monaco VS Code engine, Data Table CSV/JSON, Auto-Save & AI Code Assistant.',
+    tools: ['Monaco VS Code', 'Live Markdown', 'Data Table', 'IndexedDB', 'AI Code', 'Yjs Collab'],
   },
   {
     id: 'office',
@@ -111,9 +121,9 @@ const TOOL_GROUPS = [
 ];
 
 const MARQUEE_ITEMS = [
-  'REMOVE BG', 'SPEECH TO TEXT', 'ZIP ARCHIVE', 'QR CODE', 'E-SIGNATURE',
-  'PDF MERGE', 'SPLIT & ROTATE', 'COMPRESS', 'OCR SCAN', 'AI SUMMARY',
-  'TRANSLATE', 'DOCX → PDF', 'EXCEL CONVERT', 'POWERPOINT SLIDES', 'CROP PDF'
+  'MONACO CODE EDITOR', 'DATA TABLE CSV', 'AI CODE ASSISTANT', 'REMOVE BG', 'SPEECH TO TEXT',
+  'ZIP ARCHIVE', 'QR CODE', 'E-SIGNATURE', 'PDF MERGE', 'SPLIT & ROTATE',
+  'COMPRESS', 'OCR SCAN', 'AI SUMMARY', 'TRANSLATE', 'DOCX → PDF', 'EXCEL CONVERT'
 ];
 
 export default function Home() {
@@ -131,7 +141,9 @@ export default function Home() {
       navigate('/pdf');
     } else if (['jpg', 'jpeg', 'png', 'webp', 'avif', 'bmp', 'svg'].includes(ext)) {
       navigate('/image');
-    } else if (['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'csv'].includes(ext)) {
+    } else if (['js', 'ts', 'jsx', 'tsx', 'py', 'json', 'csv', 'md', 'html', 'css', 'sql', 'txt', 'yml', 'yaml'].includes(ext)) {
+      navigate('/editor');
+    } else if (['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'].includes(ext)) {
       navigate('/office');
     } else if (['mp3', 'wav', 'm4a', 'ogg', 'mp4', 'webm'].includes(ext)) {
       navigate('/speech');

@@ -15,24 +15,35 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@monaco-editor/react": "^4.7.0",
     "@stripe/stripe-js": "^5.6.0",
     "@tailwindcss/vite": "^4.0.6",
+    "@tanstack/react-table": "^8.20.6",
+    "@tanstack/react-virtual": "^3.14.13",
     "axios": "^1.20.0",
     "clsx": "^2.1.1",
+    "idb": "^8.0.3",
     "lucide-react": "^0.475.0",
+    "monaco-editor": "^0.56.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.1.5",
+    "remark-gfm": "^4.0.1",
     "socket.io-client": "^4.8.1",
     "tailwind-merge": "^3.0.1",
     "tailwindcss": "^4.0.6",
     "uuid": "^14.0.2",
+    "y-monaco": "^0.1.6",
+    "y-websocket": "^3.1.0",
+    "yjs": "^13.6.32",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^6.1.0"
+    "vite": "^6.1.0",
+    "vite-plugin-pwa": "^1.3.0"
   }
 }

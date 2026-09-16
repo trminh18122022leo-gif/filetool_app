@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { LogIn, UserPlus, Loader2, AlertCircle, CheckCircle2, ArrowRight, ArrowLeft, ShieldCheck, KeyRound } from 'lucide-react';
+import {
+  LogIn, UserPlus, Loader2, AlertCircle, CheckCircle2,
+  ArrowRight, ArrowLeft, ShieldCheck, Sparkles
+} from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -133,10 +136,10 @@ export default function Auth({ defaultMode = 'login' }) {
   };
 
   const SocialButtons = () => (
-    <div className="grid grid-cols-3 gap-2 mt-4">
+    <div className="grid grid-cols-3 gap-2.5 mt-4">
       <a
         href={`${API}/api/auth/google`}
-        className="glass-button flex items-center justify-center gap-1.5 py-2.5 px-2 text-xs font-semibold hover:border-amber-400/50 hover:bg-white/10 transition-all group cursor-pointer"
+        className="glass-button flex items-center justify-center gap-2 py-2.5 px-2 text-xs font-semibold hover:border-amber-400/50 hover:bg-white/10 transition-all group cursor-pointer"
         title="Tiếp tục với Google"
       >
         <svg className="w-4 h-4 flex-shrink-0 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
@@ -150,10 +153,10 @@ export default function Auth({ defaultMode = 'login' }) {
 
       <a
         href={`${API}/api/auth/github`}
-        className="glass-button flex items-center justify-center gap-1.5 py-2.5 px-2 text-xs font-semibold hover:border-amber-400/50 hover:bg-white/10 transition-all group cursor-pointer"
+        className="glass-button flex items-center justify-center gap-2 py-2.5 px-2 text-xs font-semibold hover:border-amber-400/50 hover:bg-white/10 transition-all group cursor-pointer"
         title="Tiếp tục với GitHub"
       >
-        <svg className="w-4 h-4 fill-white flex-shrink-0 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 fill-current flex-shrink-0 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
           <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
         </svg>
         <span className="truncate">GitHub</span>
@@ -161,7 +164,7 @@ export default function Auth({ defaultMode = 'login' }) {
 
       <button
         onClick={handleTelegramLogin}
-        className="glass-button flex items-center justify-center gap-1.5 py-2.5 px-2 text-xs font-semibold hover:border-amber-400/50 hover:bg-white/10 transition-all group cursor-pointer"
+        className="glass-button flex items-center justify-center gap-2 py-2.5 px-2 text-xs font-semibold hover:border-amber-400/50 hover:bg-white/10 transition-all group cursor-pointer"
         title="Tiếp tục với Telegram"
       >
         <svg className="w-4 h-4 fill-[#229ED9] flex-shrink-0 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
@@ -173,45 +176,51 @@ export default function Auth({ defaultMode = 'login' }) {
   );
 
   return (
-    <div className="w-full max-w-4xl mx-auto py-4">
-      {/* Mobile Mode Switcher */}
-      <div className="md:hidden mb-6 flex p-1.5 bg-black/40 border border-white/10 rounded-2xl backdrop-blur-xl">
+    <div className="w-full max-w-4xl mx-auto py-6 px-2 sm:px-4 relative z-10">
+      {/* Mobile Fluid Mode Switcher */}
+      <div className="md:hidden mb-6 relative p-1.5 bg-black/40 border border-white/10 rounded-2xl backdrop-blur-xl flex shadow-lg">
+        <div
+          className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] rounded-xl liquid-gold-button transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+            isRegister ? 'left-[calc(50%+3px)]' : 'left-1.5'
+          }`}
+        />
         <button
           onClick={() => toggleMode(false)}
-          className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-            !isRegister
-              ? 'liquid-gold-button text-black shadow-[0_0_15px_rgba(245,158,11,0.35)]'
-              : 'text-gray-400 hover:text-white'
+          className={`relative z-10 flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer ${
+            !isRegister ? 'text-black' : 'text-gray-400 hover:text-white'
           }`}
         >
-          <LogIn size={14} /> Đăng Nhập
+          <LogIn size={14} />
+          <span>Đăng Nhập</span>
         </button>
         <button
           onClick={() => toggleMode(true)}
-          className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-            isRegister
-              ? 'liquid-gold-button text-black shadow-[0_0_15px_rgba(245,158,11,0.35)]'
-              : 'text-gray-400 hover:text-white'
+          className={`relative z-10 flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer ${
+            isRegister ? 'text-black' : 'text-gray-400 hover:text-white'
           }`}
         >
-          <UserPlus size={14} /> Đăng Ký
+          <UserPlus size={14} />
+          <span>Đăng Ký</span>
         </button>
       </div>
 
-      {/* Main Container */}
-      <div className="relative overflow-hidden rounded-3xl liquid-glass shadow-[0_0_50px_rgba(0,0,0,0.7)] border border-white/10 min-h-[620px] flex">
+      {/* Main Glass Container with Fluid Wave Cutout */}
+      <div className="relative overflow-hidden rounded-3xl liquid-glass shadow-[0_20px_60px_rgba(0,0,0,0.8)] border border-white/10 min-h-[640px] flex">
 
-        {/* 1. Left Section: Login Form */}
-        <div className={`w-full md:w-1/2 p-8 sm:p-10 flex flex-col justify-center transition-all duration-500 ${
-          isRegister ? 'hidden md:flex opacity-30 pointer-events-none md:pointer-events-auto' : 'flex opacity-100'
-        }`}>
+        {/* ── 1. Left Section: Login Form ── */}
+        <div
+          className={`w-full md:w-1/2 p-8 sm:p-12 flex flex-col justify-center transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+            isRegister
+              ? 'hidden md:flex opacity-20 scale-95 pointer-events-none md:pointer-events-auto'
+              : 'flex opacity-100 scale-100'
+          }`}
+        >
           <div className="max-w-sm mx-auto w-full">
-
             {twoFactorChallenge ? (
               // 2FA Verification View
-              <div className="space-y-4">
-                <div className="w-12 h-12 rounded-2xl bg-amber-950/80 border border-amber-500/50 flex items-center justify-center text-amber-400 mx-auto">
-                  <ShieldCheck size={26} />
+              <div className="space-y-5 animate-in fade-in zoom-in-95 duration-200">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-400/40 flex items-center justify-center text-amber-400 mx-auto shadow-[0_0_20px_rgba(245,158,11,0.25)]">
+                  <ShieldCheck size={28} />
                 </div>
                 <div className="text-center">
                   <h2 className="text-2xl font-bold text-white">Xác thực 2 Bước (2FA)</h2>
@@ -259,10 +268,16 @@ export default function Auth({ defaultMode = 'login' }) {
             ) : (
               // Normal Login View
               <>
-                <h2 className="text-3xl font-extrabold gold-gradient-text flex items-center gap-2.5 mb-2">
-                  <LogIn size={26} className="text-amber-400" /> Đăng Nhập
-                </h2>
-                <p className="text-xs text-gray-400 mb-6">Chào mừng bạn quay lại với FileTools Pro!</p>
+                <div className="space-y-2 mb-6">
+                  <div className="luxury-badge">
+                    <Sparkles size={12} className="text-amber-400" />
+                    <span>Chào mừng trở lại</span>
+                  </div>
+                  <h2 className="text-3xl font-extrabold gold-gradient-text flex items-center gap-2.5">
+                    <LogIn size={26} className="text-amber-400" /> Đăng Nhập
+                  </h2>
+                  <p className="text-xs text-gray-400">Đăng nhập để quản lý file và tận hưởng công cụ Pro</p>
+                </div>
 
                 {(loginError || urlError) && (
                   <div className="mb-4 p-3 bg-red-950/50 border border-red-800/60 rounded-xl flex items-start gap-2.5 text-red-400 text-xs">
@@ -273,7 +288,7 @@ export default function Auth({ defaultMode = 'login' }) {
 
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-300 mb-1.5">Email</label>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1.5">Email</label>
                     <input
                       type="email"
                       value={loginEmail}
@@ -286,8 +301,8 @@ export default function Auth({ defaultMode = 'login' }) {
 
                   <div>
                     <div className="flex justify-between items-center mb-1.5">
-                      <label className="text-xs font-medium text-gray-300">Mật khẩu</label>
-                      <Link to="/forgot-password" className="text-[11px] text-amber-400 hover:underline">
+                      <label className="text-xs font-semibold text-gray-300">Mật khẩu</label>
+                      <Link to="/forgot-password" className="text-[11px] text-amber-400 hover:underline font-medium">
                         Quên mật khẩu?
                       </Link>
                     </div>
@@ -312,7 +327,7 @@ export default function Auth({ defaultMode = 'login' }) {
 
                 <div className="flex items-center gap-3 my-5">
                   <div className="flex-1 h-px bg-white/10" />
-                  <span className="text-gray-400 text-[11px] uppercase font-medium">Hoặc tiếp tục với</span>
+                  <span className="text-gray-400 text-[11px] uppercase font-semibold tracking-wider font-mono">Hoặc</span>
                   <div className="flex-1 h-px bg-white/10" />
                 </div>
 
@@ -329,15 +344,25 @@ export default function Auth({ defaultMode = 'login' }) {
           </div>
         </div>
 
-        {/* 2. Right Section: Register Form */}
-        <div className={`w-full md:w-1/2 p-8 sm:p-10 flex flex-col justify-center transition-all duration-500 ${
-          !isRegister ? 'hidden md:flex opacity-30 pointer-events-none md:pointer-events-auto' : 'flex opacity-100'
-        }`}>
+        {/* ── 2. Right Section: Register Form ── */}
+        <div
+          className={`w-full md:w-1/2 p-8 sm:p-12 flex flex-col justify-center transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+            !isRegister
+              ? 'hidden md:flex opacity-20 scale-95 pointer-events-none md:pointer-events-auto'
+              : 'flex opacity-100 scale-100'
+          }`}
+        >
           <div className="max-w-sm mx-auto w-full">
-            <h2 className="text-3xl font-extrabold gold-gradient-text flex items-center gap-2.5 mb-2">
-              <UserPlus size={26} className="text-amber-400" /> Tạo Tài Khoản
-            </h2>
-            <p className="text-xs text-gray-400 mb-6">Đăng ký tài khoản miễn phí trải nghiệm toàn bộ tính năng</p>
+            <div className="space-y-2 mb-6">
+              <div className="luxury-badge">
+                <Sparkles size={12} className="text-amber-400" />
+                <span>Khởi tạo tài khoản</span>
+              </div>
+              <h2 className="text-3xl font-extrabold gold-gradient-text flex items-center gap-2.5">
+                <UserPlus size={26} className="text-amber-400" /> Tạo Tài Khoản
+              </h2>
+              <p className="text-xs text-gray-400">Trải nghiệm không giới hạn mọi công cụ xử lý file</p>
+            </div>
 
             {regError && (
               <div className="mb-4 p-3 bg-red-950/50 border border-red-800/60 rounded-xl flex items-start gap-2.5 text-red-400 text-xs">
@@ -355,7 +380,7 @@ export default function Auth({ defaultMode = 'login' }) {
 
             <form onSubmit={handleRegister} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-300 mb-1.5">Họ và tên</label>
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">Họ và tên</label>
                 <input
                   type="text"
                   value={regName}
@@ -367,7 +392,7 @@ export default function Auth({ defaultMode = 'login' }) {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-300 mb-1.5">Email</label>
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">Email</label>
                 <input
                   type="email"
                   value={regEmail}
@@ -379,7 +404,7 @@ export default function Auth({ defaultMode = 'login' }) {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-300 mb-1.5">Mật khẩu</label>
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">Mật khẩu</label>
                 <input
                   type="password"
                   value={regPassword}
@@ -402,7 +427,7 @@ export default function Auth({ defaultMode = 'login' }) {
 
             <div className="flex items-center gap-3 my-5">
               <div className="flex-1 h-px bg-white/10" />
-              <span className="text-gray-400 text-[11px] uppercase font-medium">Hoặc tiếp tục với</span>
+              <span className="text-gray-400 text-[11px] uppercase font-semibold tracking-wider font-mono">Hoặc</span>
               <div className="flex-1 h-px bg-white/10" />
             </div>
 
@@ -417,37 +442,68 @@ export default function Auth({ defaultMode = 'login' }) {
           </div>
         </div>
 
-        {/* 3. Sliding Overlay (Desktop Only >= md) */}
+        {/* ── 3. Fluid Organic Curved Wave Sliding Overlay (Desktop >= md) ── */}
         <div
-          className={`hidden md:flex absolute top-0 w-1/2 h-full bg-gradient-to-br from-amber-600 via-orange-700 to-rose-900 z-20 transition-all duration-700 ease-in-out items-center justify-center text-center p-12 text-white shadow-2xl backdrop-blur-3xl ${
-            isRegister ? 'translate-x-0 left-0 rounded-r-3xl' : 'translate-x-full left-0 rounded-l-3xl'
+          className={`hidden md:flex absolute top-0 w-1/2 h-full z-20 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] items-center justify-center text-center p-12 text-white shadow-2xl overflow-hidden ${
+            isRegister ? 'translate-x-0 left-0' : 'translate-x-full left-0'
           }`}
         >
-          <div className="space-y-6 max-w-xs">
+          {/* Rich Gradient Ambient Background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-600 via-orange-700 to-rose-950 backdrop-blur-3xl" />
+
+          {/* Organic Curved Wave Mask Border */}
+          <div
+            className={`absolute top-0 bottom-0 w-16 pointer-events-none transition-all duration-700 ${
+              isRegister ? 'right-0 translate-x-full rotate-180' : 'left-0 -translate-x-full'
+            }`}
+          >
+            <svg
+              className="h-full w-16 fill-orange-700 drop-shadow-[0_0_15px_rgba(245,158,11,0.3)]"
+              viewBox="0 0 100 1000"
+              preserveAspectRatio="none"
+            >
+              <path d="M0,0 Q80,250 20,500 T0,1000 L100,1000 L100,0 Z" />
+            </svg>
+          </div>
+
+          {/* Dynamic Floating Glow Orbs inside Overlay */}
+          <div className="absolute -top-20 -left-20 w-48 h-48 bg-amber-400/30 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-20 -right-20 w-48 h-48 bg-rose-500/30 rounded-full blur-3xl pointer-events-none" />
+
+          {/* Content inside Overlay with Spring Fade */}
+          <div className="relative z-10 space-y-6 max-w-xs transition-transform duration-500">
             {isRegister ? (
               <>
+                <div className="inline-flex p-3 rounded-2xl bg-white/10 border border-white/20 shadow-inner">
+                  <LogIn size={28} className="text-amber-200" />
+                </div>
                 <h3 className="text-3xl font-black tracking-tight">Đã Có Tài Khoản?</h3>
-                <p className="text-sm text-amber-100/90 leading-relaxed">
-                  Đăng nhập để tiếp tục làm việc với các file của bạn và tận hưởng tính năng Pro!
+                <p className="text-sm text-amber-100/90 leading-relaxed font-normal">
+                  Đăng nhập để tiếp tục làm việc với các tài liệu và kho công cụ xử lý file tốc độ cao của bạn!
                 </p>
                 <button
                   onClick={() => toggleMode(false)}
-                  className="px-8 py-3 rounded-xl bg-white text-black font-extrabold hover:bg-amber-50 transition-all shadow-xl hover:scale-105 active:scale-95 text-sm flex items-center justify-center gap-2 mx-auto cursor-pointer"
+                  className="px-8 py-3 rounded-2xl bg-white text-black font-extrabold hover:bg-amber-50 transition-all shadow-[0_10px_25px_rgba(0,0,0,0.3)] hover:scale-105 active:scale-95 text-sm flex items-center justify-center gap-2 mx-auto cursor-pointer"
                 >
-                  <ArrowLeft size={16} /> Đăng Nhập Ngay
+                  <ArrowLeft size={16} />
+                  <span>Đăng Nhập Ngay</span>
                 </button>
               </>
             ) : (
               <>
+                <div className="inline-flex p-3 rounded-2xl bg-white/10 border border-white/20 shadow-inner">
+                  <UserPlus size={28} className="text-amber-200" />
+                </div>
                 <h3 className="text-3xl font-black tracking-tight">Chào Bạn Mới!</h3>
-                <p className="text-sm text-amber-100/90 leading-relaxed">
-                  Tạo tài khoản miễn phí để mở khóa xử lý hàng loạt, lưu trữ đám mây và bảo vệ file.
+                <p className="text-sm text-amber-100/90 leading-relaxed font-normal">
+                  Tạo tài khoản miễn phí để mở khóa xử lý hàng loạt, lưu trữ đám mây, chữ ký số và AI thông minh.
                 </p>
                 <button
                   onClick={() => toggleMode(true)}
-                  className="px-8 py-3 rounded-xl bg-white text-black font-extrabold hover:bg-amber-50 transition-all shadow-xl hover:scale-105 active:scale-95 text-sm flex items-center justify-center gap-2 mx-auto cursor-pointer"
+                  className="px-8 py-3 rounded-2xl bg-white text-black font-extrabold hover:bg-amber-50 transition-all shadow-[0_10px_25px_rgba(0,0,0,0.3)] hover:scale-105 active:scale-95 text-sm flex items-center justify-center gap-2 mx-auto cursor-pointer"
                 >
-                  Đăng Ký Ngay <ArrowRight size={16} />
+                  <span>Đăng Ký Ngay</span>
+                  <ArrowRight size={16} />
                 </button>
               </>
             )}

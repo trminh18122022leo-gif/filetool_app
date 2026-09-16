@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, X, ChevronRight, FileText, Image, ArrowRightLeft, Wand2, Sparkles, ScanText, Archive, QrCode, Mic } from 'lucide-react';
+import { Search, X, ChevronRight, FileText, Image, ArrowRightLeft, Wand2, Sparkles, ScanText, Archive, QrCode, Mic, FileCode } from 'lucide-react';
 
 const ALL_TOOLS = [
+  { name: 'Advanced Editor (Monaco / CSV / Code)', path: '/editor', category: 'Developer & Data', icon: FileCode, tags: ['editor','monaco','code','csv','json','markdown','python','javascript','vscode','lập trình'] },
   { name: 'Gộp PDF (Visual)',  path: '/pdf/merge',      category: 'PDF Tools', icon: FileText, tags: ['merge','pdf','gộp','kết hợp'] },
   { name: 'Tách PDF (Visual)', path: '/pdf/split',      category: 'PDF Tools', icon: FileText, tags: ['split','pdf','tách','chia'] },
   { name: 'Ký PDF (Visual)',   path: '/pdf/sign',       category: 'PDF Tools', icon: FileText, tags: ['sign','ký','chữ ký','pdf'] },

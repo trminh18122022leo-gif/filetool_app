@@ -58,6 +58,36 @@ const PORT = process.env.PORT || 3002;
 // Khởi tạo Socket.io
 initSocket(server);
 
+// Khởi tạo Yjs Collaborative WebSocket Server (/collab)
+try {
+  const WebSocket = require('ws');
+  const { setupWSConnection } = require('y-websocket/bin/utils');
+  const collabWSS = new WebSocket.Server({ noServer: true });
+
+  collabWSS.on('connection', (ws, req) => {
+    try {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const docName = parsedUrl.searchParams.get('room') || 'default';
+      setupWSConnection(ws, req, { docName, gc: true });
+    } catch (err) {
+      logger.error(`[Collab] Connection error: ${err.message}`);
+    }
+  });
+
+  server.on('upgrade', (request, socket, head) => {
+    try {
+      const { pathname } = new URL(request.url, 'http://localhost');
+      if (pathname === '/collab') {
+        collabWSS.handleUpgrade(request, socket, head, (ws) => {
+          collabWSS.emit('connection', ws, request);
+        });
+      }
+    } catch (_) {}
+  });
+} catch (collabErr) {
+  logger.warn(`[Collab] Không thể khởi tạo Yjs WebSocket: ${collabErr.message}`);
+}
+
 // Đảm bảo các thư mục cần thiết tồn tại
 ['uploads', 'outputs', 'logs'].forEach(dir => {
   const p = path.resolve(dir);
