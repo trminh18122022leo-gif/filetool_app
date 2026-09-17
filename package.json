@@ -10,7 +10,9 @@
     "client": "cd client && npm run dev",
     "dev:all": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm run dev\" \"npm run client\"",
     "build": "cd client && npm run build",
-    "clean": "node -e \"const fs=require('fs');['uploads','outputs'].forEach(d=>{if(fs.existsSync(d))fs.readdirSync(d).forEach(f=>fs.unlinkSync(d+'/'+f))})\""
+    "clean": "node -e \"const fs=require('fs');['uploads','outputs'].forEach(d=>{if(fs.existsSync(d))fs.readdirSync(d).forEach(f=>fs.unlinkSync(d+'/'+f))})\"",
+    "electron:dev": "npm run build && cd electron && npm start",
+    "electron:build": "npm run build && cd electron && npm install && npm run build"
   },
   "allowScripts": {
     "sharp": true,
@@ -67,7 +69,7 @@
     "yjs": "^13.6.32"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2",
-    "nodemon": "^3.1.9"
+    "concurrently": "^9.2.4",
+    "nodemon": "^3.1.14"
   }
 }

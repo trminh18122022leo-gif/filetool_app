@@ -14,6 +14,10 @@ const { requireAuth } = require('../middleware/auth');
 const { loginRateLimit, registerRateLimit, forgotPasswordRateLimit } = require('../middleware/rateLimit');
 
 function getClientUrl(req) {
+  if (req && req.cookies && req.cookies.auth_platform) {
+    if (req.cookies.auth_platform === 'electron') return 'filetools://auth';
+    if (req.cookies.auth_platform === 'android') return 'com.filetools.pro://auth';
+  }
   if (process.env.CLIENT_URL && !process.env.CLIENT_URL.includes('localhost')) {
     return process.env.CLIENT_URL.replace(/\/$/, '');
   }
@@ -141,6 +145,7 @@ function checkTelegramAuth(data, botToken) {
 
 // ── Google Routes ─────────────────────────────────────────────────────────────
 router.get('/google', (req, res, next) => {
+  if (req.query.platform) res.cookie('auth_platform', req.query.platform, { maxAge: 5 * 60 * 1000 });
   const clientUrl = getClientUrl(req);
   if (!process.env.GOOGLE_CLIENT_ID) {
     return res.redirect(clientUrl + '/login?error=' + encodeURIComponent('Google OAuth chưa được cấu hình'));
@@ -164,6 +169,7 @@ router.get('/google/callback',
 
 // ── GitHub Routes ─────────────────────────────────────────────────────────────
 router.get('/github', (req, res, next) => {
+  if (req.query.platform) res.cookie('auth_platform', req.query.platform, { maxAge: 5 * 60 * 1000 });
   const clientUrl = getClientUrl(req);
   if (!process.env.GITHUB_CLIENT_ID) {
     return res.redirect(clientUrl + '/login?error=' + encodeURIComponent('GitHub OAuth chưa được cấu hình'));

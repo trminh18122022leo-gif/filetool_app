@@ -84,6 +84,19 @@ export default function App() {
         })
         .catch(() => {});
     }
+    // Capacitor Deep Link listener
+    if (window.Capacitor?.isNativePlatform?.()) {
+      import('@capacitor/app').then(({ App }) => {
+        App.addListener('appUrlOpen', data => {
+          const url = new URL(data.url);
+          const deepToken = url.searchParams.get('token');
+          if (deepToken) {
+            localStorage.setItem('token', deepToken);
+            window.location.href = `/?token=${deepToken}`;
+          }
+        });
+      });
+    }
   }, [location]);
 
   return (

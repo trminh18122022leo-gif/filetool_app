@@ -1,0 +1,23 @@
+{
+  "appId": "com.filetools.pro",
+  "appName": "FileTools Pro",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "allowNavigation": ["*"],
+    "cleartext": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#08080C",
+      "showSpinner": true,
+      "androidSpinnerStyle": "large",
+      "spinnerColor": "#f59e0b"
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#08080C"
+    }
+  }
+}

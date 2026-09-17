@@ -7,7 +7,10 @@ import {
   ArrowRight, ArrowLeft, ShieldCheck, Sparkles
 } from 'lucide-react';
 
-const API = import.meta.env.VITE_API_URL || '';
+const API = import.meta.env.VITE_API_URL || (!!(window.Capacitor?.isNativePlatform?.() || window.electronAPI) ? 'https://filetool-app.vercel.app' : '');
+const isNative = !!(window.Capacitor?.isNativePlatform?.() || window.electronAPI);
+const platform = window.electronAPI ? 'electron' : (window.Capacitor?.isNativePlatform?.() ? 'android' : '');
+const platformQuery = platform ? `?platform=${platform}` : '';
 
 export default function Auth({ defaultMode = 'login' }) {
   const { login } = useAuth();
@@ -138,7 +141,7 @@ export default function Auth({ defaultMode = 'login' }) {
   const SocialButtons = () => (
     <div className="grid grid-cols-3 gap-2.5 mt-4">
       <a
-        href={`${API}/api/auth/google`}
+        href={`${API}/api/auth/google${platformQuery}`}
         className="glass-button flex items-center justify-center gap-2 py-2.5 px-2 text-xs font-semibold hover:border-amber-400/50 hover:bg-white/10 transition-all group cursor-pointer"
         title="Tiếp tục với Google"
       >
@@ -152,7 +155,7 @@ export default function Auth({ defaultMode = 'login' }) {
       </a>
 
       <a
-        href={`${API}/api/auth/github`}
+        href={`${API}/api/auth/github${platformQuery}`}
         className="glass-button flex items-center justify-center gap-2 py-2.5 px-2 text-xs font-semibold hover:border-amber-400/50 hover:bg-white/10 transition-all group cursor-pointer"
         title="Tiếp tục với GitHub"
       >

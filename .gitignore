@@ -14,3 +14,6 @@ logs/*
 client/dist
 .DS_Store
 Thumbs.db
+
+electron/dist
+electron/node_modules

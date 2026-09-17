@@ -21,8 +21,10 @@ import axios from 'axios';
 import {
   FolderOpen, Save, History, Sparkles, Code2, Table2,
   HardDrive, Users, Check, X, Clock, Loader2, Play,
-  FileCode2, ShieldAlert, CheckCircle, HelpCircle, ArrowRight
+  FileCode2, ShieldAlert, CheckCircle, HelpCircle, ArrowRight,
+  Terminal, ChevronDown, ChevronUp, Trash2, Square
 } from 'lucide-react';
+import { useCodeRunner } from '../hooks/useCodeRunner';
 
 const API = import.meta.env.VITE_API_URL || '';
 const DRAFT_ID = 'filetools-advanced-editor-main';
@@ -70,6 +72,10 @@ export default function AdvancedEditor() {
   const [aiAction,    setAiAction]    = useState('');
   const [showDrafts,  setShowDrafts]  = useState(false);
   const [draftsList,  setDraftsList]  = useState([]);
+  const [showConsole, setShowConsole] = useState(false);
+
+  // Code Runner
+  const { output: consoleOutput, isRunning, runTime, exitCode, runCode, clearOutput } = useCodeRunner();
 
   // Real-time Collaboration (Yjs)
   const [collabEnabled, setCollabEnabled] = useState(false);
@@ -114,6 +120,21 @@ export default function AdvancedEditor() {
     }).catch(() => {});
     return () => { mounted = false; };
   }, []);
+
+  // Keyboard shortcut: Ctrl+Enter to run code
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (!isRunning) {
+          setShowConsole(true);
+          runCode(content, filename);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [content, filename, isRunning, runCode]);
 
   // Mở file từ máy tính
   const handleOpenFile = async () => {
@@ -339,8 +360,41 @@ export default function AdvancedEditor() {
           )}
         </div>
 
-        {/* Right: History, Collaboration, AI */}
+        {/* Right: Run, Console, History, Collaboration, AI */}
         <div className="flex items-center gap-2">
+          {/* Run Code Button */}
+          <button
+            onClick={() => {
+              setShowConsole(true);
+              runCode(content, filename);
+            }}
+            disabled={isRunning}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              isRunning
+                ? 'bg-orange-500/30 text-orange-300 border border-orange-400/40 animate-pulse cursor-wait'
+                : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 hover:shadow-[0_0_15px_rgba(16,185,129,0.25)]'
+            }`}
+            title="Chạy mã nguồn (Ctrl+Enter)"
+          >
+            {isRunning ? <Square size={13} /> : <Play size={13} className="fill-current" />}
+            <span>{isRunning ? 'Đang chạy...' : 'Run'}</span>
+          </button>
+
+          {/* Console Toggle */}
+          <button
+            onClick={() => setShowConsole(prev => !prev)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-medium transition-all ${
+              showConsole
+                ? 'bg-gray-700/50 text-white border-white/20'
+                : 'bg-white/5 hover:bg-white/10 text-gray-300 border-white/10'
+            }`}
+            title="Hiện/ẩn bảng Console"
+          >
+            <Terminal size={14} />
+            <span className="hidden sm:inline">Console</span>
+            {consoleOutput && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 ml-0.5" />}
+          </button>
+
           {/* History */}
           <button
             onClick={handleShowHistory}
@@ -618,6 +672,79 @@ export default function AdvancedEditor() {
                 {collabEnabled ? 'Rời phòng cộng tác' : 'Bật phòng cộng tác ngay'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CONSOLE OUTPUT PANEL ── */}
+      {showConsole && (
+        <div className="flex-shrink-0 border-t border-white/10 bg-[#0a0a10] z-20" style={{ maxHeight: '40%' }}>
+          {/* Console Header */}
+          <div className="flex items-center justify-between px-4 py-2 bg-[#111118] border-b border-white/10">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-gray-200">
+                <Terminal size={14} className="text-emerald-400" />
+                <span>Console Output</span>
+              </div>
+              {runTime && (
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md ${
+                  exitCode === 0
+                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-red-500/15 text-red-400 border border-red-500/30'
+                }`}>
+                  {exitCode === 0 ? '✓' : '✗'} {runTime}s
+                </span>
+              )}
+              {isRunning && (
+                <span className="text-[10px] font-mono text-orange-400 flex items-center gap-1 animate-pulse">
+                  <Loader2 size={11} className="animate-spin" />
+                  Đang thực thi...
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={clearOutput}
+                className="p-1 rounded-md text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
+                title="Xoá output"
+              >
+                <Trash2 size={13} />
+              </button>
+              <button
+                onClick={() => setShowConsole(false)}
+                className="p-1 rounded-md text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
+                title="Ẩn Console"
+              >
+                <ChevronDown size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Console Body */}
+          <div className="overflow-y-auto p-4 font-mono text-xs leading-relaxed" style={{ maxHeight: 'calc(40vh - 40px)', minHeight: '120px' }}>
+            {consoleOutput ? (
+              <pre className="whitespace-pre-wrap text-gray-200 selection:bg-emerald-500 selection:text-black">
+                {consoleOutput.split('\n').map((line, i) => (
+                  <div key={i} className={`py-0.5 ${
+                    line.startsWith('❌') ? 'text-red-400' :
+                    line.startsWith('⚠️') ? 'text-yellow-400' :
+                    line.startsWith('ℹ️') ? 'text-blue-400' :
+                    line.startsWith('⏱') ? 'text-orange-400' :
+                    line.startsWith('⚙️') ? 'text-rose-400' :
+                    'text-emerald-100'
+                  }`}>
+                    <span className="text-gray-600 select-none mr-3">{String(i + 1).padStart(3)}</span>
+                    {line}
+                  </div>
+                ))}
+              </pre>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-gray-600 gap-2">
+                <Terminal size={24} className="opacity-30" />
+                <p className="text-[11px]">Bấm <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-gray-400 font-semibold">▶ Run</kbd> hoặc <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-gray-400 font-semibold">Ctrl+Enter</kbd> để chạy mã nguồn</p>
+                <p className="text-[10px] text-gray-700">Hỗ trợ: JS · Python · C/C++ · Java · Go · Rust · Ruby · PHP · 60+ ngôn ngữ</p>
+              </div>
+            )}
           </div>
         </div>
       )}
