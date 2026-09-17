@@ -6,100 +6,56 @@
  */
 import { useState, useCallback, useRef } from 'react';
 
-// Map file extension → Piston language ID
-const EXT_TO_PISTON = {
-  py: 'python',
-  python: 'python',
-  c: 'c',
-  cpp: 'c++',
-  'c++': 'c++',
-  cc: 'c++',
-  cxx: 'c++',
-  java: 'java',
-  go: 'go',
-  rb: 'ruby',
-  ruby: 'ruby',
-  rs: 'rust',
-  rust: 'rust',
-  php: 'php',
-  swift: 'swift',
-  kt: 'kotlin',
-  kotlin: 'kotlin',
-  scala: 'scala',
-  r: 'r',
-  lua: 'lua',
-  perl: 'perl',
-  pl: 'perl',
-  sh: 'bash',
-  bash: 'bash',
-  cs: 'csharp',
-  csharp: 'csharp',
-  dart: 'dart',
-  elixir: 'elixir',
-  ex: 'elixir',
-  clj: 'clojure',
-  clojure: 'clojure',
-  hs: 'haskell',
-  haskell: 'haskell',
-  ts: 'typescript',
-  sql: 'sqlite3',
-  pas: 'pascal',
-  pascal: 'pascal',
-  zig: 'zig',
-  nim: 'nim',
-  d: 'd',
-  groovy: 'groovy',
-  julia: 'julia',
-  jl: 'julia',
-  fsharp: 'fsharp',
-  fs: 'fsharp',
-  vb: 'basic.net',
-  cobol: 'cobol',
-  fortran: 'fortran',
-  f90: 'fortran',
-  prolog: 'prolog',
-  tcl: 'tcl',
+// Map file extension → Judge0 Language ID
+const EXT_TO_JUDGE0 = {
+  py: 100, // Python 3.12.5
+  python: 100,
+  c: 103, // C (GCC 14.1.0)
+  cpp: 105, // C++ (GCC 14.1.0)
+  'c++': 105,
+  cc: 105,
+  cxx: 105,
+  java: 91, // Java (JDK 17.0.6)
+  go: 107, // Go (1.23.5)
+  rb: 72, // Ruby
+  ruby: 72,
+  rs: 108, // Rust (1.85.0)
+  rust: 108,
+  php: 98, // PHP 8.3.11
+  swift: 83,
+  kt: 111, // Kotlin 2.1.10
+  kotlin: 111,
+  scala: 112, // Scala 3.4.2
+  r: 99, // R 4.4.1
+  lua: 64,
+  perl: 85,
+  pl: 85,
+  sh: 46, // Bash
+  bash: 46,
+  cs: 51, // C#
+  csharp: 51,
+  dart: 90,
+  elixir: 57,
+  ex: 57,
+  clj: 86, // Clojure
+  clojure: 86,
+  hs: 61, // Haskell
+  haskell: 61,
+  ts: 101, // TypeScript 5.6.2
+  typescript: 101,
+  sql: 82, // SQLite
+  pas: 67, // Pascal
+  pascal: 67,
+  fsharp: 87, // F#
+  fs: 87,
+  vb: 84, // VB.Net
+  cobol: 77,
+  fortran: 59,
+  f90: 59,
+  prolog: 69,
 };
 
-// Piston API version hints (latest known stable)
-const PISTON_VERSIONS = {
-  python: '3.10.0',
-  'c++': '10.2.0',
-  c: '10.2.0',
-  java: '15.0.2',
-  go: '1.16.2',
-  ruby: '3.0.1',
-  rust: '1.68.2',
-  php: '8.2.3',
-  swift: '5.3.3',
-  kotlin: '1.8.20',
-  scala: '3.2.2',
-  r: '4.1.1',
-  lua: '5.4.4',
-  perl: '5.36.0',
-  bash: '5.2.0',
-  csharp: '6.12.0',
-  dart: '2.19.6',
-  elixir: '1.11.3',
-  clojure: '1.10.3',
-  haskell: '9.0.1',
-  typescript: '5.0.3',
-  sqlite3: '3.36.0',
-  pascal: '3.2.2',
-  zig: '0.10.0',
-  nim: '1.6.2',
-  d: '10.2.0',
-  groovy: '3.0.7',
-  julia: '1.8.5',
-  fsharp: '5.0',
-  'basic.net': '5.0',
-  cobol: '3.1.2',
-  fortran: '10.2.0',
-  prolog: '8.4.3',
-  tcl: '8.6.12',
-};
-
-const PISTON_API = 'https://emkc.org/api/v2/piston/execute';
+const JUDGE0_API = 'https://ce.judge0.com/submissions?base64_encoded=false&wait=true';
 
 export function useCodeRunner() {
   const [output, setOutput] = useState('');
@@ -215,54 +171,47 @@ export function useCodeRunner() {
     });
   }, []);
 
-  // ─── Multi-language: Piston API (free, 60+ languages) ───
-  const runWithPiston = useCallback(async (code, language) => {
-    const pistonLang = EXT_TO_PISTON[language] || language;
-    const version = PISTON_VERSIONS[pistonLang] || '*';
+  // ─── Multi-language: Judge0 API (free public instance) ───
+  const runWithJudge0 = useCallback(async (code, language) => {
+    const langId = EXT_TO_JUDGE0[language];
+    
+    if (!langId) {
+      throw new Error(`Ngôn ngữ ${language} không được hỗ trợ trên API này.`);
+    }
 
-    const startTime = performance.now();
-
-    const response = await fetch(PISTON_API, {
+    const response = await fetch(JUDGE0_API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        language: pistonLang,
-        version: version,
-        files: [{ name: `main.${language}`, content: code }],
-        stdin: '',
-        args: [],
-        compile_timeout: 10000,
-        run_timeout: 10000,
+        source_code: code,
+        language_id: langId,
+        stdin: ''
       }),
     });
 
-    const elapsed = ((performance.now() - startTime) / 1000).toFixed(3);
-
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Piston API lỗi (${response.status}): ${errorText}`);
+      throw new Error(`Judge0 API lỗi (${response.status}): ${errorText}`);
     }
 
     const data = await response.json();
-
-    // Compile errors
-    if (data.compile && data.compile.stderr) {
-      return {
-        output: `⚙️ Compile Error:\n${data.compile.stderr}`,
-        exitCode: data.compile.code ?? 1,
-        time: elapsed,
-      };
-    }
-
-    const run = data.run || {};
-    const stdout = run.stdout || '';
-    const stderr = run.stderr || '';
-    const combined = (stdout + (stderr ? `\n⚠️ stderr:\n${stderr}` : '')).trim() || '(Không có output)';
+    
+    // Status ID 3 = Accepted
+    const isError = data.status && data.status.id !== 3;
+    const time = data.time || '0.000';
+    
+    let combined = '';
+    if (data.compile_output) combined += `⚙️ Compile Output:\n${data.compile_output}\n`;
+    if (data.stdout) combined += data.stdout;
+    if (data.stderr) combined += (combined ? '\n' : '') + `⚠️ stderr:\n${data.stderr}`;
+    if (data.message) combined += (combined ? '\n' : '') + `❌ Error:\n${data.message}`;
+    
+    combined = combined.trim() || '(Không có output)';
 
     return {
       output: combined,
-      exitCode: run.code ?? 0,
-      time: elapsed,
+      exitCode: isError ? 1 : 0,
+      time: time,
     };
   }, []);
 
@@ -287,9 +236,9 @@ export function useCodeRunner() {
           exitCode: 0,
           time: '0.001',
         };
-      } else if (EXT_TO_PISTON[ext]) {
-        // Gửi tới Piston API
-        result = await runWithPiston(code, ext);
+      } else if (EXT_TO_JUDGE0[ext]) {
+        // Gửi tới Judge0 API
+        result = await runWithJudge0(code, ext);
       } else {
         result = {
           output: `⚠️ Ngôn ngữ "${ext}" chưa được hỗ trợ chạy trực tiếp.\n\nCác ngôn ngữ hỗ trợ: JavaScript, Python, C, C++, Java, Go, Ruby, Rust, PHP, Swift, Kotlin, Scala, R, Lua, Perl, Bash, C#, Dart, Elixir, Clojure, Haskell, TypeScript, SQL, Pascal, Zig, Nim, Julia, F#, COBOL, Fortran, Prolog, Tcl và nhiều hơn nữa.`,
@@ -308,7 +257,7 @@ export function useCodeRunner() {
     } finally {
       setIsRunning(false);
     }
-  }, [getLanguage, runJavaScript, runWithPiston]);
+  }, [getLanguage, runJavaScript, runWithJudge0]);
 
   const clearOutput = useCallback(() => {
     setOutput('');
