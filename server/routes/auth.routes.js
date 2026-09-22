@@ -154,8 +154,8 @@ function checkTelegramAuth(data, botToken) {
 router.get('/google', (req, res, next) => {
   if (req.query.platform) res.cookie('auth_platform', req.query.platform, { maxAge: 5 * 60 * 1000 });
   const clientUrl = getClientUrl(req);
-  if (!process.env.GOOGLE_CLIENT_ID) {
-    return res.redirect(clientUrl + '/login?error=' + encodeURIComponent('Google OAuth chưa được cấu hình'));
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    return res.redirect(clientUrl + '/login?error=' + encodeURIComponent('Google OAuth chưa được cấu hình đầy đủ (thiếu ID hoặc Secret)'));
   }
   passport.authenticate('google', { scope: ['profile', 'email'], session: false })(req, res, next);
 });
@@ -178,8 +178,8 @@ router.get('/google/callback',
 router.get('/github', (req, res, next) => {
   if (req.query.platform) res.cookie('auth_platform', req.query.platform, { maxAge: 5 * 60 * 1000 });
   const clientUrl = getClientUrl(req);
-  if (!process.env.GITHUB_CLIENT_ID) {
-    return res.redirect(clientUrl + '/login?error=' + encodeURIComponent('GitHub OAuth chưa được cấu hình'));
+  if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
+    return res.redirect(clientUrl + '/login?error=' + encodeURIComponent('GitHub OAuth chưa được cấu hình đầy đủ (thiếu ID hoặc Secret)'));
   }
   passport.authenticate('github', { scope: ['user:email'], session: false })(req, res, next);
 });
@@ -315,18 +315,18 @@ router.post('/logout', async (req, res) => {
     await authSvc.logout(userId, rawRefreshToken);
   } catch (_) {}
 
-  res.clearCookie('token', authSvc.cookieOptions());
-  res.clearCookie('accessToken', authSvc.cookieOptions());
-  res.clearCookie('refreshToken', authSvc.cookieOptions());
+  res.clearCookie('token', authSvc.clearCookieOptions());
+  res.clearCookie('accessToken', authSvc.clearCookieOptions());
+  res.clearCookie('refreshToken', authSvc.clearCookieOptions());
   res.json({ success: true, message: 'Đã đăng xuất' });
 });
 
 router.post('/logout-all', requireAuth, async (req, res) => {
   try {
     await authSvc.logoutAll(req.user._id);
-    res.clearCookie('token', authSvc.cookieOptions());
-    res.clearCookie('accessToken', authSvc.cookieOptions());
-    res.clearCookie('refreshToken', authSvc.cookieOptions());
+    res.clearCookie('token', authSvc.clearCookieOptions());
+    res.clearCookie('accessToken', authSvc.clearCookieOptions());
+    res.clearCookie('refreshToken', authSvc.clearCookieOptions());
     res.json({ success: true, message: 'Đã đăng xuất khỏi tất cả thiết bị' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -342,9 +342,9 @@ router.post('/refresh', async (req, res) => {
     setCookies(res, result.accessToken, result.refreshToken);
     res.json({ success: true, ...result });
   } catch (err) {
-    res.clearCookie('token', authSvc.cookieOptions());
-    res.clearCookie('accessToken', authSvc.cookieOptions());
-    res.clearCookie('refreshToken', authSvc.cookieOptions());
+    res.clearCookie('token', authSvc.clearCookieOptions());
+    res.clearCookie('accessToken', authSvc.clearCookieOptions());
+    res.clearCookie('refreshToken', authSvc.clearCookieOptions());
     res.status(401).json({ error: err.message, code: 'REFRESH_FAILED' });
   }
 });

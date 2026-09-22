@@ -66,6 +66,15 @@ function cookieOptions(maxAge = 7 * 24 * 60 * 60 * 1000) {
   };
 }
 
+function clearCookieOptions() {
+  return {
+    httpOnly: true,
+    secure:   process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    path:     '/',
+  };
+}
+
 // ── Registration ──────────────────────────────────────────────────────────────
 
 // check do manh mk: min 8 ky tu, hoa, thuong, so, ky tu db
@@ -454,6 +463,7 @@ module.exports = {
   generateTokens,
   verifyAccessToken,
   cookieOptions,
+  clearCookieOptions,
   register,
   login,
   refreshAccessToken,

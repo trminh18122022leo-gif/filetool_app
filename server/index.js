@@ -7,6 +7,7 @@ try { dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']); } catch (_) { }
 
 const express = require('express');
 const http = require('http');
+const https = require('https');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
@@ -315,8 +316,22 @@ app.get('/ping', (req, res) => res.send('pong'));
 // ── Self-Ping Keep Alive ──────────────────────────────────────────────────────
 const SELF_PING_INTERVAL = 4 * 60 * 1000; // 4 phút
 setInterval(() => {
-  const url = process.env.SERVER_URL || `http://localhost:${PORT}`;
-  http.get(`${url}/ping`, () => { }).on('error', () => { });
+  try {
+    const rawUrl = process.env.SERVER_URL || `http://127.0.0.1:${PORT}`;
+    const targetUrl = `${rawUrl.replace(/\/$/, '')}/ping`;
+    const client = targetUrl.startsWith('https:') ? https : http;
+    const req = client.get(targetUrl, (res) => {
+      res.resume(); // Tiêu thụ stream để giải phóng memory và socket
+    });
+    req.on('error', (err) => {
+      logger.warn(`[Self-Ping] Không thể ping ${targetUrl}: ${err.message}`);
+    });
+    req.setTimeout(10000, () => {
+      req.destroy();
+    });
+  } catch (err) {
+    logger.error(`[Self-Ping] Lỗi cấu hình self-ping: ${err.message}`);
+  }
 }, SELF_PING_INTERVAL);
 
 // ── Frontend Static Serving ───────────────────────────────────────────────────
