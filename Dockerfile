@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim
+FROM node:22-alpine
 
 # Tránh prompts tương tác khi cài apt
 ENV DEBIAN_FRONTEND=noninteractive
@@ -40,7 +40,7 @@ WORKDIR /app
 
 # Cài backend dependencies trước (cache layer)
 COPY package*.json ./
-RUN npm install --production
+RUN npm install --omit=dev
 
 # Cài client dependencies và build
 COPY client/package*.json ./client/
