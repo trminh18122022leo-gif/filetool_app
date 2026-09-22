@@ -1,0 +1,31 @@
+# ==============================================================================
+# RENDER BLUEPRINT SPECIFICATION (render.yaml)
+# Docs: https://render.com/docs/blueprint-spec
+# ==============================================================================
+services:
+  - type: web
+    name: filetools-backend
+    runtime: docker
+    plan: starter
+    region: singapore
+    # --------------------------------------------------------------------------
+    # QUAN TRỌNG: Tắt tự động deploy khi git push.
+    # Quá trình deploy sẽ do GitHub Actions trigger qua Deploy Hook sau khi CI pass.
+    # --------------------------------------------------------------------------
+    autoDeploy: false
+    dockerContext: .
+    dockerfilePath: Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: NODE_ENV
+        value: production
+      - key: CLIENT_URL
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true

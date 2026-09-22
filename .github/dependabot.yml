@@ -1,0 +1,36 @@
+version: 2
+updates:
+  # --------------------------------------------------------------------------
+  # Root (Node.js Express Backend) Dependencies
+  # --------------------------------------------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      dependencies:
+        patterns:
+          - "*"
+
+  # --------------------------------------------------------------------------
+  # Client (React / Vite Frontend) Dependencies
+  # --------------------------------------------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/client"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      dependencies:
+        patterns:
+          - "*"
+
+  # --------------------------------------------------------------------------
+  # GitHub Actions Workflow Updates
+  # --------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5

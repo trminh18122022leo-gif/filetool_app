@@ -51,9 +51,16 @@ export default function Auth({ defaultMode = 'login' }) {
   const [celebrateCount, setCelebrateCount] = useState(0);
   const [mascotNotice, setMascotNotice]   = useState('FileTools Companion luôn đồng hành cùng bạn!');
 
-  // PlayCaptcha Claw Machine state
+  // PlayCaptcha Claw Machine state & Password Complexity validation
   const [captchaVerified, setCaptchaVerified] = useState(false);
-  const isFormReady = regName.trim().length >= 2 && regEmail.trim().includes('@') && regPassword.length >= 8;
+  const hasMinLength = regPassword.length >= 8;
+  const hasUpper     = /[A-Z]/.test(regPassword);
+  const hasLower     = /[a-z]/.test(regPassword);
+  const hasNumber    = /[0-9]/.test(regPassword);
+  const hasSpecial   = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(regPassword);
+  const isPasswordValid = hasMinLength && hasUpper && hasLower && hasNumber && hasSpecial;
+
+  const isFormReady = regName.trim().length >= 2 && regEmail.trim().includes('@') && isPasswordValid;
 
   const urlError = new URLSearchParams(location.search).get('error');
 
@@ -536,13 +543,36 @@ export default function Auth({ defaultMode = 'login' }) {
                     onFocus={handlePasswordFocus}
                     onBlur={handleInputBlur}
                     className="glass-input text-sm py-2"
-                    placeholder="Tối thiểu 8 ký tự"
+                    placeholder="Mật khẩu bảo mật"
                     minLength={8}
                     required
                   />
+                  {/* Password requirement badges */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1.5 text-[10px]">
+                    <span className={`px-2 py-0.5 rounded-md border flex items-center gap-1 transition-colors ${
+                      hasMinLength ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-white/5 text-gray-400 border-white/10'
+                    }`}>
+                      {hasMinLength ? '✓' : '•'} ≥8 ký tự
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-md border flex items-center gap-1 transition-colors ${
+                      hasUpper ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-white/5 text-gray-400 border-white/10'
+                    }`}>
+                      {hasUpper ? '✓' : '•'} 1 Chữ hoa (A-Z)
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-md border flex items-center gap-1 transition-colors ${
+                      hasNumber ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-white/5 text-gray-400 border-white/10'
+                    }`}>
+                      {hasNumber ? '✓' : '•'} 1 Số (0-9)
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-md border flex items-center gap-1 transition-colors ${
+                      hasSpecial ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-white/5 text-gray-400 border-white/10'
+                    }`}>
+                      {hasSpecial ? '✓' : '•'} 1 Ký tự đặc biệt (!@#$)
+                    </span>
+                  </div>
                 </div>
 
-                {/* PlayCaptcha Claw Machine (Chỉ hiện sau khi người dùng đã nhập hết thông tin) */}
+                {/* PlayCaptcha Claw Machine (Chỉ hiện sau khi người dùng đã nhập đúng và đủ yêu cầu) */}
                 <div className="pt-1">
                   {!captchaVerified ? (
                     isFormReady ? (
@@ -571,9 +601,9 @@ export default function Auth({ defaultMode = 'login' }) {
                         </div>
                       </div>
                     ) : (
-                      <div className="p-2 rounded-xl bg-white/5 border border-white/10 text-center text-[11px] text-gray-400 flex items-center justify-center gap-2">
-                        <ShieldCheck size={13} className="text-gray-400 shrink-0" />
-                        <span>Nhập đủ Họ tên, Email và Mật khẩu (≥8 ký tự) để mở máy gắp thú</span>
+                      <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-center text-[11px] text-gray-400 flex items-center justify-center gap-2">
+                        <ShieldCheck size={14} className="text-amber-400 shrink-0" />
+                        <span>Nhập đủ Họ tên, Email và Mật khẩu (≥8 ký tự, có chữ hoa, số & ký tự đặc biệt) để mở máy gắp thú</span>
                       </div>
                     )
                   ) : (

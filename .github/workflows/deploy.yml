@@ -1,0 +1,136 @@
+name: CD - Deploy to Production (Vercel & Render)
+
+on:
+  workflow_run:
+    workflows: ["CI - Quality & Build Assurance"]
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Deployment target service'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - vercel
+          - render
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - preview
+
+concurrency:
+  group: cd-deployment-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # --------------------------------------------------------------------------
+  # 1. DEPLOY BACKEND TO RENDER
+  # --------------------------------------------------------------------------
+  deploy-render:
+    name: Deploy Backend to Render
+    # Only deploy if:
+    # 1. Manually triggered with target 'all' or 'render'
+    # 2. Automatically triggered via workflow_run AND CI succeeded
+    if: >-
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.target == 'all' || github.event.inputs.target == 'render')) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Render Deploy Hook Secret
+        id: check-render-secret
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" ]; then
+            echo "::warning ::RENDER_DEPLOY_HOOK_URL is not configured in GitHub Secrets. Skipping Render deployment."
+            echo "has_hook=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_hook=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Trigger Render Deploy Hook
+        if: steps.check-render-secret.outputs.has_hook == 'true'
+        run: |
+          echo "🚀 Sending trigger signal to Render Deploy Hook..."
+          HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}")
+          HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
+          HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+
+          echo "Response Status: $HTTP_STATUS"
+          echo "Response Body: $HTTP_BODY"
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "✅ Render deployment has been successfully triggered!"
+          else
+            echo "❌ Render deployment hook failed with HTTP status $HTTP_STATUS"
+            exit 1
+          fi
+
+  # --------------------------------------------------------------------------
+  # 2. DEPLOY FRONTEND TO VERCEL
+  # --------------------------------------------------------------------------
+  deploy-vercel:
+    name: Deploy Frontend to Vercel
+    # Only deploy if:
+    # 1. Manually triggered with target 'all' or 'vercel'
+    # 2. Automatically triggered via workflow_run AND CI succeeded
+    if: >-
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.target == 'all' || github.event.inputs.target == 'vercel')) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install Client Dependencies
+        run: |
+          cd client
+          npm ci
+
+      - name: Build Production Client
+        run: |
+          cd client
+          npm run build
+
+      - name: Validate Vercel Secrets
+        id: check-vercel-secrets
+        run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "::warning ::VERCEL_TOKEN is not configured in GitHub Secrets. Skipping Vercel deployment."
+            echo "has_token=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_token=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to Vercel (Production)
+        if: steps.check-vercel-secrets.outputs.has_token == 'true' && (github.event_name == 'workflow_run' || github.event.inputs.environment == 'production')
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          working-directory: ./client
+
+      - name: Deploy to Vercel (Preview)
+        if: steps.check-vercel-secrets.outputs.has_token == 'true' && github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'preview'
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: ./client

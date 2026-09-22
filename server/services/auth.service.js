@@ -99,12 +99,11 @@ async function register({ email, password, name, ip, userAgent }) {
     verifyToken,
   });
 
-  try {
-    if (emailSvc.sendVerificationEmail) {
-      await emailSvc.sendVerificationEmail(normalizedEmail, verifyToken);
-    }
-  } catch (err) {
-    console.error('[auth] Không thể gửi email xác thực:', err.message);
+  // Gửi email xác thực bất đồng bộ (fire-and-forget), không làm nghẽn tiến trình đăng ký của người dùng
+  if (emailSvc?.sendVerificationEmail) {
+    emailSvc.sendVerificationEmail(normalizedEmail, verifyToken).catch((err) => {
+      console.error('[auth] Không thể gửi email xác thực:', err.message);
+    });
   }
 
   await AuditLog.log({
