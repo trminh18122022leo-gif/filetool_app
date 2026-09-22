@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* Custom scrollbar */
 ::-webkit-scrollbar       { width: 6px; height: 6px; }
@@ -280,18 +281,120 @@ body {
   animation-play-state: paused;
 }
 
-/* ── LIGHT MODE STYLING (Luxury Monochromatic Paper & Amber Accents) ── */
+/* ── LIGHT MODE STYLING (Luxury Monochromatic Paper & High-Contrast Amber Accents) ── */
+html.light {
+  color-scheme: light;
+}
+
 html.light body {
-  background-color: #F8F9FA;
+  background-color: #1871E5;
+  color: #111827 !important;
+}
+
+/* Root container */
+html.light .min-h-screen {
+  background-color: transparent !important;
   color: #111827;
 }
 
+/* Headings in light mode */
+html.light h1,
+html.light h2,
+html.light h3,
+html.light h4,
+html.light h5,
+html.light h6 {
+  color: #111827 !important;
+}
+
+/* High-contrast text color overrides in light mode */
+html.light .text-white {
+  color: #111827 !important;
+}
+
+html.light .text-gray-100,
+html.light .text-gray-200 {
+  color: #1F2937 !important;
+}
+
+html.light .text-gray-300 {
+  color: #374151 !important;
+}
+
+html.light .text-gray-400 {
+  color: #4B5563 !important;
+}
+
+html.light .text-gray-500 {
+  color: #6B7280 !important;
+}
+
+/* Amber text in light mode: deep, rich, readable bronze-amber */
+html.light .text-amber-200,
+html.light .text-amber-300 {
+  color: #B45309 !important; /* amber-700 */
+}
+
+html.light .text-amber-400 {
+  color: #D97706 !important; /* amber-600 */
+}
+
+/* Gradients in light mode */
+html.light .gold-gradient-text {
+  background: linear-gradient(135deg, #78350F 0%, #B45309 40%, #D97706 80%, #92400E 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}
+
+html.light .text-gradient {
+  background: linear-gradient(135deg, #78350F 0%, #B45309 40%, #D97706 75%, #DC2626 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}
+
+html.light .coral-gradient-text {
+  background: linear-gradient(135deg, #B45309 0%, #E11D48 60%, #BE123C 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}
+
+/* Luxury badge in light mode */
+html.light .luxury-badge {
+  background: rgba(245, 158, 11, 0.12) !important;
+  border: 1px solid rgba(217, 119, 6, 0.35) !important;
+  color: #92400E !important;
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.08) !important;
+}
+
+/* Header & Navigation in light mode */
 html.light header {
-  background-color: rgba(248, 249, 250, 0.9) !important;
+  background-color: rgba(248, 249, 250, 0.94) !important;
   border-bottom-color: rgba(0, 0, 0, 0.08) !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
 }
 
+/* Header Nav Tabs in light mode */
+html.light header nav a:not([data-active="true"]) {
+  color: #4B5563 !important;
+}
+
+html.light header nav a:not([data-active="true"]):hover {
+  color: #111827 !important;
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+html.light header nav a[data-active="true"],
+html.light header nav a.active {
+  color: #92400E !important;
+  background-color: rgba(245, 158, 11, 0.18) !important;
+  border-color: rgba(217, 119, 6, 0.4) !important;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.12) !important;
+}
+
+/* Subtle Orbs in light mode */
 html.light .ambient-orb-gold {
   background: radial-gradient(circle, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.02) 45%, transparent 70%);
 }
@@ -304,56 +407,120 @@ html.light .ambient-orb-bronze {
   background: radial-gradient(circle, rgba(180, 83, 9, 0.09) 0%, rgba(146, 64, 14, 0.02) 45%, transparent 70%);
 }
 
+/* Liquid Glass in light mode */
 html.light .liquid-glass {
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-top: 1px solid rgba(255, 255, 255, 0.95);
-  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.06), inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.88) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.06), inset 0 1px 0 0 rgba(255, 255, 255, 0.9) !important;
 }
 
 html.light .liquid-glass-card {
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-top: 1px solid rgba(255, 255, 255, 0.95);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.88) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
 }
 
 html.light .liquid-glass-card:hover {
-  background: rgba(255, 255, 255, 0.98);
-  border-color: rgba(245, 158, 11, 0.45);
-  box-shadow: 0 12px 30px -5px rgba(245, 158, 11, 0.16), 0 4px 12px rgba(0, 0, 0, 0.05);
+  background: #FFFFFF !important;
+  border-color: rgba(217, 119, 6, 0.4) !important;
+  box-shadow: 0 12px 30px -5px rgba(245, 158, 11, 0.14), 0 4px 12px rgba(0, 0, 0, 0.04) !important;
 }
 
+/* Glass Button in light mode */
 html.light .glass-button {
-  background: rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(0, 0, 0, 0.09);
-  color: #1F2937;
+  background: rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  color: #1F2937 !important;
 }
 
 html.light .glass-button:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.08);
-  border-color: rgba(245, 158, 11, 0.5);
-  color: #111827;
+  background: rgba(0, 0, 0, 0.08) !important;
+  border-color: rgba(217, 119, 6, 0.5) !important;
+  color: #111827 !important;
 }
 
+/* Glass Input in light mode */
 html.light .glass-input {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  color: #111827;
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid rgba(0, 0, 0, 0.14) !important;
+  color: #111827 !important;
+}
+
+html.light .glass-input::placeholder {
+  color: #9CA3AF !important;
 }
 
 html.light .glass-input:focus {
-  background: #FFFFFF;
-  border-color: rgba(245, 158, 11, 0.8);
-  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+  background: #FFFFFF !important;
+  border-color: rgba(217, 119, 6, 0.7) !important;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2) !important;
 }
 
+/* Borders & backgrounds commonly used */
+html.light .border-white\/5,
+html.light .border-white\/10,
+html.light .border-white\/15,
+html.light .border-white\/20 {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+html.light .bg-white\/5 {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+html.light .bg-white\/10 {
+  background-color: rgba(0, 0, 0, 0.07) !important;
+}
+
+html.light .bg-black\/40 {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Glass Panel */
+.glass-panel {
+  background: rgba(18, 18, 26, 0.65);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 1.25rem;
+}
+
+html.light .glass-panel {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* In light mode, ensure buttons inside glass-panel without specific gradient background have dark text */
+html.light .glass-panel button:not([class*="from-"]):not([class*="bg-amber"]):not([class*="bg-pink"]):not([class*="bg-purple"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-blue"]) {
+  color: #4B5563;
+}
+html.light .glass-panel button:not([class*="from-"]):not([class*="bg-amber"]):not([class*="bg-pink"]):not([class*="bg-purple"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-blue"]):hover {
+  color: #111827;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Dropzone in light mode */
+html.light [class*="border-dashed"] {
+  border-color: rgba(0, 0, 0, 0.18) !important;
+  background-color: rgba(255, 255, 255, 0.6) !important;
+}
+html.light [class*="border-dashed"]:hover {
+  border-color: rgba(217, 119, 6, 0.5) !important;
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Marquee in light mode */
 html.light .marquee-container::before {
-  background: linear-gradient(to right, #F8F9FA, transparent);
+  background: linear-gradient(to right, #F8F9FA, transparent) !important;
 }
 
 html.light .marquee-container::after {
-  background: linear-gradient(to left, #F8F9FA, transparent);
+  background: linear-gradient(to left, #F8F9FA, transparent) !important;
 }
 
 /* ── ORGANIC CURVED MASK TRANSITIONS ── */

@@ -24,6 +24,9 @@ function cleanDirectory(dirPath, maxAgeMs = MAX_AGE_MS) {
         if (stat.isFile() && now - stat.mtimeMs > maxAgeMs) {
           fs.unlinkSync(fullPath);
           deletedCount++;
+        } else if (stat.isDirectory() && now - stat.mtimeMs > maxAgeMs) {
+          fs.rmSync(fullPath, { recursive: true, force: true });
+          deletedCount++;
         }
       } catch (_) {}
     }

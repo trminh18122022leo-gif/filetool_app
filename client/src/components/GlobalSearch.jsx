@@ -122,12 +122,12 @@ export default function GlobalSearch() {
       {/* Search trigger button in Navbar */}
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-amber-400/40 rounded-xl text-xs text-gray-300 hover:text-white transition-all shadow-sm cursor-pointer group"
+        className="flex items-center gap-2 px-3 py-1.5 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 hover:border-amber-500/40 dark:hover:border-amber-400/40 rounded-xl text-xs text-gray-700 dark:text-gray-300 hover:text-gray-950 dark:hover:text-white transition-all shadow-sm cursor-pointer group"
         title="Tìm kiếm công cụ (Ctrl + K)"
       >
-        <Search size={13} className="text-amber-400 group-hover:scale-110 transition-transform" />
-        <span className="hidden sm:inline font-medium">Tìm công cụ...</span>
-        <kbd className="hidden sm:inline text-[10px] bg-white/5 text-amber-300/80 px-1.5 py-0.5 rounded-md border border-white/10 font-mono">
+        <Search size={13} className="text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform" />
+        <span className="hidden sm:inline font-semibold">Tìm công cụ...</span>
+        <kbd className="hidden sm:inline text-[10px] bg-black/5 dark:bg-white/5 text-amber-800 dark:text-amber-300/80 px-1.5 py-0.5 rounded-md border border-black/10 dark:border-white/10 font-mono font-medium">
           Ctrl K
         </kbd>
       </button>
@@ -135,28 +135,28 @@ export default function GlobalSearch() {
       {/* Luxury Command Palette Modal */}
       {open && (
         <div
-          className="fixed inset-0 z-[9999] flex items-start justify-center pt-[10vh] px-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200"
+          className="fixed inset-0 z-[9999] flex items-start justify-center pt-[10vh] px-4 bg-black/60 dark:bg-black/70 backdrop-blur-md animate-in fade-in duration-200"
           onClick={() => { setOpen(false); setQuery(''); }}
         >
           {/* Main Box */}
           <div
-            className="w-full max-w-2xl bg-[#0E0E14]/95 text-gray-200 border border-amber-400/30 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col font-sans backdrop-blur-2xl"
+            className="w-full max-w-2xl bg-white/95 dark:bg-[#0E0E14]/95 text-gray-800 dark:text-gray-200 border border-black/10 dark:border-amber-400/30 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.2)] dark:shadow-[0_25px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col font-sans backdrop-blur-2xl"
             onClick={e => e.stopPropagation()}
           >
             {/* Search Input Bar */}
-            <div className="flex items-center gap-3 px-4 py-3.5 bg-white/5 border-b border-white/10">
-              <span className="text-amber-400 font-bold text-sm font-mono">&gt;</span>
+            <div className="flex items-center gap-3 px-4 py-3.5 bg-black/[0.02] dark:bg-white/5 border-b border-black/10 dark:border-white/10">
+              <span className="text-amber-600 dark:text-amber-400 font-bold text-sm font-mono">&gt;</span>
               <input
                 ref={inputRef}
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Nhập tên công cụ, chức năng (gộp pdf, nén, ocr, ai...)"
-                className="flex-1 bg-transparent text-white placeholder-gray-500 outline-none text-sm font-medium"
+                className="flex-1 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 outline-none text-sm font-medium"
                 autoFocus
               />
               {query && (
-                <button onClick={() => setQuery('')} className="text-gray-400 hover:text-white p-1">
+                <button onClick={() => setQuery('')} className="text-gray-400 hover:text-gray-700 dark:hover:text-white p-1 cursor-pointer">
                   <X size={15} />
                 </button>
               )}
@@ -175,33 +175,33 @@ export default function GlobalSearch() {
                       onMouseEnter={() => setSelectedIndex(idx)}
                       className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-xl cursor-pointer text-sm transition-all ${
                         isSelected
-                          ? 'bg-amber-500/20 text-amber-200 border border-amber-400/40 shadow-[0_0_15px_rgba(245,158,11,0.15)] font-semibold'
-                          : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'
+                          ? 'bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-600/30 dark:border-amber-400/40 shadow-sm font-semibold'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5 hover:text-gray-950 dark:hover:text-white border border-transparent'
                       }`}
                     >
-                      <Icon size={16} className={isSelected ? 'text-amber-300' : 'text-gray-400'} />
+                      <Icon size={16} className={isSelected ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-gray-400'} />
                       <span className="font-medium">{tool.name}</span>
-                      <span className="ml-auto text-xs px-2.5 py-0.5 rounded-lg bg-white/5 text-amber-300/80 border border-white/10 font-mono">
+                      <span className="ml-auto text-xs px-2.5 py-0.5 rounded-lg bg-black/5 dark:bg-white/5 text-amber-800 dark:text-amber-300/80 border border-black/10 dark:border-white/10 font-mono">
                         {tool.category}
                       </span>
                     </div>
                   );
                 })
               ) : (
-                <div className="py-10 text-center text-gray-400 text-sm">
-                  Không tìm thấy công cụ nào phù hợp với "<span className="text-amber-300 font-semibold">{query}</span>"
+                <div className="py-10 text-center text-gray-500 dark:text-gray-400 text-sm">
+                  Không tìm thấy công cụ nào phù hợp với "<span className="text-amber-700 dark:text-amber-300 font-semibold">{query}</span>"
                 </div>
               )}
             </div>
 
             {/* Footer status bar */}
-            <div className="flex items-center justify-between px-4 py-2.5 bg-black/40 border-t border-white/10 text-[11px] text-gray-400">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-black/[0.03] dark:bg-black/40 border-t border-black/10 dark:border-white/10 text-[11px] text-gray-500 dark:text-gray-400">
               <div className="flex gap-3 items-center">
-                <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-gray-200 border border-white/10">↑↓</kbd> Di chuyển</span>
-                <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-gray-200 border border-white/10">↵</kbd> Chọn</span>
-                <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-gray-200 border border-white/10">Esc</kbd> Đóng</span>
+                <span><kbd className="bg-black/5 dark:bg-white/10 px-1.5 py-0.5 rounded text-gray-700 dark:text-gray-200 border border-black/10 dark:border-white/10">↑↓</kbd> Di chuyển</span>
+                <span><kbd className="bg-black/5 dark:bg-white/10 px-1.5 py-0.5 rounded text-gray-700 dark:text-gray-200 border border-black/10 dark:border-white/10">↵</kbd> Chọn</span>
+                <span><kbd className="bg-black/5 dark:bg-white/10 px-1.5 py-0.5 rounded text-gray-700 dark:text-gray-200 border border-black/10 dark:border-white/10">Esc</kbd> Đóng</span>
               </div>
-              <span className="text-amber-400/80 font-mono text-[10px]">FileTools Command Palette</span>
+              <span className="text-amber-700 dark:text-amber-400/80 font-mono text-[10px]">FileTools Command Palette</span>
             </div>
           </div>
         </div>

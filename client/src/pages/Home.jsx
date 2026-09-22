@@ -1,10 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   FileText, Image, Archive, Sparkles,
   FileOutput, ScanText, PenLine, Layers,
-  QrCode, Mic, Upload, ArrowUpRight, CheckCircle2, Lock, Zap, FileCode
+  QrCode, Mic, Upload, ArrowUpRight, CheckCircle2, Lock, Zap, FileCode, ChevronDown
 } from 'lucide-react';
 
 const TOOL_GROUPS = [
@@ -162,154 +162,175 @@ export default function Home() {
     }
   };
 
+  const [isLight, setIsLight] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return document.documentElement.classList.contains('light');
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handleTheme = () => {
+      setIsLight(document.documentElement.classList.contains('light'));
+    };
+    window.addEventListener('theme-change', handleTheme);
+    window.addEventListener('storage', handleTheme);
+    return () => {
+      window.removeEventListener('theme-change', handleTheme);
+      window.removeEventListener('storage', handleTheme);
+    };
+  }, []);
+
   return (
-    <div className="space-y-20 py-4 relative z-10">
-      {/* ── 1. HERO SECTION ── */}
-      <section id="hero" className="pt-6 sm:pt-10 scroll-mt-24">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-          {/* Left Column: Editorial Typography & CTAs */}
-          <div className="lg:col-span-7 space-y-6 text-left">
-            <div className="luxury-badge">
-              <Sparkles size={13} className="text-amber-400" />
-              <span>FileTools Pro Full-Stack 2.0</span>
+    <>
+      <div className="space-y-16 py-2 relative z-10">
+        {/* ── 1. HERO SECTION ── */}
+        {/* ── 1. EDITORIAL HERO SECTION (Ảnh 2) ── */}
+        <section id="hero" className="pt-6 sm:pt-10 scroll-mt-24">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+            {/* Left Column: Editorial Typography & CTAs */}
+            <div className="lg:col-span-7 space-y-6 text-left">
+              <div className="luxury-badge">
+                <Sparkles size={13} className="text-amber-400" />
+                <span>FileTools Pro Full-Stack 2.0</span>
+              </div>
+
+              <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight leading-[1.08] text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.3)]">
+                Mọi công cụ xử lý file{' '}
+                <span className="gold-gradient-text block mt-1">
+                  trên một nền tảng
+                </span>
+              </h1>
+
+              <p className="text-base sm:text-lg text-gray-200 dark:text-gray-300/90 max-w-xl leading-relaxed font-normal drop-shadow-[0_1px_4px_rgba(0,0,0,0.25)]">
+                Nén, chuyển đổi, gộp, OCR, ký điện tử và dịch tài liệu bằng AI thông minh — tất cả với tốc độ tối đa, ngay trên thiết bị của bạn.
+              </p>
+
+              <div className="flex flex-wrap items-center gap-3.5 pt-2">
+                <a
+                  href="#tools"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById('tools')?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="liquid-gold-button px-7 py-3.5 text-sm flex items-center gap-2 cursor-pointer"
+                >
+                  <Sparkles size={16} className="text-black" />
+                  <span>Khám phá công cụ</span>
+                </a>
+
+                {!user ? (
+                  <Link
+                    to="/register"
+                    className="glass-button px-6 py-3.5 text-sm font-semibold text-gray-200 hover:text-white"
+                  >
+                    Đăng ký miễn phí
+                  </Link>
+                ) : (
+                  <Link
+                    to="/dashboard"
+                    className="glass-button px-6 py-3.5 text-sm font-semibold text-gray-200 hover:text-white flex items-center gap-1.5"
+                  >
+                    <span>Vào Dashboard</span>
+                    <ArrowUpRight size={15} />
+                  </Link>
+                )}
+              </div>
+
+              {/* Trust Badges */}
+              <div className="flex flex-wrap items-center gap-6 pt-3 text-xs text-gray-300 dark:text-gray-400 font-medium">
+                <div className="flex items-center gap-2">
+                  <Lock size={14} className="text-amber-400" />
+                  <span>Không lưu file của bạn</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Zap size={14} className="text-amber-400" />
+                  <span>Xử lý tức thì</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={14} className="text-amber-400" />
+                  <span>Miễn phí bắt đầu</span>
+                </div>
+              </div>
             </div>
 
-            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight leading-[1.08] text-white">
-              Mọi công cụ xử lý file{' '}
-              <span className="gold-gradient-text block mt-1">
-                trên một nền tảng
-              </span>
-            </h1>
-
-            <p className="text-base sm:text-lg text-gray-300/90 max-w-xl leading-relaxed font-normal">
-              Nén, chuyển đổi, gộp, OCR, ký điện tử và dịch tài liệu bằng AI thông minh — tất cả với tốc độ tối đa, ngay trên thiết bị của bạn.
-            </p>
-
-            <div className="flex flex-wrap items-center gap-3.5 pt-2">
-              <a
-                href="#tools"
-                onClick={(e) => {
-                  e.preventDefault();
-                  document.getElementById('tools')?.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className="liquid-gold-button px-7 py-3.5 text-sm flex items-center gap-2 cursor-pointer"
+            {/* Right Column: Hero Interactive Dropzone Card */}
+            <div className="lg:col-span-5">
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`liquid-glass-card specular-sheen p-6 sm:p-8 cursor-pointer text-center relative group transition-all duration-300 ${
+                  dragOver
+                    ? 'border-amber-400 bg-amber-500/10 scale-[1.02] shadow-[0_0_35px_rgba(245,158,11,0.3)]'
+                    : ''
+                }`}
               >
-                <Sparkles size={16} className="text-black" />
-                <span>Khám phá công cụ</span>
-              </a>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handleFile(e.target.files[0]);
+                    }
+                  }}
+                />
 
-              {!user ? (
-                <Link
-                  to="/register"
-                  className="glass-button px-6 py-3.5 text-sm font-semibold text-gray-200 hover:text-white"
-                >
-                  Đăng ký miễn phí
-                </Link>
-              ) : (
-                <Link
-                  to="/dashboard"
-                  className="glass-button px-6 py-3.5 text-sm font-semibold text-gray-200 hover:text-white flex items-center gap-1.5"
-                >
-                  <span>Vào Dashboard</span>
-                  <ArrowUpRight size={15} />
-                </Link>
-              )}
-            </div>
-
-            {/* Trust Badges */}
-            <div className="flex flex-wrap items-center gap-6 pt-3 text-xs text-gray-400 font-medium">
-              <div className="flex items-center gap-2">
-                <Lock size={14} className="text-amber-400" />
-                <span>Không lưu file của bạn</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Zap size={14} className="text-amber-400" />
-                <span>Xử lý tức thì</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-amber-400" />
-                <span>Miễn phí bắt đầu</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column: Hero Interactive Dropzone Card */}
-          <div className="lg:col-span-5">
-            <div
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`liquid-glass-card specular-sheen p-6 sm:p-8 cursor-pointer text-center relative group transition-all duration-300 ${
-                dragOver
-                  ? 'border-amber-400 bg-amber-500/10 scale-[1.02] shadow-[0_0_35px_rgba(245,158,11,0.3)]'
-                  : ''
-              }`}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    handleFile(e.target.files[0]);
-                  }
-                }}
-              />
-
-              {/* Top Card Badge */}
-              <div className="flex items-center justify-between pb-6 mb-6 border-b border-white/10 text-xs">
-                <div className="flex items-center gap-2 text-gray-400 font-medium">
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                  <span>Kéo & thả tệp</span>
-                </div>
-                <div className="flex gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
-                  <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/60" />
-                  <span className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
-                </div>
-              </div>
-
-              {/* Upload Icon & Action */}
-              <div className="py-4 space-y-4">
-                <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-amber-500/20 via-amber-400/10 to-rose-500/20 border border-amber-400/30 flex items-center justify-center text-amber-300 shadow-[0_0_25px_rgba(245,158,11,0.2)] group-hover:scale-110 group-hover:border-amber-400/60 transition-all duration-300">
-                  <Upload size={28} />
+                {/* Top Card Badge */}
+                <div className="flex items-center justify-between pb-6 mb-6 border-b border-white/10 text-xs">
+                  <div className="flex items-center gap-2 text-gray-300 dark:text-gray-400 font-medium">
+                    <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                    <span>Kéo & thả tệp</span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/60" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
+                  </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <h3 className="text-lg font-bold text-white group-hover:text-amber-300 transition-colors">
-                    Thả tệp vào đây để bắt đầu
-                  </h3>
-                  <p className="text-xs text-gray-400">
-                    Hỗ trợ PDF, Ảnh, Office, Audio và nhiều hơn nữa
-                  </p>
+                {/* Upload Icon & Action */}
+                <div className="py-4 space-y-4">
+                  <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-amber-500/20 via-amber-400/10 to-rose-500/20 border border-amber-400/30 flex items-center justify-center text-amber-300 shadow-[0_0_25px_rgba(245,158,11,0.2)] group-hover:scale-110 group-hover:border-amber-400/60 transition-all duration-300">
+                    <Upload size={28} />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <h3 className="text-lg font-bold text-white group-hover:text-amber-300 transition-colors">
+                      Thả tệp vào đây để bắt đầu
+                    </h3>
+                    <p className="text-xs text-gray-300 dark:text-gray-400">
+                      Hỗ trợ PDF, Ảnh, Office, Audio và nhiều hơn nữa
+                    </p>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      className="liquid-gold-button px-5 py-2.5 text-xs inline-flex items-center gap-1.5"
+                    >
+                      <span>Chọn tệp từ máy</span>
+                    </button>
+                  </div>
                 </div>
 
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    className="liquid-gold-button px-5 py-2.5 text-xs inline-flex items-center gap-1.5"
-                  >
-                    <span>Chọn tệp từ máy</span>
-                  </button>
+                {/* Supported Formats Pills */}
+                <div className="pt-6 mt-4 border-t border-white/10 flex flex-wrap justify-center gap-1.5">
+                  {['.pdf', '.word', '.excel', '.jpg', '.png', '.mp3', '.zip'].map((ext) => (
+                    <span
+                      key={ext}
+                      className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-[11px] font-mono text-gray-300 dark:text-gray-400 group-hover:border-amber-400/30 group-hover:text-amber-200 transition-colors"
+                    >
+                      {ext}
+                    </span>
+                  ))}
                 </div>
-              </div>
-
-              {/* Supported Formats Pills */}
-              <div className="pt-6 mt-4 border-t border-white/10 flex flex-wrap justify-center gap-1.5">
-                {['.pdf', '.word', '.excel', '.jpg', '.png', '.mp3', '.zip'].map((ext) => (
-                  <span
-                    key={ext}
-                    className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-[11px] font-mono text-gray-400 group-hover:border-amber-400/30 group-hover:text-amber-200 transition-colors"
-                  >
-                    {ext}
-                  </span>
-                ))}
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
       {/* ── 2. INFINITE MARQUEE TICKER (Jacob & Co Editorial) ── */}
       <section className="py-2 border-y border-white/10 bg-black/40 backdrop-blur-xl -mx-4 sm:-mx-6 px-4">
@@ -387,6 +408,7 @@ export default function Home() {
           ))}
         </div>
       </section>
-    </div>
+      </div>
+    </>
   );
 }

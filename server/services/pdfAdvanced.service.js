@@ -6,10 +6,10 @@
 'use strict';
 
 const { PDFDocument, rgb, degrees, StandardFonts } = require('pdf-lib');
-const { execSync }  = require('child_process');
+const { execFileSync }  = require('child_process');
 const pdfParse      = require('pdf-parse');
-const puppeteer     = require('puppeteer');
 const sharp         = require('sharp');
+const { withPage }  = require('../utils/browser');
 const path          = require('path');
 const fs            = require('fs');
 const archiver      = require('archiver');
@@ -20,6 +20,14 @@ const OUT = path.resolve('outputs');
 
 function getGsCmd() {
   return process.platform === 'win32' ? 'gswin64c' : 'gs';
+}
+
+function runSafe(executable, args = []) {
+  try {
+    return execFileSync(executable, args, { stdio: 'pipe' });
+  } catch (err) {
+    throw new Error(`Lệnh thực thi thất bại: ${executable} ${args.join(' ')}\nChi tiết: ${err.stderr?.toString() || err.message}`);
+  }
 }
 
 function escapeHtml(str) {
@@ -240,28 +248,21 @@ async function comparePdfText(pdfPath1, pdfPath2, opts = {}) {
     return { path: outPath, stats: { added, removed, unchanged, similarity } };
   }
 
-  // PDF output
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-  try {
-    const page = await browser.newPage();
+  // xuat file pdf diff
+  return await withPage(async (page) => {
     await page.setContent(html, { waitUntil: 'networkidle0' });
     const outPath = path.join(OUT, `compare_${uuidv4()}.pdf`);
     await page.pdf({ path: outPath, format: 'A4', printBackground: true, margin: { top: 0, bottom: 0, left: 0, right: 0 } });
     return { path: outPath, stats: { added, removed, unchanged, similarity } };
-  } finally {
-    await browser.close();
-  }
+  });
 }
 
-// ── 4. HTML FILE → PDF ────────────────────────────────────────────────────────
-
+// 4. html file -> pdf
 async function htmlFileToPdf(htmlPath, opts = {}) {
   const { format = 'A4' } = opts;
   const htmlContent = fs.readFileSync(htmlPath, 'utf-8');
 
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-  try {
-    const page = await browser.newPage();
+  return await withPage(async (page) => {
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
     const outPath = path.join(OUT, `html2pdf_${uuidv4()}.pdf`);
     await page.pdf({
@@ -271,9 +272,7 @@ async function htmlFileToPdf(htmlPath, opts = {}) {
       margin: { top: '15mm', bottom: '15mm', left: '15mm', right: '15mm' },
     });
     return outPath;
-  } finally {
-    await browser.close();
-  }
+  });
 }
 
 // ── 5. SẮP XẾP LẠI TRANG (REORDER) ──────────────────────────────────────────
@@ -396,12 +395,12 @@ async function pdfToPptx(pdfPath, opts = {}) {
   fs.mkdirSync(tmpDir, { recursive: true });
 
   const gsCmd = getGsCmd();
-  execSync([
-    gsCmd, '-dNOPAUSE', '-dBATCH', '-dQUIET',
+  runSafe(gsCmd, [
+    '-dNOPAUSE', '-dBATCH', '-dQUIET',
     '-sDEVICE=jpeg', `-r${dpi}`,
-    `-sOutputFile="${path.join(tmpDir, 'slide_%04d.jpg')}"`,
-    `"${pdfPath}"`,
-  ].join(' '));
+    `-sOutputFile=${path.join(tmpDir, 'slide_%04d.jpg')}`,
+    pdfPath,
+  ]);
 
   const slides = fs.readdirSync(tmpDir).filter(f => f.endsWith('.jpg')).sort();
   if (!slides.length) throw new Error('Không render được trang PDF thành slide.');
@@ -476,13 +475,13 @@ async function addImageToPdf(pdfPath, imagePath, opts = {}) {
 function flattenPdf(pdfPath) {
   const outPath = path.join(OUT, `flattened_${uuidv4()}.pdf`);
   const gsCmd   = getGsCmd();
-  execSync([
-    gsCmd, '-dBATCH', '-dNOPAUSE', '-dQUIET',
+  runSafe(gsCmd, [
+    '-dBATCH', '-dNOPAUSE', '-dQUIET',
     '-sDEVICE=pdfwrite',
     '-dCompatibilityLevel=1.4',
-    `-sOutputFile="${outPath}"`,
-    `"${pdfPath}"`,
-  ].join(' '));
+    `-sOutputFile=${outPath}`,
+    pdfPath,
+  ]);
   return { path: outPath };
 }
 
@@ -495,15 +494,15 @@ function toPdfA(pdfPath, opts = {}) {
 
   const outPath = path.join(OUT, `pdfa_${uuidv4()}.pdf`);
   const gsCmd   = getGsCmd();
-  execSync([
-    gsCmd, '-dBATCH', '-dNOPAUSE', '-dQUIET',
+  runSafe(gsCmd, [
+    '-dBATCH', '-dNOPAUSE', '-dQUIET',
     '-sDEVICE=pdfwrite',
     `-dPDFA=${pdfa}`,
     '-sProcessColorModel=DeviceRGB',
     '-sPDFACompatibilityPolicy=1',
-    `-sOutputFile="${outPath}"`,
-    `"${pdfPath}"`,
-  ].join(' '));
+    `-sOutputFile=${outPath}`,
+    pdfPath,
+  ]);
 
   return { path: outPath, level };
 }
@@ -514,17 +513,17 @@ function repairPdf(pdfPath) {
   const outPath = path.join(OUT, `repaired_${uuidv4()}.pdf`);
   const gsCmd   = getGsCmd();
   try {
-    execSync([
-      gsCmd, '-dBATCH', '-dNOPAUSE', '-dQUIET',
+    runSafe(gsCmd, [
+      '-dBATCH', '-dNOPAUSE', '-dQUIET',
       '-sDEVICE=pdfwrite',
       '-dCompatibilityLevel=1.4',
       '-dAutoRotatePages=/None',
-      `-sOutputFile="${outPath}"`,
-      `"${pdfPath}"`,
-    ].join(' '));
+      `-sOutputFile=${outPath}`,
+      pdfPath,
+    ]);
   } catch (err) {
     try {
-      execSync(`qpdf --replace-input --coalesce-contents "${pdfPath}" "${outPath}"`);
+      runSafe('qpdf', ['--replace-input', '--coalesce-contents', pdfPath, outPath]);
     } catch {
       throw new Error('Không thể sửa chữa file này. File có thể bị hỏng cấu trúc hoàn toàn.');
     }

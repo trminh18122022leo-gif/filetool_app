@@ -77,9 +77,22 @@ function validateUploadedFiles(req, res, next) {
   if (!files.length) return next();
 
   for (const file of files) {
-    // 1. Path traversal & dangerous character sanitization
-    const dangerousPatterns = /\.\.(\/|\\)|<|>|&|\||;|`|\$|\{|\}/;
-    if (dangerousPatterns.test(file.originalname)) {
+    // 1. Path traversal & dangerous character sanitization (path.resolve + startsWith)
+    const rawName = file.originalname || '';
+    const baseName = path.basename(rawName);
+    const uploadBaseDir = path.resolve('uploads');
+    const resolvedTarget = path.resolve(uploadBaseDir, baseName);
+
+    const hasTraversal =
+      rawName.includes('..') ||
+      rawName.includes('/') ||
+      rawName.includes('\\') ||
+      baseName !== rawName ||
+      !resolvedTarget.startsWith(uploadBaseDir);
+
+    const hasDangerousChars = /[\x00-\x1F\x7F<>&|;`$"{}]/.test(rawName);
+
+    if (hasTraversal || hasDangerousChars) {
       try { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); } catch (_) {}
       AuditLog.log({
         userId: req.user?._id,
@@ -91,11 +104,11 @@ function validateUploadedFiles(req, res, next) {
       return res.status(400).json({ error: 'Tên file chứa ký tự không hợp lệ hoặc nghi vấn tấn công path traversal.', code: 'INVALID_FILENAME' });
     }
 
-    // 2. Extension whitelist
+    // 2. Extension whitelist (loại trừ .svg để chống Stored XSS)
     const ext = path.extname(file.originalname).toLowerCase();
     const allowedExts = [
       '.pdf', '.docx', '.xlsx', '.pptx', '.doc', '.xls',
-      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.tiff', '.bmp', '.svg',
+      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.tiff', '.bmp',
       '.zip', '.csv', '.txt', '.md', '.json',
       '.mp3', '.wav', '.ogg', '.m4a', '.mp4', '.webm', '.aac', '.flac',
     ];
@@ -124,20 +137,20 @@ function validateUploadedFiles(req, res, next) {
   next();
 }
 
-// ── NoSQL Injection Prevention ────────────────────────────────────────────────
+// ── NoSQL Injection Prevention (chỉ sanitize query, body được xử lý bởi express-mongo-sanitize) ──
 function sanitizeBody(req, res, next) {
-  if (req.body && typeof req.body === 'object') {
+  if (req.query && typeof req.query === 'object') {
     const sanitize = (obj) => {
       if (typeof obj !== 'object' || obj === null) return obj;
       if (Array.isArray(obj)) return obj.map(sanitize);
       const cleaned = {};
       for (const key of Object.keys(obj)) {
-        if (key.startsWith('$') || key.includes('.')) continue; // Strip operators
+        if (key.startsWith('$')) continue; // Chỉ bỏ operator trên URL query
         cleaned[key] = sanitize(obj[key]);
       }
       return cleaned;
     };
-    req.body = sanitize(req.body);
+    req.query = sanitize(req.query);
   }
   next();
 }

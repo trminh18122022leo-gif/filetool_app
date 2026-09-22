@@ -3,6 +3,8 @@
 const sharp = require('sharp');
 const path  = require('path');
 const { v4: uuidv4 } = require('uuid');
+const { removeBg: rb } = require('./removebg.service');
+const { removeObject: ro } = require('./inpaint.service');
 
 const OUT = path.resolve('outputs');
 
@@ -116,7 +118,6 @@ async function filter(filePath, filterType = 'grayscale') {
  * Xóa phông nền ảnh (Remove Background).
  */
 async function removeBg(filePath, maskInput = null) {
-  const { removeBg: rb } = require('./removebg.service');
   return rb(filePath, maskInput);
 }
 
@@ -124,7 +125,6 @@ async function removeBg(filePath, maskInput = null) {
  * Xóa vật thể khỏi ảnh (AI Object Removal / Inpainting).
  */
 async function removeObject(filePath, maskInput) {
-  const { removeObject: ro } = require('./inpaint.service');
   return ro(filePath, maskInput);
 }
 

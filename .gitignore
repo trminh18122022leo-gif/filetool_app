@@ -14,6 +14,8 @@ logs/*
 client/dist
 .DS_Store
 Thumbs.db
-
+OPEN_CODE_REVIEW_REPORT.md
+*plan*.md
+*.dll
 electron/dist
 electron/node_modules

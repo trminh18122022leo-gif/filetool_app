@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LayoutDashboard, LogOut, ChevronDown, Sparkles, Key, LogIn, UserPlus } from 'lucide-react';
+import LogoutModal from './modals/LogoutModal';
 
 // Tạo màu gradient nhất quán theo tên
 function getAvatarColors(nameOrEmail = '') {
@@ -52,6 +53,7 @@ function AvatarInitial({ user, size = 'sm' }) {
 export default function UserMenu() {
   const { user, logout } = useAuth();
   const [open, setOpen]  = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const menuRef          = useRef(null);
   const navigate         = useNavigate();
 
@@ -70,7 +72,7 @@ export default function UserMenu() {
       <div className="flex items-center gap-2">
         <Link
           to="/login"
-          className="glass-button flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold hover:border-amber-400/50 hover:text-amber-300 transition-all"
+          className="glass-button flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold hover:border-amber-500/50 hover:text-amber-800 dark:hover:text-amber-300 transition-all text-gray-700 dark:text-gray-200"
         >
           <LogIn size={14} />
           <span>Đăng nhập</span>
@@ -87,22 +89,22 @@ export default function UserMenu() {
   }
 
   const planBadges = {
-    free:     'bg-white/5 text-gray-300 border-white/10',
-    pro:      'bg-amber-950/80 text-amber-300 border-amber-600/50 shadow-[0_0_8px_rgba(245,158,11,0.25)]',
-    business: 'bg-rose-950/80 text-rose-300 border-rose-600/50 shadow-[0_0_8px_rgba(251,113,133,0.25)]',
+    free:     'bg-black/5 dark:bg-white/5 text-gray-700 dark:text-gray-300 border-black/10 dark:border-white/10',
+    pro:      'bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 border-amber-400/50 dark:border-amber-600/50 shadow-sm',
+    business: 'bg-rose-100 dark:bg-rose-950/80 text-rose-900 dark:text-rose-300 border-rose-400/50 dark:border-rose-600/50 shadow-sm',
   };
 
   return (
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2.5 p-1 sm:px-3 sm:py-1.5 rounded-2xl bg-white/5 border border-white/10 hover:border-amber-400/40 transition-all text-left group cursor-pointer"
+        className="flex items-center gap-2.5 p-1 sm:px-3 sm:py-1.5 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 hover:border-amber-500/40 dark:hover:border-amber-400/40 transition-all text-left group cursor-pointer"
         title="Tài khoản của bạn (nhấp để mở menu)"
       >
         <AvatarInitial user={user} size="sm" />
 
         <div className="hidden sm:block text-left">
-          <p className="text-xs font-bold text-gray-100 leading-tight truncate max-w-[110px] group-hover:text-amber-300 transition-colors">
+          <p className="text-xs font-bold text-gray-800 dark:text-gray-100 leading-tight truncate max-w-[110px] group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors">
             {user.name || user.email?.split('@')[0]}
           </p>
           <span className={`inline-block text-[9px] uppercase font-bold px-1.5 py-0.2 rounded-md border mt-0.5 ${planBadges[user.plan] || planBadges.free}`}>
@@ -110,24 +112,24 @@ export default function UserMenu() {
           </span>
         </div>
 
-        <ChevronDown size={14} className={`text-gray-400 group-hover:text-white transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={14} className={`text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Dropdown Menu */}
       {open && (
-        <div className="absolute right-0 mt-2 w-64 border border-white/15 rounded-2xl p-2.5 shadow-[0_15px_45px_rgba(0,0,0,0.8)] z-50 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-2xl bg-[#0E0E14]/95">
-          <div className="px-3 py-3 border-b border-white/10 mb-1.5 flex items-center gap-3">
+        <div className="absolute right-0 mt-2 w-64 border border-black/10 dark:border-white/15 rounded-2xl p-2.5 shadow-[0_15px_45px_rgba(0,0,0,0.15)] dark:shadow-[0_15px_45px_rgba(0,0,0,0.8)] z-50 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-2xl bg-white/95 dark:bg-[#0E0E14]/95">
+          <div className="px-3 py-3 border-b border-black/10 dark:border-white/10 mb-1.5 flex items-center gap-3">
             <div className="group shrink-0">
               <AvatarInitial user={user} size="lg" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-bold text-white truncate flex items-center gap-1.5">
+              <p className="text-xs font-bold text-gray-900 dark:text-white truncate flex items-center gap-1.5">
                 <span>{user.name || 'Thành viên'}</span>
                 <span className={`text-[9px] uppercase font-extrabold px-1.5 py-0.2 rounded border ${planBadges[user.plan] || planBadges.free}`}>
                   {user.plan || 'Free'}
                 </span>
               </p>
-              <p className="text-[11px] text-gray-400 truncate mt-0.5">{user.email}</p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-0.5">{user.email}</p>
             </div>
           </div>
 
@@ -137,39 +139,38 @@ export default function UserMenu() {
                 setOpen(false);
                 navigate('/dashboard');
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-gray-200 hover:text-amber-300 hover:bg-amber-500/15 border border-transparent hover:border-amber-400/30 transition-all text-left cursor-pointer"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-gray-700 dark:text-gray-200 hover:text-amber-800 dark:hover:text-amber-300 hover:bg-amber-500/15 border border-transparent hover:border-amber-600/30 dark:hover:border-amber-400/30 transition-all text-left cursor-pointer"
             >
-              <LayoutDashboard size={16} className="text-amber-400" />
+              <LayoutDashboard size={16} className="text-amber-600 dark:text-amber-400" />
               <span>Dashboard của tôi</span>
             </button>
 
             <Link
               to="/pricing"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-gray-300 hover:text-amber-300 hover:bg-white/5 transition-colors"
+              className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-gray-600 dark:text-gray-300 hover:text-amber-800 dark:hover:text-amber-300 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
             >
-              <Sparkles size={15} className="text-amber-400" />
+              <Sparkles size={15} className="text-amber-600 dark:text-amber-400" />
               <span>Nâng cấp gói Pro</span>
             </Link>
 
             <Link
               to="/api-docs"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-gray-300 hover:text-amber-300 hover:bg-white/5 transition-colors"
+              className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-gray-600 dark:text-gray-300 hover:text-amber-800 dark:hover:text-amber-300 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
             >
-              <Key size={15} className="text-yellow-400" />
+              <Key size={15} className="text-amber-600 dark:text-yellow-400" />
               <span>Tài liệu API</span>
             </Link>
           </div>
 
-          <div className="border-t border-white/10 my-1.5 pt-1.5">
+          <div className="border-t border-black/10 dark:border-white/10 my-1.5 pt-1.5">
             <button
               onClick={() => {
                 setOpen(false);
-                logout();
-                navigate('/');
+                setShowLogoutModal(true);
               }}
-              className="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-950/40 transition-colors cursor-pointer"
+              className="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
             >
               <LogOut size={15} />
               <span>Đăng xuất</span>
@@ -177,6 +178,17 @@ export default function UserMenu() {
           </div>
         </div>
       )}
+
+      {/* Feral-Blob Logout Modal (Image 3) */}
+      <LogoutModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={() => {
+          setShowLogoutModal(false);
+          logout();
+          navigate('/');
+        }}
+      />
     </div>
   );
 }

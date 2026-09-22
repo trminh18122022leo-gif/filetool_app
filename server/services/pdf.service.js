@@ -1,19 +1,27 @@
 'use strict';
 
 const { PDFDocument, rgb, degrees } = require('pdf-lib');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const path = require('path');
 const fs   = require('fs');
 const { v4: uuidv4 } = require('uuid');
 
 const OUT = path.resolve('outputs');
 
-// Helper: Chạy command và throw error rõ ràng
-function run(cmd) {
+function getLoExecutable() {
+  if (process.platform === 'win32') {
+    const winPath = 'C:\\Program Files\\LibreOffice\\program\\soffice.exe';
+    if (fs.existsSync(winPath)) return winPath;
+  }
+  return 'libreoffice';
+}
+
+// Helper: Chạy command trực tiếp bằng execFileSync (không qua shell, chống command injection)
+function runSafe(executable, args = []) {
   try {
-    return execSync(cmd, { stdio: 'pipe' });
+    return execFileSync(executable, args, { stdio: 'pipe' });
   } catch (err) {
-    throw new Error(`Lệnh thất bại: ${cmd}\nChi tiết: ${err.stderr?.toString() || err.message}`);
+    throw new Error(`Lệnh thất bại: ${executable} ${args.join(' ')}\nChi tiết: ${err.stderr?.toString() || err.message}`);
   }
 }
 
@@ -89,20 +97,25 @@ async function compressPDF(filePath, quality = 'ebook') {
   const outPath = path.join(OUT, `compressed_${uuidv4()}.pdf`);
 
   const gsCmd = process.platform === 'win32' ? 'gswin64c' : 'gs';
-  const cmd = `${gsCmd} -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 ` +
-              `-dPDFSETTINGS=${setting} -dNOPAUSE -dQUIET -dBATCH ` +
-              `-sOutputFile="${outPath}" "${filePath}"`;
-  run(cmd);
+  const args = [
+    '-sDEVICE=pdfwrite',
+    '-dCompatibilityLevel=1.4',
+    `-dPDFSETTINGS=${setting}`,
+    '-dNOPAUSE',
+    '-dQUIET',
+    '-dBATCH',
+    `-sOutputFile=${outPath}`,
+    filePath,
+  ];
+  runSafe(gsCmd, args);
   return outPath;
 }
 
 // 4. Chuyển PDF -> Word (dùng LibreOffice headless)
 async function pdfToWord(filePath) {
   const outPath = path.join(OUT, `doc_${uuidv4()}.docx`);
-  const loCmd   = process.platform === 'win32'
-    ? '"C:\\Program Files\\LibreOffice\\program\\soffice.exe"'
-    : 'libreoffice';
-  run(`${loCmd} --headless --infilter="writer_pdf_import" --convert-to docx "${filePath}" --outdir "${OUT}"`);
+  const loExe = getLoExecutable();
+  runSafe(loExe, ['--headless', '--infilter=writer_pdf_import', '--convert-to', 'docx', filePath, '--outdir', OUT]);
   
   const baseName = path.basename(filePath, path.extname(filePath));
   const defaultOut = path.join(OUT, `${baseName}.docx`);
@@ -115,10 +128,8 @@ async function pdfToWord(filePath) {
 // 5. Chuyển Word -> PDF (LibreOffice)
 async function wordToPdf(filePath) {
   const outPath = path.join(OUT, `pdf_${uuidv4()}.pdf`);
-  const loCmd   = process.platform === 'win32'
-    ? '"C:\\Program Files\\LibreOffice\\program\\soffice.exe"'
-    : 'libreoffice';
-  run(`${loCmd} --headless --convert-to pdf "${filePath}" --outdir "${OUT}"`);
+  const loExe = getLoExecutable();
+  runSafe(loExe, ['--headless', '--convert-to', 'pdf', filePath, '--outdir', OUT]);
   
   const baseName = path.basename(filePath, path.extname(filePath));
   const defaultOut = path.join(OUT, `${baseName}.pdf`);
@@ -192,36 +203,19 @@ async function addWatermark(filePath, text, opts = {}) {
 async function protectPDF(filePath, userPassword, ownerPassword = null) {
   const owner = ownerPassword || userPassword;
   const outPath = path.join(OUT, `protected_${uuidv4()}.pdf`);
-  run(`qpdf --encrypt "${userPassword}" "${owner}" 256 -- "${filePath}" "${outPath}"`);
+  runSafe('qpdf', ['--encrypt', String(userPassword), String(owner), '256', '--', filePath, outPath]);
   return outPath;
 }
 
 // 10. Gỡ mật khẩu PDF (dùng qpdf)
 async function unlockPDF(filePath, password) {
   const outPath = path.join(OUT, `unlocked_${uuidv4()}.pdf`);
-  run(`qpdf --password="${password}" --decrypt "${filePath}" "${outPath}"`);
+  runSafe('qpdf', [`--password=${password}`, '--decrypt', filePath, outPath]);
   return outPath;
 }
 
-module.exports = {
-  mergePDFs,
-  splitPDF,
-  compressPDF,
-  pdfToWord,
-  wordToPdf,
-  extractPages,
-  rotatePDF,
-  addWatermark,
-  protectPDF,
-  unlockPDF,
-};
-
-
-exports.signPdf = async (inputPath, outputPath, options) => {
-  const { PDFDocument, rgb } = require('pdf-lib');
-  const fs = require('fs');
-  const path = require('path');
-  
+// 11. Ký số trên PDF
+async function signPdf(inputPath, outputPath, options) {
   const pdfBytes = fs.readFileSync(inputPath);
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const pages = pdfDoc.getPages();
@@ -263,4 +257,18 @@ exports.signPdf = async (inputPath, outputPath, options) => {
   
   const modifiedPdfBytes = await pdfDoc.save();
   fs.writeFileSync(outputPath, modifiedPdfBytes);
+}
+
+module.exports = {
+  mergePDFs,
+  splitPDF,
+  compressPDF,
+  pdfToWord,
+  wordToPdf,
+  extractPages,
+  rotatePDF,
+  addWatermark,
+  protectPDF,
+  unlockPDF,
+  signPdf,
 };

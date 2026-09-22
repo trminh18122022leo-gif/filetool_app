@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "nodemon --config nodemon.json server/index.js",
-    "client": "cd client && npm run dev",
+    "client": "npm --prefix client run dev",
     "dev:all": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm run dev\" \"npm run client\"",
     "build": "cd client && npm run build",
     "clean": "node -e \"const fs=require('fs');['uploads','outputs'].forEach(d=>{if(fs.existsSync(d))fs.readdirSync(d).forEach(f=>fs.unlinkSync(d+'/'+f))})\"",

@@ -106,9 +106,43 @@ refreshTokenSchema.statics.verifyToken = async function(rawToken) {
 };
 
 refreshTokenSchema.statics.rotateToken = async function(oldTokenDoc, ip, userAgent) {
-  // Replay Attack Detection: If an already-used token is submitted again,
-  // revoke the ENTIRE token family because an attacker has intercepted this token!
-  if (oldTokenDoc.usedAt) {
+  // Atomic check-and-update: Only transition usedAt from null -> Date
+  // If a concurrent request already updated this token, findOneAndUpdate returns null!
+  const updatedDoc = await this.findOneAndUpdate(
+    { _id: oldTokenDoc._id, usedAt: null },
+    { usedAt: new Date() },
+    { new: true }
+  );
+
+  if (!updatedDoc) {
+    // Kiểm tra xem token này có vừa được sử dụng trong khoảng thời gian ân hạn (Grace Period / Leeway: 15 giây) hay không.
+    // Điều này giải quyết triệt để race condition khi trình duyệt gửi nhiều request 401 đồng thời.
+    const recentDoc = await this.findById(oldTokenDoc._id);
+    const GRACE_PERIOD_MS = 15 * 1000;
+    const isWithinGrace = recentDoc && recentDoc.usedAt &&
+      (Date.now() - new Date(recentDoc.usedAt).getTime()) < GRACE_PERIOD_MS &&
+      !recentDoc.revokedAt;
+
+    if (isWithinGrace) {
+      const newRawToken = crypto.randomBytes(48).toString('hex');
+      const tokenHash   = crypto.createHash('sha256').update(newRawToken).digest('hex');
+      const expiresDays = parseInt(process.env.JWT_REFRESH_EXPIRES_DAYS || '7', 10);
+      const expiresAt   = new Date(Date.now() + expiresDays * 24 * 60 * 60 * 1000);
+
+      await this.create({
+        userId:      oldTokenDoc.userId,
+        tokenHash,
+        tokenPrefix: newRawToken.slice(0, 8),
+        family:      oldTokenDoc.family,
+        ip:          ip || oldTokenDoc.ip,
+        userAgent:   userAgent || oldTokenDoc.userAgent,
+        expiresAt,
+      });
+
+      return newRawToken;
+    }
+
+    // Replay Attack Detection: Token đã bị sử dụng vượt quá cửa sổ ân hạn -> Thật sự là tấn công Replay Attack!
     await this.updateMany(
       { family: oldTokenDoc.family },
       { revokedAt: new Date(), revokeReason: 'family_breach' }
@@ -116,9 +150,6 @@ refreshTokenSchema.statics.rotateToken = async function(oldTokenDoc, ip, userAge
     console.error(`[SECURITY ALERT] Refresh token replay attack detected! Family: ${oldTokenDoc.family}`);
     return null;
   }
-
-  // Mark old token as used
-  await oldTokenDoc.updateOne({ usedAt: new Date() });
 
   // Issue new token in the same family
   const newRawToken = crypto.randomBytes(48).toString('hex');

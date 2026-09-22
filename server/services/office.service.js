@@ -1,6 +1,6 @@
 'use strict';
 
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const path = require('path');
 const fs   = require('fs');
 const xlsx = require('xlsx');
@@ -8,15 +8,17 @@ const { v4: uuidv4 } = require('uuid');
 
 const OUT = path.resolve('outputs');
 
-function getLoCmd() {
-  return process.platform === 'win32'
-    ? '"C:\\Program Files\\LibreOffice\\program\\soffice.exe"'
-    : 'libreoffice';
+function getLoExecutable() {
+  if (process.platform === 'win32') {
+    const winPath = 'C:\\Program Files\\LibreOffice\\program\\soffice.exe';
+    if (fs.existsSync(winPath)) return winPath;
+  }
+  return 'libreoffice';
 }
 
-function run(cmd) {
+function runSafe(executable, args = []) {
   try {
-    return execSync(cmd, { stdio: 'pipe' });
+    return execFileSync(executable, args, { stdio: 'pipe' });
   } catch (err) {
     throw new Error(`LibreOffice lỗi: ${err.stderr?.toString() || err.message}`);
   }
@@ -24,8 +26,8 @@ function run(cmd) {
 
 // 1. DOCX -> PDF
 async function docToPdf(filePath) {
-  const loCmd = getLoCmd();
-  run(`${loCmd} --headless --convert-to pdf "${filePath}" --outdir "${OUT}"`);
+  const loExe = getLoExecutable();
+  runSafe(loExe, ['--headless', '--convert-to', 'pdf', filePath, '--outdir', OUT]);
   const baseName   = path.basename(filePath, path.extname(filePath));
   const defaultOut = path.join(OUT, `${baseName}.pdf`);
   const finalOut   = path.join(OUT, `doc_${uuidv4()}.pdf`);
@@ -35,8 +37,8 @@ async function docToPdf(filePath) {
 
 // 2. XLSX -> PDF
 async function xlsxToPdf(filePath) {
-  const loCmd = getLoCmd();
-  run(`${loCmd} --headless --convert-to pdf "${filePath}" --outdir "${OUT}"`);
+  const loExe = getLoExecutable();
+  runSafe(loExe, ['--headless', '--convert-to', 'pdf', filePath, '--outdir', OUT]);
   const baseName   = path.basename(filePath, path.extname(filePath));
   const defaultOut = path.join(OUT, `${baseName}.pdf`);
   const finalOut   = path.join(OUT, `sheet_${uuidv4()}.pdf`);
@@ -46,8 +48,8 @@ async function xlsxToPdf(filePath) {
 
 // 3. PPTX -> PDF
 async function pptxToPdf(filePath) {
-  const loCmd = getLoCmd();
-  run(`${loCmd} --headless --convert-to pdf "${filePath}" --outdir "${OUT}"`);
+  const loExe = getLoExecutable();
+  runSafe(loExe, ['--headless', '--convert-to', 'pdf', filePath, '--outdir', OUT]);
   const baseName   = path.basename(filePath, path.extname(filePath));
   const defaultOut = path.join(OUT, `${baseName}.pdf`);
   const finalOut   = path.join(OUT, `slide_${uuidv4()}.pdf`);
@@ -76,8 +78,8 @@ async function csvToXlsx(filePath) {
 
 // 6. PDF -> DOCX (LibreOffice Writer PDF Import)
 async function pdfToDocx(filePath) {
-  const loCmd = getLoCmd();
-  run(`${loCmd} --headless --infilter="writer_pdf_import" --convert-to docx "${filePath}" --outdir "${OUT}"`);
+  const loExe = getLoExecutable();
+  runSafe(loExe, ['--headless', '--infilter=writer_pdf_import', '--convert-to', 'docx', filePath, '--outdir', OUT]);
   const baseName   = path.basename(filePath, path.extname(filePath));
   const defaultOut = path.join(OUT, `${baseName}.docx`);
   const finalOut   = path.join(OUT, `doc_${uuidv4()}.docx`);

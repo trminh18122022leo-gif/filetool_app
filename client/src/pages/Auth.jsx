@@ -6,6 +6,11 @@ import {
   LogIn, UserPlus, Loader2, AlertCircle, CheckCircle2,
   ArrowRight, ArrowLeft, ShieldCheck, Sparkles
 } from 'lucide-react';
+import { JellyBlobMascot } from 'feral-blob';
+import 'feral-blob/blob.css';
+import { ClawCaptcha } from 'playcaptcha';
+import 'playcaptcha/clawcaptcha.css';
+import GlassyWisteriaBackground from '../components/backgrounds/GlassyWisteriaBackground';
 
 const API = import.meta.env.VITE_API_URL || (!!(window.Capacitor?.isNativePlatform?.() || window.electronAPI) ? 'https://filetool-app.vercel.app' : '');
 const isNative = !!(window.Capacitor?.isNativePlatform?.() || window.electronAPI);
@@ -39,6 +44,17 @@ export default function Auth({ defaultMode = 'login' }) {
   const [regError, setRegError]           = useState(null);
   const [regSuccess, setRegSuccess]       = useState(null);
 
+  // Feral-Blob Mascot Companion states (Image 1 & 2)
+  const [mascotMood, setMascotMood]       = useState('neutral');
+  const [mascotGaze, setMascotGaze]       = useState({ x: 0, y: 0 });
+  const [mascotNod, setMascotNod]         = useState(false);
+  const [celebrateCount, setCelebrateCount] = useState(0);
+  const [mascotNotice, setMascotNotice]   = useState('FileTools Companion luôn đồng hành cùng bạn!');
+
+  // PlayCaptcha Claw Machine state
+  const [captchaVerified, setCaptchaVerified] = useState(false);
+  const isFormReady = regName.trim().length >= 2 && regEmail.trim().includes('@') && regPassword.length >= 8;
+
   const urlError = new URLSearchParams(location.search).get('error');
 
   useEffect(() => {
@@ -53,6 +69,35 @@ export default function Auth({ defaultMode = 'login' }) {
     setTwoFactorChallenge(null);
     const newPath = targetIsRegister ? '/register' : '/login';
     window.history.replaceState(null, '', newPath);
+  };
+
+  // Companion interactive handlers
+  const handleEmailFocus = () => {
+    setMascotMood('neutral');
+    setMascotGaze({ x: 22, y: -6 });
+    setMascotNod(true);
+    setMascotNotice('Đang quan sát bạn nhập thông tin...');
+  };
+
+  const handlePasswordFocus = () => {
+    setMascotMood('password');
+    setMascotGaze({ x: -24, y: -10 });
+    setMascotNod(false);
+    setMascotNotice('Mascot nhắm mắt quay đi để giữ bí mật mật khẩu! 🙈');
+  };
+
+  const handleInputBlur = () => {
+    setMascotMood('neutral');
+    setMascotGaze({ x: 0, y: 0 });
+    setMascotNod(false);
+    setMascotNotice('');
+  };
+
+  const handleMascotPoke = () => {
+    const pokeMoods = ['curious', 'surprised', 'shy', 'happy', 'sideEye'];
+    const randomMood = pokeMoods[Math.floor(Math.random() * pokeMoods.length)];
+    setMascotMood(randomMood);
+    setMascotNotice('Boop! Bạn vừa tương tác với mascot!');
   };
 
   const handleLogin = async (e) => {
@@ -72,9 +117,14 @@ export default function Auth({ defaultMode = 'login' }) {
         return;
       }
 
+      setMascotMood('happy');
+      setCelebrateCount(c => c + 1);
+      setMascotNotice('Đăng nhập thành công! Hoan hô! 🎉');
       login(data.user, data.token);
-      navigate('/dashboard');
+      setTimeout(() => navigate('/dashboard'), 600);
     } catch (err) {
+      setMascotMood('sad');
+      setMascotNotice('Đăng nhập chưa thành công, vui lòng kiểm tra lại!');
       setLoginError(err.response?.data?.error || 'Đăng nhập thất bại. Vui lòng kiểm tra lại email/mật khẩu.');
     } finally {
       setLoginLoading(false);
@@ -93,9 +143,13 @@ export default function Auth({ defaultMode = 'login' }) {
         token: totpCode.trim(),
       }, { withCredentials: true });
 
+      setMascotMood('happy');
+      setCelebrateCount(c => c + 1);
+      setMascotNotice('Xác thực 2FA thành công! 🎉');
       login(data.user, data.token);
-      navigate('/dashboard');
+      setTimeout(() => navigate('/dashboard'), 600);
     } catch (err) {
+      setMascotMood('sad');
       setTwoFactorError(err.response?.data?.error || 'Mã xác thực 2FA không chính xác hoặc đã hết hạn.');
     } finally {
       setTwoFactorLoading(false);
@@ -104,6 +158,13 @@ export default function Auth({ defaultMode = 'login' }) {
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    if (!captchaVerified) {
+      setRegError('Vui lòng gắp thú bông bên dưới để xác minh người thật trước khi tiếp tục!');
+      setMascotMood('curious');
+      setMascotNotice('Hãy hoàn thành trò chơi gắp thú bông trước nhé! 🧸');
+      return;
+    }
+
     setRegLoading(true);
     setRegError(null);
     setRegSuccess(null);
@@ -115,12 +176,17 @@ export default function Auth({ defaultMode = 'login' }) {
         password: regPassword,
       }, { withCredentials: true });
 
+      setMascotMood('happy');
+      setCelebrateCount(c => c + 1);
+      setMascotNotice('Chào mừng thành viên mới! Đăng ký thành công! 🎉');
       login(data.user, data.token);
       setRegSuccess('Đăng ký thành công! Đang chuyển hướng...');
       setTimeout(() => {
         navigate('/dashboard');
       }, 800);
     } catch (err) {
+      setMascotMood('sad');
+      setMascotNotice('Đăng ký chưa thành công, hãy kiểm tra lại thông tin.');
       setRegError(err.response?.data?.error || 'Đăng ký thất bại. Vui lòng thử lại.');
     } finally {
       setRegLoading(false);
@@ -179,341 +245,441 @@ export default function Auth({ defaultMode = 'login' }) {
   );
 
   return (
-    <div className="w-full max-w-4xl mx-auto py-6 px-2 sm:px-4 relative z-10">
-      {/* Mobile Fluid Mode Switcher */}
-      <div className="md:hidden mb-6 relative p-1.5 bg-black/40 border border-white/10 rounded-2xl backdrop-blur-xl flex shadow-lg">
-        <div
-          className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] rounded-xl liquid-gold-button transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
-            isRegister ? 'left-[calc(50%+3px)]' : 'left-1.5'
-          }`}
-        />
-        <button
-          onClick={() => toggleMode(false)}
-          className={`relative z-10 flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer ${
-            !isRegister ? 'text-black' : 'text-gray-400 hover:text-white'
-          }`}
-        >
-          <LogIn size={14} />
-          <span>Đăng Nhập</span>
-        </button>
-        <button
-          onClick={() => toggleMode(true)}
-          className={`relative z-10 flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer ${
-            isRegister ? 'text-black' : 'text-gray-400 hover:text-white'
-          }`}
-        >
-          <UserPlus size={14} />
-          <span>Đăng Ký</span>
-        </button>
-      </div>
-
-      {/* Main Glass Container with Fluid Wave Cutout */}
-      <div className="relative overflow-hidden rounded-3xl liquid-glass shadow-[0_20px_60px_rgba(0,0,0,0.8)] border border-white/10 min-h-[640px] flex">
-
-        {/* ── 1. Left Section: Login Form ── */}
-        <div
-          className={`w-full md:w-1/2 p-8 sm:p-12 flex flex-col justify-center transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-            isRegister
-              ? 'hidden md:flex opacity-20 scale-95 pointer-events-none md:pointer-events-auto'
-              : 'flex opacity-100 scale-100'
-          }`}
-        >
-          <div className="max-w-sm mx-auto w-full">
-            {twoFactorChallenge ? (
-              // 2FA Verification View
-              <div className="space-y-5 animate-in fade-in zoom-in-95 duration-200">
-                <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-400/40 flex items-center justify-center text-amber-400 mx-auto shadow-[0_0_20px_rgba(245,158,11,0.25)]">
-                  <ShieldCheck size={28} />
-                </div>
-                <div className="text-center">
-                  <h2 className="text-2xl font-bold text-white">Xác thực 2 Bước (2FA)</h2>
-                  <p className="text-xs text-gray-400 mt-1">Nhập mã 6 chữ số từ ứng dụng Authenticator của bạn</p>
-                </div>
-
-                {twoFactorError && (
-                  <div className="p-3 bg-red-950/50 border border-red-800/60 rounded-xl flex items-start gap-2.5 text-red-400 text-xs">
-                    <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
-                    <span>{twoFactorError}</span>
-                  </div>
-                )}
-
-                <form onSubmit={handle2FASubmit} className="space-y-4">
-                  <div>
-                    <input
-                      type="text"
-                      maxLength="6"
-                      autoFocus
-                      value={totpCode}
-                      onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
-                      className="glass-input text-center text-2xl tracking-[0.5em] font-mono py-3 focus:border-amber-400"
-                      placeholder="000000"
-                      required
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={twoFactorLoading || totpCode.length < 6}
-                    className="w-full liquid-gold-button py-3 text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    {twoFactorLoading ? <><Loader2 size={18} className="animate-spin" /> Đang xác thực...</> : 'Xác Nhận & Đăng Nhập'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setTwoFactorChallenge(null)}
-                    className="w-full text-xs text-gray-400 hover:text-white py-1 transition-colors cursor-pointer"
-                  >
-                    ← Quay lại đăng nhập
-                  </button>
-                </form>
-              </div>
-            ) : (
-              // Normal Login View
-              <>
-                <div className="space-y-2 mb-6">
-                  <div className="luxury-badge">
-                    <Sparkles size={12} className="text-amber-400" />
-                    <span>Chào mừng trở lại</span>
-                  </div>
-                  <h2 className="text-3xl font-extrabold gold-gradient-text flex items-center gap-2.5">
-                    <LogIn size={26} className="text-amber-400" /> Đăng Nhập
-                  </h2>
-                  <p className="text-xs text-gray-400">Đăng nhập để quản lý file và tận hưởng công cụ Pro</p>
-                </div>
-
-                {(loginError || urlError) && (
-                  <div className="mb-4 p-3 bg-red-950/50 border border-red-800/60 rounded-xl flex items-start gap-2.5 text-red-400 text-xs">
-                    <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
-                    <span>{loginError || urlError}</span>
-                  </div>
-                )}
-
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-300 mb-1.5">Email</label>
-                    <input
-                      type="email"
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      className="glass-input text-sm py-2.5"
-                      placeholder="name@company.com"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between items-center mb-1.5">
-                      <label className="text-xs font-semibold text-gray-300">Mật khẩu</label>
-                      <Link to="/forgot-password" className="text-[11px] text-amber-400 hover:underline font-medium">
-                        Quên mật khẩu?
-                      </Link>
-                    </div>
-                    <input
-                      type="password"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      className="glass-input text-sm py-2.5"
-                      placeholder="••••••••"
-                      required
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loginLoading}
-                    className="w-full mt-2 liquid-gold-button py-3 text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    {loginLoading ? <><Loader2 size={18} className="animate-spin" /> Đang đăng nhập...</> : 'Đăng Nhập'}
-                  </button>
-                </form>
-
-                <div className="flex items-center gap-3 my-5">
-                  <div className="flex-1 h-px bg-white/10" />
-                  <span className="text-gray-400 text-[11px] uppercase font-semibold tracking-wider font-mono">Hoặc</span>
-                  <div className="flex-1 h-px bg-white/10" />
-                </div>
-
-                <SocialButtons />
-
-                <p className="mt-6 text-center text-xs text-gray-400 md:hidden">
-                  Chưa có tài khoản?{' '}
-                  <button onClick={() => toggleMode(true)} className="text-amber-400 hover:underline font-bold ml-1 cursor-pointer">
-                    Đăng ký ngay
-                  </button>
-                </p>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* ── 2. Right Section: Register Form ── */}
-        <div
-          className={`w-full md:w-1/2 p-8 sm:p-12 flex flex-col justify-center transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-            !isRegister
-              ? 'hidden md:flex opacity-20 scale-95 pointer-events-none md:pointer-events-auto'
-              : 'flex opacity-100 scale-100'
-          }`}
-        >
-          <div className="max-w-sm mx-auto w-full">
-            <div className="space-y-2 mb-6">
-              <div className="luxury-badge">
-                <Sparkles size={12} className="text-amber-400" />
-                <span>Khởi tạo tài khoản</span>
-              </div>
-              <h2 className="text-3xl font-extrabold gold-gradient-text flex items-center gap-2.5">
-                <UserPlus size={26} className="text-amber-400" /> Tạo Tài Khoản
-              </h2>
-              <p className="text-xs text-gray-400">Trải nghiệm không giới hạn mọi công cụ xử lý file</p>
-            </div>
-
-            {regError && (
-              <div className="mb-4 p-3 bg-red-950/50 border border-red-800/60 rounded-xl flex items-start gap-2.5 text-red-400 text-xs">
-                <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
-                <span>{regError}</span>
-              </div>
-            )}
-
-            {regSuccess && (
-              <div className="mb-4 p-3 bg-green-950/50 border border-green-800/60 rounded-xl flex items-start gap-2.5 text-green-400 text-xs">
-                <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0" />
-                <span>{regSuccess}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleRegister} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1.5">Họ và tên</label>
-                <input
-                  type="text"
-                  value={regName}
-                  onChange={(e) => setRegName(e.target.value)}
-                  className="glass-input text-sm py-2.5"
-                  placeholder="Nguyễn Văn A"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1.5">Email</label>
-                <input
-                  type="email"
-                  value={regEmail}
-                  onChange={(e) => setRegEmail(e.target.value)}
-                  className="glass-input text-sm py-2.5"
-                  placeholder="name@company.com"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1.5">Mật khẩu</label>
-                <input
-                  type="password"
-                  value={regPassword}
-                  onChange={(e) => setRegPassword(e.target.value)}
-                  className="glass-input text-sm py-2.5"
-                  placeholder="Tối thiểu 6 ký tự"
-                  minLength={6}
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={regLoading}
-                className="w-full mt-2 liquid-gold-button py-3 text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                {regLoading ? <><Loader2 size={18} className="animate-spin" /> Đang tạo tài khoản...</> : 'Tạo Tài Khoản'}
-              </button>
-            </form>
-
-            <div className="flex items-center gap-3 my-5">
-              <div className="flex-1 h-px bg-white/10" />
-              <span className="text-gray-400 text-[11px] uppercase font-semibold tracking-wider font-mono">Hoặc</span>
-              <div className="flex-1 h-px bg-white/10" />
-            </div>
-
-            <SocialButtons />
-
-            <p className="mt-6 text-center text-xs text-gray-400 md:hidden">
-              Đã có tài khoản?{' '}
-              <button onClick={() => toggleMode(false)} className="text-amber-400 hover:underline font-bold ml-1 cursor-pointer">
-                Đăng nhập ngay
-              </button>
-            </p>
-          </div>
-        </div>
-
-        {/* ── 3. Fluid Organic Curved Wave Sliding Overlay (Desktop >= md) ── */}
-        <div
-          className={`hidden md:flex absolute top-0 w-1/2 h-full z-20 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] items-center justify-center text-center p-12 text-white shadow-2xl overflow-hidden ${
-            isRegister ? 'translate-x-0 left-0' : 'translate-x-full left-0'
-          }`}
-        >
-          {/* Rich Gradient Ambient Background */}
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-600 via-orange-700 to-rose-950 backdrop-blur-3xl" />
-
-          {/* Organic Curved Wave Mask Border */}
+    <GlassyWisteriaBackground className="w-full">
+      <div className="w-full max-w-4xl mx-auto py-6 px-2 sm:px-4 relative z-10">
+        {/* Mobile Fluid Mode Switcher */}
+        <div className="md:hidden mb-6 relative p-1.5 bg-black/40 border border-white/10 rounded-2xl backdrop-blur-xl flex shadow-lg">
           <div
-            className={`absolute top-0 bottom-0 w-16 pointer-events-none transition-all duration-700 ${
-              isRegister ? 'right-0 translate-x-full rotate-180' : 'left-0 -translate-x-full'
+            className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] rounded-xl liquid-gold-button transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+              isRegister ? 'left-[calc(50%+3px)]' : 'left-1.5'
+            }`}
+          />
+          <button
+            onClick={() => toggleMode(false)}
+            className={`relative z-10 flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer ${
+              !isRegister ? 'text-black' : 'text-gray-400 hover:text-white'
             }`}
           >
-            <svg
-              className="h-full w-16 fill-orange-700 drop-shadow-[0_0_15px_rgba(245,158,11,0.3)]"
-              viewBox="0 0 100 1000"
-              preserveAspectRatio="none"
-            >
-              <path d="M0,0 Q80,250 20,500 T0,1000 L100,1000 L100,0 Z" />
-            </svg>
-          </div>
-
-          {/* Dynamic Floating Glow Orbs inside Overlay */}
-          <div className="absolute -top-20 -left-20 w-48 h-48 bg-amber-400/30 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-20 -right-20 w-48 h-48 bg-rose-500/30 rounded-full blur-3xl pointer-events-none" />
-
-          {/* Content inside Overlay with Spring Fade */}
-          <div className="relative z-10 space-y-6 max-w-xs transition-transform duration-500">
-            {isRegister ? (
-              <>
-                <div className="inline-flex p-3 rounded-2xl bg-white/10 border border-white/20 shadow-inner">
-                  <LogIn size={28} className="text-amber-200" />
-                </div>
-                <h3 className="text-3xl font-black tracking-tight">Đã Có Tài Khoản?</h3>
-                <p className="text-sm text-amber-100/90 leading-relaxed font-normal">
-                  Đăng nhập để tiếp tục làm việc với các tài liệu và kho công cụ xử lý file tốc độ cao của bạn!
-                </p>
-                <button
-                  onClick={() => toggleMode(false)}
-                  className="px-8 py-3 rounded-2xl bg-white text-black font-extrabold hover:bg-amber-50 transition-all shadow-[0_10px_25px_rgba(0,0,0,0.3)] hover:scale-105 active:scale-95 text-sm flex items-center justify-center gap-2 mx-auto cursor-pointer"
-                >
-                  <ArrowLeft size={16} />
-                  <span>Đăng Nhập Ngay</span>
-                </button>
-              </>
-            ) : (
-              <>
-                <div className="inline-flex p-3 rounded-2xl bg-white/10 border border-white/20 shadow-inner">
-                  <UserPlus size={28} className="text-amber-200" />
-                </div>
-                <h3 className="text-3xl font-black tracking-tight">Chào Bạn Mới!</h3>
-                <p className="text-sm text-amber-100/90 leading-relaxed font-normal">
-                  Tạo tài khoản miễn phí để mở khóa xử lý hàng loạt, lưu trữ đám mây, chữ ký số và AI thông minh.
-                </p>
-                <button
-                  onClick={() => toggleMode(true)}
-                  className="px-8 py-3 rounded-2xl bg-white text-black font-extrabold hover:bg-amber-50 transition-all shadow-[0_10px_25px_rgba(0,0,0,0.3)] hover:scale-105 active:scale-95 text-sm flex items-center justify-center gap-2 mx-auto cursor-pointer"
-                >
-                  <span>Đăng Ký Ngay</span>
-                  <ArrowRight size={16} />
-                </button>
-              </>
-            )}
-          </div>
+            <LogIn size={14} />
+            <span>Đăng Nhập</span>
+          </button>
+          <button
+            onClick={() => toggleMode(true)}
+            className={`relative z-10 flex-1 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer ${
+              isRegister ? 'text-black' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <UserPlus size={14} />
+            <span>Đăng Ký</span>
+          </button>
         </div>
 
+        {/* Main Glass Container with Fluid Wave Cutout */}
+        <div className="relative overflow-hidden rounded-3xl liquid-glass shadow-[0_20px_60px_rgba(0,0,0,0.8)] border border-white/10 min-h-[480px] flex">
+
+          {/* ── 1. Left Section: Login Form ── */}
+          <div
+            className={`w-full md:w-1/2 p-6 sm:p-8 flex flex-col justify-center transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+              isRegister
+                ? 'hidden md:flex opacity-20 scale-95 pointer-events-none md:pointer-events-auto'
+                : 'flex opacity-100 scale-100'
+            }`}
+          >
+            <div className="max-w-sm mx-auto w-full">
+              {twoFactorChallenge ? (
+                // 2FA Verification View
+                <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-400/40 flex items-center justify-center text-amber-400 mx-auto shadow-[0_0_20px_rgba(245,158,11,0.25)]">
+                    <ShieldCheck size={24} />
+                  </div>
+                  <div className="text-center">
+                    <h2 className="text-xl font-bold text-white">Xác thực 2 Bước (2FA)</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Nhập mã 6 chữ số từ Authenticator của bạn</p>
+                  </div>
+
+                  {twoFactorError && (
+                    <div className="p-2.5 bg-red-950/50 border border-red-800/60 rounded-xl flex items-start gap-2 text-red-400 text-xs">
+                      <AlertCircle size={15} className="mt-0.5 flex-shrink-0" />
+                      <span>{twoFactorError}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handle2FASubmit} className="space-y-3">
+                    <div>
+                      <input
+                        type="text"
+                        maxLength="6"
+                        autoFocus
+                        value={totpCode}
+                        onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
+                        className="glass-input text-center text-xl tracking-[0.4em] font-mono py-2.5 focus:border-amber-400"
+                        placeholder="000000"
+                        required
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={twoFactorLoading || totpCode.length < 6}
+                      className="w-full liquid-gold-button py-2.5 text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {twoFactorLoading ? <><Loader2 size={16} className="animate-spin" /> Đang xác thực...</> : 'Xác Nhận & Đăng Nhập'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setTwoFactorChallenge(null)}
+                      className="w-full text-xs text-gray-400 hover:text-white py-1 transition-colors cursor-pointer"
+                    >
+                      ← Quay lại đăng nhập
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                // Normal Login View
+                <>
+                  {/* Feral-Blob Mascot Form Companion (Image 1 & 2) */}
+                  <div className="flex flex-col items-center justify-center mb-2">
+                    <div
+                      className="w-16 h-16 sm:w-20 sm:h-20 relative cursor-pointer group transition-transform hover:scale-105 active:scale-95"
+                      onClick={handleMascotPoke}
+                      title="Chạm vào để tương tác với companion!"
+                    >
+                      <JellyBlobMascot
+                        mood={mascotMood}
+                        gaze={mascotGaze}
+                        nod={mascotNod}
+                        celebrate={celebrateCount}
+                        happyEyes="star"
+                        className="w-full h-full filter drop-shadow-[0_8px_16px_rgba(192,132,252,0.35)]"
+                      />
+                    </div>
+                    {mascotNotice && (
+                      <p className="text-[10px] font-medium text-purple-200 bg-purple-950/80 border border-purple-500/40 px-2.5 py-0.5 rounded-full animate-fadeIn mt-1 text-center shadow backdrop-blur-md max-w-xs">
+                        {mascotNotice}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1 mb-3 text-center">
+                    <div className="luxury-badge mx-auto text-[10px] py-0.5 px-2">
+                      <Sparkles size={11} className="text-amber-400" />
+                      <span>Chào mừng trở lại</span>
+                    </div>
+                    <h2 className="text-2xl font-extrabold gold-gradient-text flex items-center justify-center gap-2">
+                      <LogIn size={22} className="text-amber-400" /> Đăng Nhập
+                    </h2>
+                    <p className="text-[11px] text-gray-400">Đăng nhập để quản lý file và tận hưởng công cụ Pro</p>
+                  </div>
+
+                  {(loginError || urlError) && (
+                    <div className="mb-4 p-3 bg-red-950/50 border border-red-800/60 rounded-xl flex items-start gap-2.5 text-red-400 text-xs">
+                      <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                      <span>{loginError || urlError}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-300 mb-1.5">Email</label>
+                      <input
+                        type="email"
+                        value={loginEmail}
+                        onChange={(e) => setLoginEmail(e.target.value)}
+                        onFocus={handleEmailFocus}
+                        onBlur={handleInputBlur}
+                        className="glass-input text-sm py-2.5"
+                        placeholder="name@company.com"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="text-xs font-semibold text-gray-300">Mật khẩu</label>
+                        <Link to="/forgot-password" className="text-[11px] text-amber-400 hover:underline font-medium">
+                          Quên mật khẩu?
+                        </Link>
+                      </div>
+                      <input
+                        type="password"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        onFocus={handlePasswordFocus}
+                        onBlur={handleInputBlur}
+                        className="glass-input text-sm py-2.5"
+                        placeholder="••••••••"
+                        required
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loginLoading}
+                      className="w-full mt-2 liquid-gold-button py-3 text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {loginLoading ? <><Loader2 size={18} className="animate-spin" /> Đang đăng nhập...</> : 'Đăng Nhập'}
+                    </button>
+                  </form>
+
+                  <div className="flex items-center gap-3 my-5">
+                    <div className="flex-1 h-px bg-white/10" />
+                    <span className="text-gray-400 text-[11px] uppercase font-semibold tracking-wider font-mono">Hoặc</span>
+                    <div className="flex-1 h-px bg-white/10" />
+                  </div>
+
+                  <SocialButtons />
+
+                  <p className="mt-6 text-center text-xs text-gray-400 md:hidden">
+                    Chưa có tài khoản?{' '}
+                    <button onClick={() => toggleMode(true)} className="text-amber-400 hover:underline font-bold ml-1 cursor-pointer">
+                      Đăng ký ngay
+                    </button>
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* ── 2. Right Section: Register Form ── */}
+          <div
+            className={`w-full md:w-1/2 p-6 sm:p-8 flex flex-col justify-center transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+              !isRegister
+                ? 'hidden md:flex opacity-20 scale-95 pointer-events-none md:pointer-events-auto'
+                : 'flex opacity-100 scale-100'
+            }`}
+          >
+            <div className="max-w-sm mx-auto w-full">
+              {/* Feral-Blob Mascot Form Companion (Image 1 & 2) */}
+              <div className="flex flex-col items-center justify-center mb-2">
+                <div
+                  className="w-16 h-16 sm:w-20 sm:h-20 relative cursor-pointer group transition-transform hover:scale-105 active:scale-95"
+                  onClick={handleMascotPoke}
+                  title="Chạm vào để tương tác với companion!"
+                >
+                  <JellyBlobMascot
+                    mood={mascotMood}
+                    gaze={mascotGaze}
+                    nod={mascotNod}
+                    celebrate={celebrateCount}
+                    happyEyes="star"
+                    className="w-full h-full filter drop-shadow-[0_8px_16px_rgba(192,132,252,0.35)]"
+                  />
+                </div>
+                {mascotNotice && (
+                  <p className="text-[10px] font-medium text-purple-200 bg-purple-950/80 border border-purple-500/40 px-2.5 py-0.5 rounded-full animate-fadeIn mt-1 text-center shadow backdrop-blur-md max-w-xs">
+                    {mascotNotice}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1 mb-3 text-center">
+                <div className="luxury-badge mx-auto text-[10px] py-0.5 px-2">
+                  <Sparkles size={11} className="text-amber-400" />
+                  <span>Khởi tạo tài khoản</span>
+                </div>
+                <h2 className="text-2xl font-extrabold gold-gradient-text flex items-center justify-center gap-2">
+                  <UserPlus size={22} className="text-amber-400" /> Tạo Tài Khoản
+                </h2>
+                <p className="text-[11px] text-gray-400">Trải nghiệm không giới hạn mọi công cụ xử lý file</p>
+              </div>
+
+              {regError && (
+                <div className="mb-3 p-2.5 bg-red-950/50 border border-red-800/60 rounded-xl flex items-start gap-2 text-red-400 text-xs">
+                  <AlertCircle size={15} className="mt-0.5 flex-shrink-0" />
+                  <span>{regError}</span>
+                </div>
+              )}
+
+              {regSuccess && (
+                <div className="mb-3 p-2.5 bg-green-950/50 border border-green-800/60 rounded-xl flex items-start gap-2 text-green-400 text-xs">
+                  <CheckCircle2 size={15} className="mt-0.5 flex-shrink-0" />
+                  <span>{regSuccess}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleRegister} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">Họ và tên</label>
+                  <input
+                    type="text"
+                    value={regName}
+                    onChange={(e) => setRegName(e.target.value)}
+                    onFocus={handleEmailFocus}
+                    onBlur={handleInputBlur}
+                    className="glass-input text-sm py-2"
+                    placeholder="Nguyễn Văn A"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={regEmail}
+                    onChange={(e) => setRegEmail(e.target.value)}
+                    onFocus={handleEmailFocus}
+                    onBlur={handleInputBlur}
+                    className="glass-input text-sm py-2"
+                    placeholder="name@company.com"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">Mật khẩu</label>
+                  <input
+                    type="password"
+                    value={regPassword}
+                    onChange={(e) => setRegPassword(e.target.value)}
+                    onFocus={handlePasswordFocus}
+                    onBlur={handleInputBlur}
+                    className="glass-input text-sm py-2"
+                    placeholder="Tối thiểu 8 ký tự"
+                    minLength={8}
+                    required
+                  />
+                </div>
+
+                {/* PlayCaptcha Claw Machine (Chỉ hiện sau khi người dùng đã nhập hết thông tin) */}
+                <div className="pt-1">
+                  {!captchaVerified ? (
+                    isFormReady ? (
+                      <div className="rounded-2xl bg-black/60 border border-purple-500/30 p-2 overflow-hidden flex flex-col items-center animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between w-full px-2 mb-1">
+                          <label className="text-xs font-semibold text-purple-300 flex items-center gap-1.5">
+                            <ShieldCheck size={14} className="text-purple-400" />
+                            Bước cuối: Gắp thú bông để xác minh
+                          </label>
+                          <span className="text-[10px] text-amber-300 bg-amber-950/70 border border-amber-500/40 px-2 py-0.5 rounded-full font-medium">
+                            Xác minh người thật
+                          </span>
+                        </div>
+                        <div className="scale-[0.8] sm:scale-[0.85] origin-top -mb-12 sm:-mb-8">
+                          <ClawCaptcha
+                            onVerify={() => {
+                              setCaptchaVerified(true);
+                              setMascotMood('happy');
+                              setCelebrateCount(c => c + 1);
+                              setMascotNotice('Gắp trúng rồi! Bạn đã hoàn thành xác minh! 🎉');
+                              setRegError(null);
+                            }}
+                            title="Gắp thú bông để tiếp tục"
+                            assetBase="/toys/"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-2 rounded-xl bg-white/5 border border-white/10 text-center text-[11px] text-gray-400 flex items-center justify-center gap-2">
+                        <ShieldCheck size={13} className="text-gray-400 shrink-0" />
+                        <span>Nhập đủ Họ tên, Email và Mật khẩu (≥8 ký tự) để mở máy gắp thú</span>
+                      </div>
+                    )
+                  ) : (
+                    <div className="p-2 text-center text-xs text-emerald-300 font-semibold bg-emerald-950/40 border border-emerald-500/40 rounded-xl flex items-center justify-center gap-2 animate-in fade-in duration-200">
+                      <CheckCircle2 size={15} className="text-emerald-400" />
+                      <span>Đã xác minh người thật thành công ✓</span>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={regLoading || !captchaVerified}
+                  className="w-full mt-1.5 liquid-gold-button py-2.5 text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {regLoading ? <><Loader2 size={16} className="animate-spin" /> Đang tạo tài khoản...</> : 'Tạo Tài Khoản'}
+                </button>
+              </form>
+
+              <div className="flex items-center gap-3 my-5">
+                <div className="flex-1 h-px bg-white/10" />
+                <span className="text-gray-400 text-[11px] uppercase font-semibold tracking-wider font-mono">Hoặc</span>
+                <div className="flex-1 h-px bg-white/10" />
+              </div>
+
+              <SocialButtons />
+
+              <p className="mt-6 text-center text-xs text-gray-400 md:hidden">
+                Đã có tài khoản?{' '}
+                <button onClick={() => toggleMode(false)} className="text-amber-400 hover:underline font-bold ml-1 cursor-pointer">
+                  Đăng nhập ngay
+                </button>
+              </p>
+            </div>
+          </div>
+
+          {/* ── 3. Fluid Organic Curved Wave Sliding Overlay (Desktop >= md) ── */}
+          <div
+            className={`hidden md:flex absolute top-0 w-1/2 h-full z-20 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] items-center justify-center text-center p-12 text-white shadow-2xl overflow-hidden ${
+              isRegister ? 'translate-x-0 left-0' : 'translate-x-full left-0'
+            }`}
+          >
+            {/* Rich Gradient Ambient Background */}
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-600 via-orange-700 to-rose-950 backdrop-blur-3xl" />
+
+            {/* Organic Curved Wave Mask Border */}
+            <div
+              className={`absolute top-0 bottom-0 w-16 pointer-events-none transition-all duration-700 ${
+                isRegister ? 'right-0 translate-x-full rotate-180' : 'left-0 -translate-x-full'
+              }`}
+            >
+              <svg
+                className="h-full w-16 fill-orange-700 drop-shadow-[0_0_15px_rgba(245,158,11,0.3)]"
+                viewBox="0 0 100 1000"
+                preserveAspectRatio="none"
+              >
+                <path d="M0,0 Q80,250 20,500 T0,1000 L100,1000 L100,0 Z" />
+              </svg>
+            </div>
+
+            {/* Dynamic Floating Glow Orbs inside Overlay */}
+            <div className="absolute -top-20 -left-20 w-48 h-48 bg-amber-400/30 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-20 -right-20 w-48 h-48 bg-rose-500/30 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Content inside Overlay with Spring Fade */}
+            <div className="relative z-10 space-y-6 max-w-xs transition-transform duration-500">
+              {isRegister ? (
+                <>
+                  <div className="inline-flex p-3 rounded-2xl bg-white/10 border border-white/20 shadow-inner">
+                    <LogIn size={28} className="text-amber-200" />
+                  </div>
+                  <h3 className="text-3xl font-black tracking-tight">Đã Có Tài Khoản?</h3>
+                  <p className="text-sm text-amber-100/90 leading-relaxed font-normal">
+                    Đăng nhập để tiếp tục làm việc với các tài liệu và kho công cụ xử lý file tốc độ cao của bạn!
+                  </p>
+                  <button
+                    onClick={() => toggleMode(false)}
+                    className="px-8 py-3 rounded-2xl bg-white text-black font-extrabold hover:bg-amber-50 transition-all shadow-[0_10px_25px_rgba(0,0,0,0.3)] hover:scale-105 active:scale-95 text-sm flex items-center justify-center gap-2 mx-auto cursor-pointer"
+                  >
+                    <ArrowLeft size={16} />
+                    <span>Đăng Nhập Ngay</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="inline-flex p-3 rounded-2xl bg-white/10 border border-white/20 shadow-inner">
+                    <UserPlus size={28} className="text-amber-200" />
+                  </div>
+                  <h3 className="text-3xl font-black tracking-tight">Chào Bạn Mới!</h3>
+                  <p className="text-sm text-amber-100/90 leading-relaxed font-normal">
+                    Tạo tài khoản miễn phí để mở khóa xử lý hàng loạt, lưu trữ đám mây, chữ ký số và AI thông minh.
+                  </p>
+                  <button
+                    onClick={() => toggleMode(true)}
+                    className="px-8 py-3 rounded-2xl bg-white text-black font-extrabold hover:bg-amber-50 transition-all shadow-[0_10px_25px_rgba(0,0,0,0.3)] hover:scale-105 active:scale-95 text-sm flex items-center justify-center gap-2 mx-auto cursor-pointer"
+                  >
+                    <span>Đăng Ký Ngay</span>
+                    <ArrowRight size={16} />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+        </div>
       </div>
-    </div>
+    </GlassyWisteriaBackground>
   );
 }

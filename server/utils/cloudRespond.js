@@ -6,11 +6,27 @@
 'use strict';
 
 const path = require('path');
+const fs   = require('fs');
 
 let uploadToCloud = null;
 try {
   uploadToCloud = require('../services/storage.service').uploadToCloud;
 } catch (_) {}
+
+function cleanupReqFiles(req, excludePath) {
+  try {
+    if (req.file?.path && req.file.path !== excludePath) {
+      fs.unlink(req.file.path, () => {});
+    }
+    if (Array.isArray(req.files)) {
+      for (const f of req.files) {
+        if (f.path && f.path !== excludePath) {
+          fs.unlink(f.path, () => {});
+        }
+      }
+    }
+  } catch (_) {}
+}
 
 /**
  * @param {import('express').Request}  req
@@ -33,12 +49,14 @@ async function respondFile(req, res, localPath, operation, extra = {}) {
         originalName: req.file?.originalname || filename,
         operation,
       });
+      cleanupReqFiles(req, localPath);
       return res.json({
-        success:    true,
-        file:       filename,
+        success:     true,
+        file:        filename,
         downloadUrl,
-        recordId:   String(record._id),
-        cloud:      true,
+        viewUrl:     downloadUrl, // Đồng nhất hợp đồng dữ liệu cho UI preview
+        recordId:    String(record._id),
+        cloud:       true,
         ...extra,
       });
     } catch (err) {
@@ -59,6 +77,8 @@ async function respondFile(req, res, localPath, operation, extra = {}) {
       }
     } catch (_) {}
   }
+
+  cleanupReqFiles(req, localPath);
 
   return res.json({
     success:     true,
@@ -88,8 +108,14 @@ async function respondFiles(req, res, localPaths, operation, extra = {}) {
           originalName: path.basename(lp),
           operation,
         });
-        records.push({ file: path.basename(lp), downloadUrl, recordId: String(record._id) });
+        records.push({
+          file:        path.basename(lp),
+          downloadUrl,
+          viewUrl:     downloadUrl,
+          recordId:    String(record._id),
+        });
       }
+      cleanupReqFiles(req);
       return res.json({
         success: true,
         files:   records.map(r => r.file),
@@ -102,9 +128,21 @@ async function respondFiles(req, res, localPaths, operation, extra = {}) {
     }
   }
 
+  const records = localPaths.map(p => {
+    const fn = path.basename(p);
+    return {
+      file:        fn,
+      downloadUrl: `/api/download/${encodeURIComponent(fn)}`,
+      viewUrl:     `/outputs/${encodeURIComponent(fn)}`,
+      recordId:    null,
+    };
+  });
+
+  cleanupReqFiles(req);
   return res.json({
     success: true,
-    files:   localPaths.map(p => path.basename(p)),
+    files:   records.map(r => r.file),
+    records,
     cloud:   false,
     ...extra,
   });

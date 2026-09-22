@@ -72,7 +72,9 @@ export default defineConfig({
     }),
   ],
   server: {
-    port: 5173,
+    port: 3030,
+    strictPort: true,
+    host: true,
     proxy: {
       '/api': {
         target: process.env.VITE_API_URL || 'http://localhost:3002',
@@ -83,6 +85,11 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+  },
+  preview: {
+    port: 3030,
+    strictPort: true,
+    host: true,
   },
   build: {
     chunkSizeWarningLimit: 3000,

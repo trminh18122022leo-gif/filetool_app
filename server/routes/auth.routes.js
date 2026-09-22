@@ -31,6 +31,13 @@ function getClientUrl(req) {
   return (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
 }
 
+function getOAuthRedirectUrl(req, clientUrl, token) {
+  const isNative = req.cookies && (req.cookies.auth_platform === 'electron' || req.cookies.auth_platform === 'android');
+  // Với Native App (Electron/Capacitor): Cần token trong custom URL scheme (filetools://, com.filetools.pro://)
+  // Với Web thông thường: KHÔNG đính kèm token vào URL để tránh rò rỉ (web đã nhận HttpOnly Cookie)
+  return isNative ? `${clientUrl}/dashboard?token=${token}` : `${clientUrl}/dashboard`;
+}
+
 const setCookies = (res, accessToken, refreshToken) => {
   res.cookie('token', accessToken, authSvc.cookieOptions(15 * 60 * 1000));
   res.cookie('accessToken', accessToken, authSvc.cookieOptions(15 * 60 * 1000));
@@ -163,7 +170,7 @@ router.get('/google/callback',
     const token = authSvc.signAccessToken(req.user._id);
     const refreshToken = await RefreshToken.createToken(req.user._id, req.ip, req.headers['user-agent']);
     setCookies(res, token, refreshToken);
-    res.redirect(`${clientUrl}/dashboard?token=${token}`);
+    res.redirect(getOAuthRedirectUrl(req, clientUrl, token));
   }
 );
 
@@ -187,7 +194,7 @@ router.get('/github/callback',
     const token = authSvc.signAccessToken(req.user._id);
     const refreshToken = await RefreshToken.createToken(req.user._id, req.ip, req.headers['user-agent']);
     setCookies(res, token, refreshToken);
-    res.redirect(`${clientUrl}/dashboard?token=${token}`);
+    res.redirect(getOAuthRedirectUrl(req, clientUrl, token));
   }
 );
 
@@ -229,6 +236,7 @@ router.get('/telegram/callback', async (req, res) => {
     const token = authSvc.signAccessToken(user._id);
     const refreshToken = await RefreshToken.createToken(user._id, req.ip, req.headers['user-agent']);
     setCookies(res, token, refreshToken);
+    const targetUrl = getOAuthRedirectUrl(req, clientUrl, token);
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -236,10 +244,10 @@ router.get('/telegram/callback', async (req, res) => {
         <body style="background:#0a0a0f;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
           <script>
             if (window.opener) {
-              window.opener.location.href = "${clientUrl}/dashboard?token=${token}";
+              window.opener.location.href = "${targetUrl}";
               window.close();
             } else {
-              window.location.href = "${clientUrl}/dashboard?token=${token}";
+              window.location.href = "${targetUrl}";
             }
           </script>
           <p>Đăng nhập thành công! Đang chuyển hướng đến Dashboard...</p>
@@ -252,11 +260,10 @@ router.get('/telegram/callback', async (req, res) => {
   }
 });
 
-// ── Standard Authentication ───────────────────────────────────────────────────
-
+// dang ky tk moi
 router.post('/register', registerRateLimit, validate([
   body('email').isEmail().normalizeEmail().withMessage('Email không hợp lệ'),
-  body('password').isLength({ min: 6 }).withMessage('Mật khẩu tối thiểu 6 ký tự'),
+  body('password').isLength({ min: 8 }).withMessage('Mật khẩu tối thiểu 8 ký tự'),
   body('name').optional().trim().isLength({ max: 60 }).withMessage('Tên quá dài'),
 ]), async (req, res) => {
   try {
@@ -353,9 +360,10 @@ router.post('/forgot-password', forgotPasswordRateLimit, validate([
   }
 });
 
+// dat lai mk qua token
 router.post('/reset-password', validate([
   body('token').notEmpty().withMessage('Thiếu reset token'),
-  body('password').isLength({ min: 6 }).withMessage('Mật khẩu mới tối thiểu 6 ký tự'),
+  body('password').isLength({ min: 8 }).withMessage('Mật khẩu mới tối thiểu 8 ký tự'),
 ]), async (req, res) => {
   try {
     const result = await authSvc.resetPassword(req.body.token, req.body.password, req.ip);

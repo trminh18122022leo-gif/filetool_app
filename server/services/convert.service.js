@@ -4,10 +4,10 @@
 'use strict';
 
 const { PDFDocument }   = require('pdf-lib');
-const { execSync }      = require('child_process');
+const { execFileSync }  = require('child_process');
 const pdfParse          = require('pdf-parse');
-const puppeteer         = require('puppeteer');
 const sharp             = require('sharp');
+const { withPage }      = require('../utils/browser');
 const path              = require('path');
 const fs                = require('fs');
 const archiver          = require('archiver');
@@ -16,6 +16,14 @@ const { v4: uuidv4 }    = require('uuid');
 
 const OUT = path.resolve('outputs');
 if (!fs.existsSync(OUT)) fs.mkdirSync(OUT, { recursive: true });
+
+function runSafe(executable, args = []) {
+  try {
+    return execFileSync(executable, args, { stdio: 'pipe' });
+  } catch (err) {
+    throw new Error(`Lệnh thực thi thất bại: ${executable} ${args.join(' ')}\nChi tiết: ${err.stderr?.toString() || err.message}`);
+  }
+}
 
 async function imagesToPdf(filePaths, opts = {}) {
   const { margin = 20, pageSize = 'A4' } = opts;
@@ -82,17 +90,13 @@ async function pdfToImages(pdfPath, opts = {}) {
   fs.mkdirSync(tmpDir, { recursive: true });
 
   const gsCmd = process.platform === 'win32' ? 'gswin64c' : 'gs';
-  try {
-    execSync([
-      gsCmd, '-dNOPAUSE', '-dBATCH', '-dQUIET',
-      '-sDEVICE=' + gsDev,
-      '-r' + dpi,
-      '-sOutputFile="' + tmpDir + '/page_%04d.' + ext + '"',
-      '"' + pdfPath + '"',
-    ].join(' '));
-  } catch (err) {
-    throw new Error('Ghostscript không khả dụng hoặc lỗi: ' + err.message);
-  }
+  runSafe(gsCmd, [
+    '-dNOPAUSE', '-dBATCH', '-dQUIET',
+    `-sDEVICE=${gsDev}`,
+    `-r${dpi}`,
+    `-sOutputFile=${tmpDir}/page_%04d.${ext}`,
+    pdfPath,
+  ]);
 
   const images = fs.readdirSync(tmpDir).filter(f => f.endsWith('.' + ext)).sort();
   if (!images.length) throw new Error('Không tạo được ảnh từ file PDF.');
@@ -113,19 +117,94 @@ async function pdfToImages(pdfPath, opts = {}) {
   return { zipPath, pageCount: images.length };
 }
 
-async function urlToPdf(url, opts = {}) {
-  const { format = 'A4', printBackground = true, waitUntil = 'networkidle0' } = opts;
-  try { new URL(url); } catch { throw new Error('URL không hợp lệ'); }
+const dns = require('dns');
+const net = require('net');
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-  });
+function isPrivateOrReservedIP(ip) {
+  if (!ip) return true;
+  if (net.isIPv4(ip)) {
+    const parts = ip.split('.').map(Number);
+    if (parts[0] === 0) return true; // 0.0.0.0/8
+    if (parts[0] === 10) return true; // 10.0.0.0/8
+    if (parts[0] === 127) return true; // 127.0.0.0/8
+    if (parts[0] === 169 && parts[1] === 254) return true; // Link Local & Cloud Metadata
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true; // 172.16.0.0/12
+    if (parts[0] === 192 && parts[1] === 168) return true; // 192.168.0.0/16
+    if (parts[0] >= 224) return true; // Multicast & Reserved
+    return false;
+  }
+  if (net.isIPv6(ip)) {
+    const lower = ip.toLowerCase();
+    if (lower === '::1' || lower === '::') return true;
+    if (lower.startsWith('fe8') || lower.startsWith('fe9') || lower.startsWith('fea') || lower.startsWith('feb')) return true;
+    if (lower.startsWith('fc') || lower.startsWith('fd')) return true;
+    if (lower.includes('::ffff:')) {
+      const v4 = lower.split('::ffff:')[1];
+      return isPrivateOrReservedIP(v4);
+    }
+    return false;
+  }
+  return true;
+}
+
+async function validateSafeUrl(urlString) {
+  let parsed;
+  try {
+    parsed = new URL(urlString);
+  } catch {
+    throw new Error('URL không hợp lệ');
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Chỉ chấp nhận giao thức HTTP hoặc HTTPS');
+  }
+
+  const hostname = parsed.hostname;
+  if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) {
+    throw new Error('Không được phép truy cập địa chỉ cục bộ (Localhost)');
+  }
 
   try {
-    const page = await browser.newPage();
+    const addresses = await dns.promises.lookup(hostname, { all: true });
+    for (const addr of addresses) {
+      if (isPrivateOrReservedIP(addr.address)) {
+        throw new Error(`Truy cập bị từ chối: Địa chỉ IP ${addr.address} thuộc vùng mạng nội bộ hoặc hệ thống bảo vệ.`);
+      }
+    }
+  } catch (err) {
+    if (err.message.includes('Truy cập bị từ chối')) throw err;
+    throw new Error(`Không thể phân giải tên miền: ${hostname}`);
+  }
+
+  return parsed;
+}
+
+// convert url web sang pdf
+async function urlToPdf(url, opts = {}) {
+  const { format = 'A4', printBackground = true, waitUntil = 'networkidle0' } = opts;
+  await validateSafeUrl(url);
+
+  return await withPage(async (page) => {
     await page.setViewport({ width: 1440, height: 900 });
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+
+    // Chặn request tới dải IP/giao thức nguy hiểm trong quá trình render trang
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      try {
+        const reqUrl = new URL(req.url());
+        if (reqUrl.protocol !== 'http:' && reqUrl.protocol !== 'https:' && reqUrl.protocol !== 'data:') {
+          return req.abort('accessdenied');
+        }
+        if (reqUrl.hostname === 'localhost' || reqUrl.hostname === '127.0.0.1' || reqUrl.hostname === '169.254.169.254') {
+          return req.abort('accessdenied');
+        }
+        req.continue();
+      } catch (_) {
+        req.abort('failed');
+      }
+    });
+
     await page.goto(url, { waitUntil, timeout: 30000 });
 
     const outPath = path.join(OUT, 'url_' + uuidv4() + '.pdf');
@@ -137,11 +216,10 @@ async function urlToPdf(url, opts = {}) {
     });
 
     return outPath;
-  } finally {
-    await browser.close();
-  }
+  });
 }
 
+// convert markdown sang pdf
 async function markdownToPdf(mdContent, opts = {}) {
   const { theme = 'github' } = opts;
 
@@ -158,22 +236,39 @@ async function markdownToPdf(mdContent, opts = {}) {
     htmlContent = '<pre>' + mdContent + '</pre>';
   }
 
-  const fullHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' + (THEMES[theme] || THEMES.github) + '</style></head><body>' + htmlContent + '</body></html>';
+  // Khử các thẻ nguy hiểm ngăn chặn Local File Inclusion (LFI) & SSRF
+  const sanitizedHtml = String(htmlContent)
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+    .replace(/<frame\b[^>]*>/gi, '')
+    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
+    .replace(/<embed\b[^>]*>/gi, '')
+    .replace(/<base\b[^>]*>/gi, '');
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
+  const fullHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' + (THEMES[theme] || THEMES.github) + '</style></head><body>' + sanitizedHtml + '</body></html>';
 
-  try {
-    const page = await browser.newPage();
+  return await withPage(async (page) => {
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      try {
+        const reqUrl = new URL(req.url());
+        if (reqUrl.protocol !== 'http:' && reqUrl.protocol !== 'https:' && reqUrl.protocol !== 'data:') {
+          return req.abort('accessdenied');
+        }
+        if (reqUrl.hostname === 'localhost' || reqUrl.hostname === '127.0.0.1' || reqUrl.hostname === '169.254.169.254') {
+          return req.abort('accessdenied');
+        }
+        req.continue();
+      } catch (_) {
+        req.abort('failed');
+      }
+    });
+
     await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
     const outPath = path.join(OUT, 'md_' + uuidv4() + '.pdf');
     await page.pdf({ path: outPath, format: 'A4', margin: { top: '15mm', bottom: '15mm', left: '15mm', right: '15mm' } });
     return outPath;
-  } finally {
-    await browser.close();
-  }
+  });
 }
 
 async function getDocStats(filePath) {

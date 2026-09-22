@@ -1,6 +1,6 @@
 'use strict';
 
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const { PDFDocument } = require('pdf-lib');
 const sharp = require('sharp');
 const path  = require('path');
@@ -8,6 +8,14 @@ const fs    = require('fs');
 const { v4: uuidv4 } = require('uuid');
 
 const OUT = path.resolve('outputs');
+
+function runSafe(executable, args = []) {
+  try {
+    return execFileSync(executable, args, { stdio: 'pipe' });
+  } catch (err) {
+    throw new Error(`Lệnh thực thi thất bại: ${executable} ${args.join(' ')}\nChi tiết: ${err.stderr?.toString() || err.message}`);
+  }
+}
 
 /**
  * Chuyển PDF sang nền tối (Dark Mode).
@@ -26,10 +34,13 @@ async function convertToDarkMode(filePath, opts = {}) {
   fs.mkdirSync(pageDir, { recursive: true });
 
   const gsCmd = process.platform === 'win32' ? 'gswin64c' : 'gs';
-  const renderCmd =
-    `${gsCmd} -dNOPAUSE -dBATCH -sDEVICE=png16m -r200 ` +
-    `-sOutputFile="${path.join(pageDir, 'page_%04d.png')}" "${filePath}"`;
-  execSync(renderCmd, { stdio: 'pipe' });
+  runSafe(gsCmd, [
+    '-dNOPAUSE', '-dBATCH', '-dQUIET',
+    '-sDEVICE=png16m',
+    '-r200',
+    `-sOutputFile=${path.join(pageDir, 'page_%04d.png')}`,
+    filePath,
+  ]);
 
   const pageFiles = fs.readdirSync(pageDir).sort();
   const newPdf    = await PDFDocument.create();

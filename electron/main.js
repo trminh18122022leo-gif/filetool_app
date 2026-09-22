@@ -52,17 +52,26 @@ if (!gotTheLock) {
 
 function handleDeepLink(url) {
   if (!mainWindow) return;
-  // Redirect frontend via IPC or executing script
-  // e.g. filetools://auth/callback?token=123 -> /?token=123
   try {
     const urlObj = new URL(url);
     if (urlObj.hostname === 'auth' && (urlObj.pathname === '/callback' || urlObj.pathname === '/dashboard')) {
       const token = urlObj.searchParams.get('token');
-      if (token) {
+      // Chỉ chấp nhận token đúng chuẩn Base64URL/JWT/Hex hợp lệ, chặn đứng XSS/Script Injection
+      if (token && typeof token === 'string' && /^[A-Za-z0-9-_=]+(\.[A-Za-z0-9-_=]+)*$/.test(token) && token.length <= 4096) {
+        const safeTokenJson = JSON.stringify(token);
         mainWindow.webContents.executeJavaScript(`
-          localStorage.setItem('token', '${token}');
-          window.location.href = '/?token=${token}';
+          (function() {
+            try {
+              const safeToken = ${safeTokenJson};
+              localStorage.setItem('token', safeToken);
+              window.location.href = '/?token=' + encodeURIComponent(safeToken);
+            } catch (e) {
+              console.error('Lỗi nạp token:', e);
+            }
+          })();
         `);
+      } else if (token) {
+        console.warn('Từ chối token không đúng định dạng an toàn từ deep link:', token.slice(0, 10));
       }
     }
   } catch (error) {
@@ -82,7 +91,7 @@ async function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      webSecurity: false // allow local files to make CORS requests if needed, though mostly handled by Vite
+      webSecurity: true
     }
   });
 

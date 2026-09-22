@@ -10,8 +10,42 @@ const User       = require('../models/User');
 
 let s3 = null;
 
+function isValidStorageEndpoint(endpoint) {
+  try {
+    const url = new URL(endpoint);
+    // Bắt buộc giao thức HTTPS
+    if (url.protocol !== 'https:') return false;
+
+    const hostname = url.hostname.toLowerCase();
+
+    // Chặn localhost, loopback, private subnet RFC1918 và Cloud instance metadata service (169.254.169.254)
+    if (
+      hostname === 'localhost' ||
+      hostname.endsWith('.localhost') ||
+      hostname === '127.0.0.1' ||
+      hostname === '169.254.169.254' ||
+      /^10\./.test(hostname) ||
+      /^192\.168\./.test(hostname) ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname) ||
+      hostname === '::1' ||
+      hostname.startsWith('fe80:') ||
+      hostname.startsWith('fc00:') ||
+      hostname.startsWith('fd00:')
+    ) {
+      return false;
+    }
+
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function getS3Client() {
   if (!s3 && process.env.R2_ENDPOINT) {
+    if (!isValidStorageEndpoint(process.env.R2_ENDPOINT)) {
+      throw new Error(`[SECURITY ALERT] R2_ENDPOINT không hợp lệ hoặc có nguy cơ SSRF: ${process.env.R2_ENDPOINT}`);
+    }
     s3 = new S3Client({
       region:   'auto',
       endpoint: process.env.R2_ENDPOINT,

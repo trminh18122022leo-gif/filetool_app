@@ -1,13 +1,10 @@
-/**
- * Speech to Text Service
- * Primary:  Google Gemini (dùng GOOGLE_AI_API_KEY / GOOGLE_API_KEY) & Groq Whisper (GROQ_API_KEY)
- * Optional: OpenAI Whisper (OPENAI_API_KEY)
- */
+// speech to text svc: gemini, groq whisper, openai whisper
 'use strict';
 
 const fs   = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const { withPage }   = require('../utils/browser');
 
 const OUT = path.resolve('outputs');
 
@@ -300,19 +297,11 @@ function toSRT(text, segments = null) {
   }).join('\n');
 }
 
-// ── Export text ra file PDF ──────────────────────────────────────────────────
-
+// xuat text sang pdf
 async function exportAsPdf(text, opts = {}) {
   const { title = 'Bản Ghi Âm & Nhận Dạng Giọng Nói', language = 'vi' } = opts;
-  const puppeteer = require('puppeteer');
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
-
-  try {
-    const page = await browser.newPage();
+  return await withPage(async (page) => {
     const cleanText = (text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/\[(\d+:\d+)\]/g, '<span style="color:#e11d48;font-weight:bold;">[$1]</span>');
 
@@ -343,9 +332,7 @@ async function exportAsPdf(text, opts = {}) {
       printBackground: true,
     });
     return outPath;
-  } finally {
-    await browser.close();
-  }
+  });
 }
 
 module.exports = {

@@ -120,7 +120,9 @@ const userSchema = new mongoose.Schema({
 
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password') || !this.password) return next();
-  const ROUNDS = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
+  const parsedRounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10) || 12;
+  // Giới hạn rounds trong khoảng an toàn [10, 14] để ngăn chặn CPU exhaustion DoS
+  const ROUNDS = Math.min(14, Math.max(10, parsedRounds));
   this.password = await bcrypt.hash(this.password, ROUNDS);
   next();
 });

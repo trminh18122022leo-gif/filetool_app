@@ -9,8 +9,25 @@ const LoginAttempt = require('../models/LoginAttempt');
 const AuditLog     = require('../models/AuditLog');
 const emailSvc     = require('./email.service');
 
-const ACCESS_SECRET  = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET || 'fallback_secret_access_key_change_in_production_64chars';
-const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'fallback_secret_refresh_key_change_in_production_64chars';
+let speakeasy, QRCode;
+try {
+  speakeasy = require('speakeasy');
+  QRCode    = require('qrcode');
+} catch (_) {}
+
+let ACCESS_SECRET  = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET;
+let REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+
+if (!ACCESS_SECRET || !REFRESH_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('CRITICAL SECURITY ERROR: JWT_ACCESS_SECRET and JWT_REFRESH_SECRET (or JWT_SECRET) must be set in production!');
+  } else {
+    console.warn('[SECURITY WARNING] JWT secrets not configured in environment. Generating dynamic cryptographically secure secrets for development session.');
+    if (!ACCESS_SECRET)  ACCESS_SECRET  = crypto.randomBytes(64).toString('hex');
+    if (!REFRESH_SECRET) REFRESH_SECRET = crypto.randomBytes(64).toString('hex');
+  }
+}
+
 const ACCESS_EXPIRES = process.env.JWT_ACCESS_EXPIRES || '15m';
 
 // ── Token Generation & Verification ───────────────────────────────────────────
@@ -51,23 +68,34 @@ function cookieOptions(maxAge = 7 * 24 * 60 * 60 * 1000) {
 
 // ── Registration ──────────────────────────────────────────────────────────────
 
+// check do manh mk: min 8 ky tu, hoa, thuong, so, ky tu db
+function validatePasswordStrength(password) {
+  if (!password || password.length < 8) {
+    throw new Error('Mật khẩu tối thiểu phải từ 8 ký tự');
+  }
+  const hasUpper   = /[A-Z]/.test(password);
+  const hasLower   = /[a-z]/.test(password);
+  const hasNumber  = /[0-9]/.test(password);
+  const hasSpecial = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password);
+  if (!hasUpper || !hasLower || !hasNumber || !hasSpecial) {
+    throw new Error('Mật khẩu phải chứa ít nhất một chữ hoa, một chữ thường, một chữ số và một ký tự đặc biệt');
+  }
+}
+
 async function register({ email, password, name, ip, userAgent }) {
   const normalizedEmail = (email || '').toLowerCase().trim();
   if (!normalizedEmail) throw new Error('Email không được để trống');
 
+  validatePasswordStrength(password);
+
   const existing = await User.findOne({ email: normalizedEmail });
   if (existing) throw new Error('Email này đã được đăng ký');
-
-  // Password strength validation: min 6 chars, uppercase, lowercase, number
-  if (!password || password.length < 6) {
-    throw new Error('Mật khẩu tối thiểu 6 ký tự');
-  }
 
   const verifyToken = crypto.randomBytes(32).toString('hex');
   const user = await User.create({
     email: normalizedEmail,
     name:  (name || normalizedEmail.split('@')[0]).trim(),
-    password, // Hash is automatically handled in pre-save hook
+    password, // hash tu dong qua hook pre-save
     verifyToken,
   });
 
@@ -287,17 +315,15 @@ async function resetPassword(token, newPassword, ip) {
   });
   if (!user) throw new Error('Token đặt lại mật khẩu không hợp lệ hoặc đã hết hạn');
 
-  if (!newPassword || newPassword.length < 6) {
-    throw new Error('Mật khẩu mới tối thiểu 6 ký tự');
-  }
+  validatePasswordStrength(newPassword);
 
   user.password             = newPassword;
   user.resetPasswordToken   = undefined;
   user.resetPasswordExpires = undefined;
-  user.passwordChangedAt    = new Date(); // Invalidate old JWT access tokens
+  user.passwordChangedAt    = new Date(); // huy jwt cu
   await user.save();
 
-  // Revoke all refresh tokens on password change
+  // thu hoi all refresh token khi doi mk
   await RefreshToken.revokeAllUserTokens(user._id, 'password_reset');
 
   await AuditLog.log({
@@ -313,8 +339,7 @@ async function resetPassword(token, newPassword, ip) {
 // ── 2FA TOTP Suite ────────────────────────────────────────────────────────────
 
 async function setup2FA(userId) {
-  const speakeasy = require('speakeasy');
-  const QRCode    = require('qrcode');
+  if (!speakeasy || !QRCode) throw new Error('Thư viện 2FA (speakeasy/qrcode) chưa khả dụng');
 
   const user = await User.findById(userId);
   if (!user) throw new Error('Người dùng không tồn tại');
@@ -337,7 +362,7 @@ async function setup2FA(userId) {
 }
 
 async function verify2FA(userId, token, isSetup = false) {
-  const speakeasy = require('speakeasy');
+  if (!speakeasy) throw new Error('Thư viện 2FA chưa khả dụng');
   const user      = await User.findById(userId).select('+twoFactorSecret +twoFactorTempSecret');
   if (!user) throw new Error('Người dùng không tồn tại');
 
@@ -443,4 +468,5 @@ module.exports = {
   disable2FA,
   completeLogin2FA,
   formatUser,
+  validatePasswordStrength,
 };

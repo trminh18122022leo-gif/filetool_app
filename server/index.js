@@ -20,7 +20,7 @@ const passport = require('passport');
 const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
 const slowDown = require('express-slow-down');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 const { authDB, dataDB, isAuthConnected, isDataConnected } = require('./config/database');
 const AuditLog = require('./models/AuditLog');
@@ -118,9 +118,43 @@ app.use(helmet({
 // 2. Compression — mức 6 là điểm cân bằng tốc độ/kích thước tối ưu
 app.use(compression({ level: 6, threshold: 1024 }));
 
-// 3. CORS — bảo vệ truy cập đa nguồn có xác thực
+// 3. CORS — bảo vệ truy cập đa nguồn có xác thực với allowlist cấu hình từ môi trường
+const defaultAllowedOrigins = [
+  process.env.CLIENT_URL,
+  'http://localhost:3030',
+  'http://127.0.0.1:3030',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:3002',
+  'http://127.0.0.1:5173',
+].filter(Boolean);
+
+if (process.env.ALLOWED_ORIGINS) {
+  process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).forEach(o => {
+    if (o && !defaultAllowedOrigins.includes(o)) defaultAllowedOrigins.push(o);
+  });
+}
+
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    // Cho phép request không có origin (mobile apps, server-to-server, curl, Postman, Electron file://)
+    if (!origin || origin === 'null') return callback(null, true);
+    if (origin.startsWith('filetools://') || origin.startsWith('com.filetools.pro://')) {
+      return callback(null, true);
+    }
+    if (defaultAllowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    // Cho phép các preview deployments tương ứng nếu CLIENT_URL là domain vercel
+    if (process.env.CLIENT_URL && process.env.CLIENT_URL.includes('.vercel.app')) {
+      const baseApp = process.env.CLIENT_URL.replace(/^https?:\/\//, '').replace(/\.vercel\.app.*$/, '');
+      const escapedBase = baseApp.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (new RegExp(`^https:\\/\\/(${escapedBase}|${escapedBase}-[a-zA-Z0-9_-]+)\\.vercel\\.app$`).test(origin)) {
+        return callback(null, true);
+      }
+    }
+    return callback(null, false);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'x-api-key'],
@@ -228,29 +262,45 @@ app.get('/api/view/:filename', (req, res) => {
   res.sendFile(filePath);
 });
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  const chk = cmd => {
-    try { execSync(cmd, { stdio: 'pipe' }); return true; }
+// Health check system tools cache (TTL 60s để tránh block event loop)
+let systemToolsCache = null;
+let systemToolsLastChecked = 0;
+
+function checkSystemTools() {
+  const now = Date.now();
+  if (systemToolsCache && now - systemToolsLastChecked < 60000) {
+    return systemToolsCache;
+  }
+
+  const { execFileSync } = require('child_process');
+  const chk = (exe, args) => {
+    try { execFileSync(exe, args, { stdio: 'pipe', timeout: 2000 }); return true; }
     catch (_) { return false; }
   };
 
-  const gsCmd = process.platform === 'win32' ? 'gswin64c -v' : 'gs -v';
-  const loCmd = process.platform === 'win32'
-    ? '"C:\\Program Files\\LibreOffice\\program\\soffice.exe" --version'
-    : 'libreoffice --version';
+  const gsExe = process.platform === 'win32' ? 'gswin64c' : 'gs';
+  const loExe = process.platform === 'win32' && fs.existsSync('C:\\Program Files\\LibreOffice\\program\\soffice.exe')
+    ? 'C:\\Program Files\\LibreOffice\\program\\soffice.exe'
+    : 'libreoffice';
 
+  systemToolsCache = {
+    ghostscript: chk(gsExe, ['-v']),
+    libreoffice: chk(loExe, ['--version']),
+    tesseract: chk('tesseract', ['--version']),
+    qpdf: chk('qpdf', ['--version']),
+    pdftohtml: chk('pdftohtml', ['-v']),
+  };
+  systemToolsLastChecked = now;
+  return systemToolsCache;
+}
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    systemTools: {
-      ghostscript: chk(gsCmd),
-      libreoffice: chk(loCmd),
-      tesseract: chk('tesseract --version'),
-      qpdf: chk('qpdf --version'),
-      pdftohtml: chk('pdftohtml -v'),
-    },
+    systemTools: checkSystemTools(),
     database: {
       authConnected: isAuthConnected(),
       dataConnected: isDataConnected(),
@@ -337,6 +387,17 @@ app.use((err, req, res, next) => {
 server.listen(PORT, () => {
   console.log(`⚡ FileTools Pro Server đang chạy tại http://localhost:${PORT}`);
   console.log(`⚡ Socket.io real-time server đã sẵn sàng`);
+});
+
+// tat app don dep browser
+const { closeBrowser } = require('./utils/browser');
+process.on('SIGTERM', async () => {
+  await closeBrowser();
+  process.exit(0);
+});
+process.on('SIGINT', async () => {
+  await closeBrowser();
+  process.exit(0);
 });
 
 module.exports = app;

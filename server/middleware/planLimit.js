@@ -27,8 +27,10 @@ const PLAN_LIMITS = {
   },
 };
 
+const User = require('../models/User');
+
 /**
- * Kiểm tra giới hạn số lượt xử lý trong ngày.
+ * Kiểm tra giới hạn số lượt xử lý trong ngày (Atomic Check & Increment).
  */
 async function checkDailyLimit(req, res, next) {
   if (!req.user) return next();
@@ -36,22 +38,50 @@ async function checkDailyLimit(req, res, next) {
   const plan   = req.user.plan || 'free';
   const limits = PLAN_LIMITS[plan];
 
+  if (!limits || limits.dailyOperations === Infinity) {
+    return next();
+  }
+
   const today = new Date().toISOString().slice(0, 10);
-  if (req.user.dailyUsage?.date !== today) {
-    req.user.dailyUsage = { date: today, count: 0 };
+
+  // 1. Thử tăng nguyên tử nếu đúng ngày và count chưa vượt giới hạn
+  let updatedUser = await User.findOneAndUpdate(
+    {
+      _id: req.user._id,
+      'dailyUsage.date': today,
+      'dailyUsage.count': { $lt: limits.dailyOperations },
+    },
+    { $inc: { 'dailyUsage.count': 1 } },
+    { new: true }
+  );
+
+  // 2. Nếu không khớp, kiểm tra xem có phải do chuyển sang ngày mới hay không
+  if (!updatedUser) {
+    updatedUser = await User.findOneAndUpdate(
+      {
+        _id: req.user._id,
+        $or: [
+          { 'dailyUsage.date': { $ne: today } },
+          { dailyUsage: null },
+          { 'dailyUsage.date': { $exists: false } },
+        ],
+      },
+      { $set: { dailyUsage: { date: today, count: 1 } } },
+      { new: true }
+    );
+
+    // 3. Nếu vẫn không khớp -> Thực sự đã hết hạn ngạch trong ngày hôm nay!
+    if (!updatedUser) {
+      return res.status(429).json({
+        error:        `Bạn đã dùng hết ${limits.dailyOperations} lượt/ngày của gói ${plan.toUpperCase()}`,
+        currentPlan:  plan,
+        limit:        limits.dailyOperations,
+        upgrade:      '/pricing',
+      });
+    }
   }
 
-  if (req.user.dailyUsage.count >= limits.dailyOperations) {
-    return res.status(429).json({
-      error:        `Bạn đã dùng hết ${limits.dailyOperations} lượt/ngày của gói ${plan.toUpperCase()}`,
-      currentPlan:  plan,
-      limit:        limits.dailyOperations,
-      upgrade:      '/pricing',
-    });
-  }
-
-  req.user.dailyUsage.count += 1;
-  await req.user.save();
+  req.user.dailyUsage = updatedUser.dailyUsage;
   next();
 }
 

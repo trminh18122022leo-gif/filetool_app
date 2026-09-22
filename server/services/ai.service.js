@@ -1,21 +1,8 @@
-/**
- * AI Service — 100% Free Stack & Multi-Key Resilient Token Pool:
- *   - Google Gemini: Gemini 2.0 Flash, Gemini 1.5 Flash, Gemini 1.5 Pro
- *   - Cerebras Cloud LPU (1M tokens/day free, 2000 t/s): Llama 3.3 70B, Llama 3.1 8B
- *   - Groq Cloud LPU (Ultra-Fast free tier): Llama 3.3 70B, Llama 3.1 8B, Qwen 2.5 32B, DeepSeek R1
- *   - OpenRouter Free Tier: Llama 3.3 Free, DeepSeek R1 Free, Gemini 2.0 Free
- *   - Mistral AI Free: Mistral Small, Open Mistral 7B
- *   - GitHub Models Free: GPT-4o Mini, Llama 3.3
- *
- * Tính năng thông minh:
- *   - Hỗ trợ Multi-Key Rotation (nhiều key ngăn cách bởi dấu phẩy trong .env)
- *   - Tự động phát hiện lỗi 429 / Rate Limit / Quota Exceeded và Cooldown 60s
- *   - Tự động Failover thông minh qua các nhà cung cấp miễn phí tiếp theo
- */
-
+// ai service: ho tro gemini, groq, cerebras, openrouter, mistral, github models
+// tu dong xoay key, cooldown khi gap 429 va failover
 'use strict';
 
-const puppeteer  = require('puppeteer');
+const { withPage } = require('../utils/browser');
 const pdfParse   = require('pdf-parse');
 const fs         = require('fs');
 const path       = require('path');
@@ -23,7 +10,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const OUT = path.resolve('outputs');
 
-// ── Multi-Key & Cooldown Management ───────────────────────────────────────────
+// qly key & cooldown
 const cooldownMap = new Map(); // key -> cooldownExpiryTimestamp
 
 function parseKeyPool(envVar) {
@@ -469,13 +456,8 @@ async function renderHandwriting(text, opts = {}) {
   const fontName   = FONT_MAP[style] || 'Caveat';
   const fontImport = `https://fonts.googleapis.com/css2?family=${fontName}:wght@400;700&display=swap`;
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-  });
-
-  try {
-    const page = await browser.newPage();
+  // render chu viet tay sang pdf qua singleton browser
+  return await withPage(async (page) => {
     const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -505,9 +487,7 @@ async function renderHandwriting(text, opts = {}) {
       margin: { top: '0', bottom: '0', left: '0', right: '0' },
     });
     return outPath;
-  } finally {
-    await browser.close();
-  }
+  });
 }
 
 module.exports = {

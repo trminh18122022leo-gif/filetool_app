@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext(null);
 const API = import.meta.env.VITE_API_URL || '';
+let refreshPromise = null;
 
 export function AuthProvider({ children }) {
   // 1. Initialize user from localStorage if available
@@ -21,6 +22,12 @@ export function AuthProvider({ children }) {
       const urlToken = urlParams.get('token');
       if (urlToken) {
         localStorage.setItem('token', urlToken);
+        try {
+          const cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete('token');
+          const cleanSearch = cleanUrl.searchParams.toString();
+          window.history.replaceState({}, document.title, cleanUrl.pathname + (cleanSearch ? `?${cleanSearch}` : '') + cleanUrl.hash);
+        } catch (_) {}
         return urlToken;
       }
     } catch (_) {}
@@ -30,29 +37,39 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const refreshSession = async () => {
-    try {
-      const res = await fetch(`${API}/api/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const newToken = data.accessToken || data.token;
-        if (newToken) {
-          localStorage.setItem('token', newToken);
-          setToken(newToken);
-          if (data.user) {
-            setUser(data.user);
-            localStorage.setItem('user', JSON.stringify(data.user));
-          }
-          return newToken;
-        }
-      }
-    } catch (err) {
-      console.warn('[auth] Không thể làm mới token:', err);
+    if (refreshPromise) {
+      return refreshPromise;
     }
-    return null;
+
+    refreshPromise = (async () => {
+      try {
+        const res = await fetch(`${API}/api/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const newToken = data.accessToken || data.token;
+          if (newToken) {
+            localStorage.setItem('token', newToken);
+            setToken(newToken);
+            if (data.user) {
+              setUser(data.user);
+              localStorage.setItem('user', JSON.stringify(data.user));
+            }
+            return newToken;
+          }
+        }
+      } catch (err) {
+        console.warn('[auth] Không thể làm mới token:', err);
+      } finally {
+        refreshPromise = null;
+      }
+      return null;
+    })();
+
+    return refreshPromise;
   };
 
   // 3. Load / verify user info khi app khởi động hoặc khi token thay đổi
@@ -62,9 +79,17 @@ export function AuthProvider({ children }) {
     const activeToken = urlToken || token;
 
     if (activeToken) {
-      if (urlToken && urlToken !== token) {
-        setToken(urlToken);
-        localStorage.setItem('token', urlToken);
+      if (urlToken) {
+        if (urlToken !== token) {
+          setToken(urlToken);
+          localStorage.setItem('token', urlToken);
+        }
+        try {
+          const cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete('token');
+          const cleanSearch = cleanUrl.searchParams.toString();
+          window.history.replaceState({}, document.title, cleanUrl.pathname + (cleanSearch ? `?${cleanSearch}` : '') + cleanUrl.hash);
+        } catch (_) {}
       }
 
       fetch(`${API}/api/auth/me`, {

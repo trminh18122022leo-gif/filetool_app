@@ -1,15 +1,45 @@
 'use strict';
 
 const { Server }     = require('socket.io');
-const jwt            = require('jsonwebtoken');
+const authSvc        = require('../services/auth.service');
 const { jobEmitter } = require('../services/jobEmitter');
 
 let io = null;
 
 function initSocket(httpServer) {
+  const defaultAllowedOrigins = [
+    process.env.CLIENT_URL,
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:3002',
+    'http://127.0.0.1:5173',
+  ].filter(Boolean);
+
+  if (process.env.ALLOWED_ORIGINS) {
+    process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).forEach(o => {
+      if (o && !defaultAllowedOrigins.includes(o)) defaultAllowedOrigins.push(o);
+    });
+  }
+
   io = new Server(httpServer, {
     cors: {
-      origin:      true,
+      origin: (origin, callback) => {
+        if (!origin || origin === 'null') return callback(null, true);
+        if (origin.startsWith('filetools://') || origin.startsWith('com.filetools.pro://')) {
+          return callback(null, true);
+        }
+        if (defaultAllowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+        if (process.env.CLIENT_URL && process.env.CLIENT_URL.includes('.vercel.app')) {
+          const baseApp = process.env.CLIENT_URL.replace(/^https?:\/\//, '').replace(/\.vercel\.app.*$/, '');
+          const escapedBase = baseApp.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          if (new RegExp(`^https:\\/\\/(${escapedBase}|${escapedBase}-[a-zA-Z0-9_-]+)\\.vercel\\.app$`).test(origin)) {
+            return callback(null, true);
+          }
+        }
+        return callback(null, false);
+      },
       methods:     ['GET', 'POST'],
       credentials: true,
     },
@@ -20,11 +50,11 @@ function initSocket(httpServer) {
     const token = socket.handshake.auth?.token;
     if (token) {
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        socket.userId = decoded.id;
+        const decoded = authSvc.verifyAccessToken(token);
+        socket.userId = decoded.userId || decoded.id;
       } catch (_) {}
     }
-    next(); // Cho phép cả guest kết nối
+    next(); // Cho phép cả guest kết nối để nhận tiến trình xử lý file ẩn danh
   });
 
   io.on('connection', socket => {

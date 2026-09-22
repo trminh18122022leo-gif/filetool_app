@@ -1,12 +1,25 @@
 'use strict';
 
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const path     = require('path');
 const fs       = require('fs');
 const archiver = require('archiver');
 const { v4: uuidv4 } = require('uuid');
 
 const OUT = path.resolve('outputs');
+
+function runSafe(executable, args = []) {
+  try {
+    return execFileSync(executable, args, { stdio: 'pipe' });
+  } catch (err) {
+    throw new Error(
+      `${executable} thất bại: ${err.stderr?.toString() || err.message}\nHãy đảm bảo đã cài poppler-utils:\n` +
+      '  macOS: brew install poppler\n' +
+      '  Linux: sudo apt install poppler-utils\n' +
+      '  Windows: https://github.com/oschwartz10612/poppler-windows'
+    );
+  }
+}
 
 /**
  * Chuyển PDF sang HTML.
@@ -24,44 +37,44 @@ async function convert(pdfPath, opts = {}) {
 
   const outBase = path.join(outDir, 'index');
 
-  let flags = '-noframes -enc UTF-8';
-  if (mode === 'complex') flags += ' -c'; // complex layout: sinh kèm css/ảnh
-  if (mode === 'single')  flags += ' -s'; // gom vào 1 file HTML duy nhất
+  const args = ['-noframes', '-enc', 'UTF-8'];
+  if (mode === 'complex') args.push('-c'); // complex layout: sinh kèm css/ảnh
+  if (mode === 'single')  args.push('-s'); // gom vào 1 file HTML duy nhất
+  args.push(pdfPath, outBase);
+
+  const zipPath = path.join(OUT, `html_export_${uuidv4()}.zip`);
 
   try {
-    execSync(`pdftohtml ${flags} "${pdfPath}" "${outBase}"`, { stdio: 'pipe' });
-  } catch (err) {
-    throw new Error(
-      'pdftohtml thất bại. Hãy cài poppler-utils:\n' +
-      '  macOS: brew install poppler\n' +
-      '  Linux: sudo apt install poppler-utils\n' +
-      '  Windows: https://github.com/oschwartz10612/poppler-windows\n' +
-      err.message
-    );
+    runSafe('pdftohtml', args);
+
+    // Đóng gói thư mục output thành ZIP để tiện tải về
+    const output  = fs.createWriteStream(zipPath);
+    const archive = archiver('zip', { zlib: { level: 6 } });
+
+    await new Promise((resolve, reject) => {
+      output.on('close', resolve);
+      archive.on('error', reject);
+      archive.pipe(output);
+      archive.directory(outDir, false);
+      archive.finalize();
+    });
+
+    let fileCount = 0;
+    try {
+      fileCount = fs.readdirSync(outDir).length;
+    } catch (_) {}
+
+    return {
+      zipPath,
+      zipName: path.basename(zipPath),
+      fileCount,
+    };
+  } finally {
+    // Luôn dọn dẹp thư mục HTML thô kể cả khi thành công lẫn khi ném lỗi
+    try {
+      fs.rmSync(outDir, { recursive: true, force: true });
+    } catch (_) {}
   }
-
-  // Đóng gói thư mục output thành ZIP để tiện tải về
-  const zipPath = path.join(OUT, `html_export_${uuidv4()}.zip`);
-  const output  = fs.createWriteStream(zipPath);
-  const archive = archiver('zip', { zlib: { level: 6 } });
-
-  await new Promise((resolve, reject) => {
-    output.on('close', resolve);
-    archive.on('error', reject);
-    archive.pipe(output);
-    archive.directory(outDir, false);
-    archive.finalize();
-  });
-
-  const fileCount = fs.readdirSync(outDir).length;
-  // Xóa thư mục HTML thô sau khi đã zip
-  fs.rmSync(outDir, { recursive: true, force: true });
-
-  return {
-    zipPath,
-    zipName: path.basename(zipPath),
-    fileCount,
-  };
 }
 
 module.exports = { convert };

@@ -18,8 +18,8 @@ const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 
 router.post('/pdf-to-html', optionalAuth, freeModeUpgrade, upload.single('file'), wrap(async (req, res) => {
   const { mode = 'html' } = req.body;
-  const { zipName, fileCount } = await pdfHtmlSvc.convert(req.file.path, { mode });
-  res.json({ success: true, file: zipName, fileCount });
+  const { zipPath, fileCount } = await pdfHtmlSvc.convert(req.file.path, { mode });
+  await respondFile(req, res, zipPath, 'pdf-to-html', { fileCount });
 }));
 
 router.post('/images-to-pdf', optionalAuth, freeModeUpgrade, upload.array('files', 50), wrap(async (req, res) => {
