@@ -134,7 +134,7 @@ export default function NorthernLightsBackground({ className = '' }) {
   return (
     <canvas
       ref={canvasRef}
-      className={`fixed inset-0 pointer-events-none -z-10 dark:opacity-100 opacity-0 transition-opacity duration-500 ${className}`}
+      className={`fixed inset-0 pointer-events-none z-0 dark:opacity-100 opacity-0 transition-opacity duration-500 ${className}`}
       aria-hidden="true"
     />
   );
