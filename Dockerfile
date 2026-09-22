@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:22-bookworm-slim
 
 # Tránh prompts tương tác khi cài apt
 ENV DEBIAN_FRONTEND=noninteractive
