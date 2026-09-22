@@ -60,7 +60,7 @@ export default function SolitudeSkyBackground({ className = '', showSolitudeText
 
   return (
     <div
-      className={`fixed inset-0 pointer-events-none z-0 overflow-hidden transition-opacity duration-700 ease-in-out ${
+      className={`fixed inset-0 pointer-events-none -z-10 overflow-hidden transition-opacity duration-700 ease-in-out ${
         isLight ? 'opacity-100' : 'opacity-0'
       } ${className}`}
       aria-hidden="true"

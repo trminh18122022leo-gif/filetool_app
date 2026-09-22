@@ -197,7 +197,7 @@ export default function App() {
       </header>
 
       {/* ── MAIN CONTENT (Lazy Loaded with Suspense) ── */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 pb-28">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 pb-28 relative z-10">
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<Home />} />
