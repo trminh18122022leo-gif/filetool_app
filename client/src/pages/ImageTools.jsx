@@ -14,6 +14,7 @@ const API = import.meta.env.VITE_API_URL || '';
 const TABS = [
   { id: 'remove-object', label: 'Xóa Vật Thể (AI)', icon: Eraser,    accept: 'image/*' },
   { id: 'removebg',      label: 'Xóa Phông (AI)',    icon: Sparkles,  accept: 'image/*' },
+  { id: 'vectorize',     label: 'Vector Hóa (SVG)',  icon: Layers,    accept: 'image/*' },
   { id: 'crop',          label: 'Cắt Ảnh (Crop)',    icon: Crop,      accept: 'image/*' },
   { id: 'resize',        label: 'Đổi Kích Thước',    icon: Scaling,   accept: 'image/*' },
   { id: 'filter',        label: 'Bộ Lọc Ảnh',        icon: Wand2,     accept: 'image/*' },
@@ -69,6 +70,13 @@ export default function ImageTools() {
 
   // Filter params
   const [filterType, setFilterType] = useState('grayscale');
+
+  // Vectorize params
+  const [vectorMode, setVectorMode] = useState('monochrome'); // 'monochrome' | 'posterize'
+  const [vectorColor, setVectorColor] = useState('#000000');
+  const [vectorThreshold, setVectorThreshold] = useState(128);
+  const [vectorSteps, setVectorSteps] = useState(4);
+  const [vectorTurdSize, setVectorTurdSize] = useState(2);
 
   // AI Object Removal / Brush Mask State
   const [brushSize, setBrushSize] = useState(35);
@@ -436,6 +444,14 @@ export default function ImageTools() {
     } else if (activeTab === 'filter') {
       endpoint = '/api/image/filter';
       fd.append('filter', filterType);
+    } else if (activeTab === 'vectorize') {
+      endpoint = '/api/image/vectorize';
+      fd.append('mode', vectorMode);
+      fd.append('color', vectorColor);
+      fd.append('threshold', vectorThreshold);
+      fd.append('steps', vectorSteps);
+      fd.append('turdSize', vectorTurdSize);
+      fd.append('optCurve', 'true');
     }
 
     try {
@@ -983,6 +999,118 @@ export default function ImageTools() {
                       </div>
                     )}
 
+                    {/* VECTORIZE TAB (RASTER TO SVG) */}
+                    {activeTab === 'vectorize' && (
+                      <div className="space-y-4">
+                        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 space-y-1">
+                          <p className="font-bold flex items-center gap-1.5">
+                            <Sparkles size={13} className="text-amber-400" /> AI Vectorizer (PNG/JPG &rarr; SVG)
+                          </p>
+                          <p className="text-[11px] text-gray-300 leading-relaxed">
+                            Biến ảnh pixel vỡ hạt thành đồ họa vector SVG sắc nét vô hạn. Phóng to bằng kích thước tòa nhà không bao giờ bị vỡ hình.
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-gray-300 font-medium block mb-1.5">Chế độ Vector hóa</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setVectorMode('monochrome')}
+                              className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
+                                vectorMode === 'monochrome'
+                                  ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/25'
+                                  : 'glass-button text-gray-300'
+                              }`}
+                            >
+                              Đơn sắc sắc nét
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setVectorMode('posterize')}
+                              className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
+                                vectorMode === 'posterize'
+                                  ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/25'
+                                  : 'glass-button text-gray-300'
+                              }`}
+                            >
+                              Phân tầng nhiều màu
+                            </button>
+                          </div>
+                        </div>
+
+                        {vectorMode === 'monochrome' ? (
+                          <div>
+                            <label className="text-xs text-gray-300 font-medium block mb-1.5">Màu vector (Fill Color)</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="color"
+                                value={vectorColor}
+                                onChange={e => setVectorColor(e.target.value)}
+                                className="w-9 h-9 rounded-lg border border-white/20 bg-transparent cursor-pointer p-0.5"
+                              />
+                              <div className="flex gap-1.5 flex-wrap">
+                                {['#000000', '#ffffff', '#f59e0b', '#3b82f6', '#ef4444', '#10b981', '#8b5cf6'].map(c => (
+                                  <button
+                                    key={c}
+                                    type="button"
+                                    onClick={() => setVectorColor(c)}
+                                    style={{ backgroundColor: c }}
+                                    className={`w-6 h-6 rounded-full border border-white/30 transition-transform ${vectorColor === c ? 'scale-125 ring-2 ring-amber-400' : ''}`}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between text-xs text-gray-300">
+                              <span>Số tầng màu (Color Steps)</span>
+                              <span className="font-bold text-amber-400 font-mono">{vectorSteps} lớp</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="2"
+                              max="8"
+                              value={vectorSteps}
+                              onChange={e => setVectorSteps(Number(e.target.value))}
+                              className="w-full accent-amber-500"
+                            />
+                          </div>
+                        )}
+
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between text-xs text-gray-300">
+                            <span>Độ nhạy sáng tối (Threshold)</span>
+                            <span className="font-bold text-amber-400 font-mono">{vectorThreshold}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="30"
+                            max="225"
+                            value={vectorThreshold}
+                            onChange={e => setVectorThreshold(Number(e.target.value))}
+                            className="w-full accent-amber-500"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between text-xs text-gray-300">
+                            <span>Lọc bỏ đốm nhiễu (Denoise)</span>
+                            <span className="font-bold text-amber-400 font-mono">{vectorTurdSize}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="10"
+                            value={vectorTurdSize}
+                            onChange={e => setVectorTurdSize(Number(e.target.value))}
+                            className="w-full accent-amber-500"
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     {/* 6. CONVERT TAB */}
                     {activeTab === 'convert' && (
                       <div className="space-y-4">
@@ -1086,8 +1214,13 @@ export default function ImageTools() {
                   <CheckCircle2 size={22} />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-white text-base">
-                    Sản phẩm hoàn thành!
+                  <h3 className="font-extrabold text-white text-base flex items-center gap-2">
+                    <span>Sản phẩm hoàn thành!</span>
+                    {result.file?.endsWith('.svg') && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold border border-amber-500/30">
+                        SVG Vector Phóng To Vô Hạn
+                      </span>
+                    )}
                   </h3>
                   <p className="text-gray-400 text-xs">
                     File: <span className="font-mono text-pink-300">{result.file || 'image_processed.png'}</span>
@@ -1128,10 +1261,10 @@ export default function ImageTools() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <a
                 href={getResultDownloadUrl()}
-                download={result.file || 'processed_image.png'}
+                download={result.file || (result.file?.endsWith('.svg') ? 'vector.svg' : 'processed_image.png')}
                 className="flex items-center justify-center gap-2 py-4 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white rounded-2xl font-bold text-sm shadow-[0_0_20px_rgba(236,72,153,0.35)] transition-all uppercase tracking-wider"
               >
-                <Download size={18} /> Tải ảnh hoàn thiện xuống
+                <Download size={18} /> {result.file?.endsWith('.svg') ? 'Tải File Vector (.SVG) Xuống' : 'Tải ảnh hoàn thiện xuống'}
               </a>
 
               <button

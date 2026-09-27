@@ -89,7 +89,7 @@ export default function UserMenu() {
   }
 
   const planBadges = {
-    free:     'bg-black/5 dark:bg-white/5 text-gray-700 dark:text-gray-300 border-black/10 dark:border-white/10',
+    free:     'bg-amber-500/15 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30 shadow-sm',
     pro:      'bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-300 border-amber-400/50 dark:border-amber-600/50 shadow-sm',
     business: 'bg-rose-100 dark:bg-rose-950/80 text-rose-900 dark:text-rose-300 border-rose-400/50 dark:border-rose-600/50 shadow-sm',
   };
@@ -108,7 +108,7 @@ export default function UserMenu() {
             {user.name || user.email?.split('@')[0]}
           </p>
           <span className={`inline-block text-[9px] uppercase font-bold px-1.5 py-0.2 rounded-md border mt-0.5 ${planBadges[user.plan] || planBadges.free}`}>
-            {user.plan || 'Free'}
+            {user.plan && user.plan !== 'free' ? user.plan : 'PRO'}
           </span>
         </div>
 
@@ -126,7 +126,7 @@ export default function UserMenu() {
               <p className="text-xs font-bold text-gray-900 dark:text-white truncate flex items-center gap-1.5">
                 <span>{user.name || 'Thành viên'}</span>
                 <span className={`text-[9px] uppercase font-extrabold px-1.5 py-0.2 rounded border ${planBadges[user.plan] || planBadges.free}`}>
-                  {user.plan || 'Free'}
+                  {user.plan && user.plan !== 'free' ? user.plan : 'PRO'}
                 </span>
               </p>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-0.5">{user.email}</p>
@@ -144,15 +144,6 @@ export default function UserMenu() {
               <LayoutDashboard size={16} className="text-amber-600 dark:text-amber-400" />
               <span>Dashboard của tôi</span>
             </button>
-
-            <Link
-              to="/pricing"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-gray-600 dark:text-gray-300 hover:text-amber-800 dark:hover:text-amber-300 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-            >
-              <Sparkles size={15} className="text-amber-600 dark:text-amber-400" />
-              <span>Nâng cấp gói Pro</span>
-            </Link>
 
             <Link
               to="/api-docs"

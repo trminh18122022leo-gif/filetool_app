@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
-import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
 import GlobalSearch from './components/GlobalSearch';
 import UserMenu from './components/UserMenu';
@@ -20,6 +20,7 @@ const PdfSplitTool   = lazy(() => import('./pages/PdfSplitTool'));
 const PdfSignTool    = lazy(() => import('./pages/PdfSignTool'));
 const PdfDeleteTool  = lazy(() => import('./pages/PdfDeleteTool'));
 const PdfOrganizeTool = lazy(() => import('./pages/PdfOrganizeTool'));
+const PdfRedactTool   = lazy(() => import('./pages/PdfRedactTool'));
 const ImageTools     = lazy(() => import('./pages/ImageTools'));
 const ConvertTools   = lazy(() => import('./pages/ConvertTools'));
 const CreativeTools  = lazy(() => import('./pages/CreativeTools'));
@@ -29,13 +30,13 @@ const OcrTools       = lazy(() => import('./pages/OcrTools'));
 const ArchiveTools   = lazy(() => import('./pages/ArchiveTools'));
 const QrTools        = lazy(() => import('./pages/QrTools'));
 const AdvancedEditor = lazy(() => import('./pages/AdvancedEditor'));
-const Pricing        = lazy(() => import('./pages/Pricing'));
 const Login          = lazy(() => import('./pages/Login'));
 const Register       = lazy(() => import('./pages/Register'));
 const Dashboard      = lazy(() => import('./pages/Dashboard'));
 const SignaturePage  = lazy(() => import('./pages/SignaturePage'));
 const BatchTools     = lazy(() => import('./pages/BatchTools'));
 const SpeechToText   = lazy(() => import('./pages/SpeechToText'));
+const VideoTranslate = lazy(() => import('./pages/VideoTranslate'));
 const ApiDocs        = lazy(() => import('./pages/ApiDocs'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword  = lazy(() => import('./pages/ResetPassword'));
@@ -207,6 +208,7 @@ export default function App() {
             <Route path="/pdf/sign"  element={<PdfSignTool />} />
             <Route path="/pdf/delete" element={<PdfDeleteTool />} />
             <Route path="/pdf/organize" element={<PdfOrganizeTool />} />
+            <Route path="/pdf/redact" element={<PdfRedactTool />} />
             <Route path="/image" element={<ImageTools />} />
             <Route path="/convert" element={<ConvertTools />} />
             <Route path="/creative" element={<CreativeTools />} />
@@ -219,7 +221,8 @@ export default function App() {
             <Route path="/signature" element={<SignaturePage />} />
             <Route path="/batch" element={<BatchTools />} />
             <Route path="/speech" element={<SpeechToText />} />
-            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/video-translate" element={<VideoTranslate />} />
+            <Route path="/pricing" element={<Navigate to="/" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<Dashboard />} />
