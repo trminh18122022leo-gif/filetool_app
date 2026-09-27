@@ -20,7 +20,7 @@ export default function AuthGuard({ children, minPlan = null }) {
   if (minPlan) {
     const ranks = { free: 0, pro: 1, business: 2 };
     if ((ranks[user.plan] ?? 0) < (ranks[minPlan] ?? 0)) {
-      return <Navigate to="/pricing" state={{ reason: 'upgrade_required' }} replace />;
+      return <Navigate to="/" state={{ reason: 'unauthorized' }} replace />;
     }
   }
 

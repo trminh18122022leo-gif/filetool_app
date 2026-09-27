@@ -51,8 +51,9 @@ function checkMagicBytes(filePath, declaredMime) {
       const isRiff   = buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46; // WAV, AVI
       const isOgg    = buf[0] === 0x4F && buf[1] === 0x67 && buf[2] === 0x67 && buf[3] === 0x53;
       const isFlac   = buf[0] === 0x66 && buf[1] === 0x4C && buf[2] === 0x61 && buf[3] === 0x43;
-      const isMp4    = buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70; // ftyp
-      if (isMp3 || isRiff || isOgg || isFlac || isMp4) return true;
+      const isMp4    = buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70; // ftyp (MP4, MOV, M4A)
+      const isEbml   = buf[0] === 0x1A && buf[1] === 0x45 && buf[2] === 0xDF && buf[3] === 0xA3; // MKV, WEBM
+      if (isMp3 || isRiff || isOgg || isFlac || isMp4 || isEbml) return true;
     }
 
     // Plain text / CSV / JSON

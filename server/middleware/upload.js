@@ -36,6 +36,7 @@ const allowedMimes = new Set([
   'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/webm',
   'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/flac', 'audio/x-flac',
   'video/mp4', 'video/webm', 'video/quicktime',
+  'video/x-matroska', 'video/x-msvideo', 'video/avi', 'video/msvideo', 'video/x-flv',
   'application/octet-stream', // Cho phép khi đi kèm extension nhị phân an toàn
 ]);
 
@@ -44,7 +45,7 @@ const allowedExtensions = new Set([
   '.zip', '.tar', '.gz', '.7z', '.rar',
   '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt',
   '.txt', '.csv', '.md', '.json', '.xml',
-  '.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.webm', '.mp4', '.mov',
+  '.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.webm', '.mp4', '.mov', '.mkv', '.avi', '.flv',
 ]);
 
 const octetStreamAllowedExts = new Set([

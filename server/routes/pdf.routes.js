@@ -323,5 +323,75 @@ router.post('/insert-pages', optionalAuth, upload.fields([{ name: 'base', maxCou
   });
 }));
 
+const redactSvc = require('../services/redact.service');
+
+// ── 14. Quét thông tin nhạy cảm PII trong PDF ──────────────────────────────
+router.post('/redact-scan', optionalAuth, upload.single('file'), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Chưa tải lên file PDF' });
+
+  let customKeywords = [];
+  if (req.body.customKeywords) {
+    try {
+      customKeywords = typeof req.body.customKeywords === 'string'
+        ? JSON.parse(req.body.customKeywords)
+        : req.body.customKeywords;
+    } catch (_) {
+      customKeywords = String(req.body.customKeywords).split(',').map(s => s.trim());
+    }
+  }
+
+  const result = await redactSvc.scanPdfForPII(req.file.path, { customKeywords });
+  res.json({
+    success: true,
+    tempFilePath: req.file.path,
+    ...result,
+  });
+}));
+
+// ── 15. Che giấu vĩnh viễn thông tin nhạy cảm (Redact PDF) ─────────────────
+router.post('/redact', optionalAuth, upload.single('file'), wrap(async (req, res) => {
+  const UPLOAD_DIR = path.resolve('uploads');
+  let filePath = req.file?.path;
+
+  if (!filePath && req.body.tempFilePath) {
+    const resolved = path.resolve(req.body.tempFilePath);
+    if (!resolved.startsWith(UPLOAD_DIR + path.sep)) {
+      return res.status(403).json({ error: 'Đường dẫn file không hợp lệ hoặc nằm ngoài phạm vi cho phép' });
+    }
+    filePath = resolved;
+  }
+
+  if (!filePath || !fs.existsSync(filePath)) {
+    return res.status(400).json({ error: 'Không tìm thấy file PDF để xử lý' });
+  }
+
+  let redactions = [];
+  if (req.body.redactions) {
+    try {
+      redactions = typeof req.body.redactions === 'string'
+        ? JSON.parse(req.body.redactions)
+        : req.body.redactions;
+    } catch (_) {}
+  }
+
+  const {
+    fillColor = 'black',
+    stampLabel = '',
+    flatten = 'false',
+  } = req.body;
+
+  const result = await redactSvc.redactPdf(filePath, redactions, {
+    fillColor,
+    stampLabel,
+    flatten: flatten === 'true' || flatten === true,
+  });
+
+  await respondFile(req, res, result.outputPath, 'pdf-redact', {
+    flattened: result.flattened,
+    redactionsCount: redactions.length,
+  });
+}));
+
 module.exports = router;
+
 

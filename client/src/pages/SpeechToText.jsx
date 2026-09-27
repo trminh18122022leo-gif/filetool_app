@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ResultDownload from '../components/ResultDownload';
+import AiVoiceStudio from '../components/AiVoiceStudio';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -7,7 +8,8 @@ import {
   Copy, Download, FileText, Captions,
   Loader2, AlertCircle, CheckCircle2,
   Sparkles, Volume2, Settings, RefreshCw,
-  Trash2, Radio, Check, Info, FileAudio
+  Trash2, Radio, Check, Info, FileAudio,
+  Wand2, Sliders, Play, Music, Film, SlidersHorizontal, VolumeX
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -54,6 +56,67 @@ export default function SpeechToText() {
   // Output text state
   const [output, setOutput] = useState('');
   const [copied, setCopied] = useState(false);
+
+  // Audio Enhancer state
+  const [enhanceFile, setEnhanceFile] = useState(null);
+  const [enhancePreset, setEnhancePreset] = useState('studio');
+  const [enhanceDenoise, setEnhanceDenoise] = useState(26);
+  const [enhanceBass, setEnhanceBass] = useState(2.5);
+  const [enhanceTreble, setEnhanceTreble] = useState(3.5);
+  const [enhanceFormat, setEnhanceFormat] = useState('auto'); // 'auto' | 'audio' | 'video'
+  const [enhanceStatus, setEnhanceStatus] = useState(null); // 'processing' | 'done' | 'error'
+  const [enhanceProgress, setEnhanceProgress] = useState(0);
+  const [enhanceResult, setEnhanceResult] = useState(null);
+  const [enhanceError, setEnhanceError] = useState(null);
+
+  const handleEnhance = async () => {
+    if (!enhanceFile) return;
+    setEnhanceStatus('processing');
+    setEnhanceProgress(15);
+    setEnhanceError(null);
+    setEnhanceResult(null);
+
+    const formData = new FormData();
+    formData.append('file', enhanceFile);
+    formData.append('preset', enhancePreset);
+    if (enhancePreset === 'custom') {
+      formData.append('denoiseIntensity', String(enhanceDenoise));
+      formData.append('bassBoost', String(enhanceBass));
+      formData.append('trebleBoost', String(enhanceTreble));
+    }
+    const isVideo = enhanceFile.type.startsWith('video/') || /\.(mp4|mov|webm|mkv)$/i.test(enhanceFile.name);
+    if (isVideo && enhanceFormat === 'audio') {
+      formData.append('outputFormat', 'audio');
+    } else if (isVideo) {
+      formData.append('outputFormat', 'video');
+    }
+
+    const timer = setInterval(() => {
+      setEnhanceProgress(p => (p < 88 ? p + 8 : p));
+    }, 300);
+
+    try {
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Content-Type': 'multipart/form-data',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      };
+
+      const res = await axios.post(`${API}/api/speech/enhance-audio`, formData, {
+        headers,
+        withCredentials: true,
+      });
+
+      clearInterval(timer);
+      setEnhanceProgress(100);
+      setEnhanceResult(res.data);
+      setEnhanceStatus('done');
+    } catch (err) {
+      clearInterval(timer);
+      setEnhanceStatus('error');
+      setEnhanceError(err.response?.data?.error || err.message || 'Lỗi khi nâng cấp âm thanh');
+    }
+  };
 
   // Recording timer
   useEffect(() => {
@@ -285,6 +348,17 @@ export default function SpeechToText() {
           <p className="text-sm text-gray-400 mt-1 max-w-2xl">
             Ghi âm trực tiếp bằng giọng nói hoặc tải lên tệp âm thanh/video để AI trích xuất nội dung thành văn bản, PDF hoặc phụ đề SRT.
           </p>
+          <div className="mt-3 inline-flex items-center gap-2 p-2 px-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs">
+            <Sparkles size={14} />
+            <span>Bạn muốn dịch và lồng tiếng tự động cho video?</span>
+            <button
+              type="button"
+              onClick={() => navigate('/video-translate')}
+              className="font-bold underline hover:text-amber-300 ml-1 cursor-pointer"
+            >
+              Mở Video Translate (VEED + HeyGen Style) &rarr;
+            </button>
+          </div>
         </div>
 
         <button
@@ -381,6 +455,33 @@ export default function SpeechToText() {
         >
           <Upload size={16} />
           <span>Tải Lên Tệp Âm Thanh / Video</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setTab('enhance')}
+          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer relative ${
+            tab === 'enhance'
+              ? 'bg-gradient-to-r from-amber-500 to-rose-600 text-white shadow-lg shadow-amber-950/50'
+              : 'text-gray-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Sparkles size={16} className="text-amber-400" />
+          <span>Lọc Tạp Âm & Studio AI</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setTab('tts')}
+          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer relative ${
+            tab === 'tts'
+              ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 text-white shadow-lg shadow-amber-950/50'
+              : 'text-gray-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Volume2 size={16} className="text-amber-400" />
+          <span>AI Voice Studio</span>
+          <span className="hidden md:inline px-1.5 py-0.5 text-[9px] font-extrabold uppercase rounded bg-rose-500 text-white shadow-sm">VieNeu 48kHz</span>
         </button>
       </div>
 
@@ -585,6 +686,326 @@ export default function SpeechToText() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Tab 3: Audio Studio Enhancer & Noise Cleaner */}
+      {tab === 'enhance' && (
+        <div className="bg-gray-900/60 border border-gray-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl backdrop-blur-sm">
+          {/* Preset Selector */}
+          <div>
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-3">
+              1. Chọn Chế Độ Xử Lý Âm Thanh (Studio Presets)
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                {
+                  id: 'studio',
+                  title: '🎙️ Adobe Podcast AI',
+                  badge: 'Khuyên dùng',
+                  desc: 'Khử ồn sâu, tăng âm sắc ấm và rõ tiếng như micro phòng thu $500',
+                },
+                {
+                  id: 'noise_clean',
+                  title: '🌪️ Khử Ồn Triệt Để',
+                  badge: 'Deep Denoise',
+                  desc: 'Loại bỏ tiếng quạt máy, tiếng ve kêu, gió rít, tiếng xe ngoài đường',
+                },
+                {
+                  id: 'voice_boost',
+                  title: '🔊 Kích Giọng & Rõ Âm',
+                  badge: 'Vocal Clarity',
+                  desc: 'Nâng âm lượng lời thì thầm, làm sáng các âm tiết và chữ bị mờ',
+                },
+                {
+                  id: 'broadcast',
+                  title: '📻 Chuẩn Phát Thanh',
+                  badge: 'EBU -16 LUFS',
+                  desc: 'Chuẩn âm lượng quốc tế cho Podcast, Audiobook và YouTube Shorts',
+                },
+              ].map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setEnhancePreset(p.id)}
+                  className={`p-4 rounded-2xl text-left transition-all border cursor-pointer relative ${
+                    enhancePreset === p.id
+                      ? 'bg-amber-500/15 border-amber-400 text-white shadow-lg shadow-amber-950/40 ring-1 ring-amber-400/50'
+                      : 'bg-gray-950/70 border-gray-800/80 text-gray-400 hover:text-white hover:bg-gray-800/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-white">{p.title}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded font-mono bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                      {p.badge}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-400 leading-relaxed">{p.desc}</p>
+                </button>
+              ))}
+            </div>
+
+            {/* Custom fine-tuning toggle */}
+            <div className="mt-3 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setEnhancePreset(p => p === 'custom' ? 'studio' : 'custom')}
+                className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1.5 font-medium cursor-pointer"
+              >
+                <SlidersHorizontal size={14} />
+                <span>{enhancePreset === 'custom' ? 'Quay lại Preset tiêu chuẩn' : 'Tùy chỉnh thông số chuyên sâu (Equalizer & FFT)...'}</span>
+              </button>
+            </div>
+
+            {/* Custom sliders */}
+            {enhancePreset === 'custom' && (
+              <div className="mt-4 p-4 bg-gray-950/90 border border-amber-500/30 rounded-2xl grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <div className="flex justify-between text-xs text-gray-300 mb-1">
+                    <span>Mức Khử Nhiễu (FFT Noise Floor)</span>
+                    <span className="font-mono text-amber-400">-{enhanceDenoise} dB</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="10"
+                    max="45"
+                    value={enhanceDenoise}
+                    onChange={e => setEnhanceDenoise(Number(e.target.value))}
+                    className="w-full accent-amber-500 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-500 mt-0.5">
+                    <span>Nhẹ (-10dB)</span>
+                    <span>Mạnh (-45dB)</span>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-xs text-gray-300 mb-1">
+                    <span>Tăng Âm Trầm (Bass Warmth)</span>
+                    <span className="font-mono text-amber-400">+{enhanceBass} dB</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="6"
+                    step="0.5"
+                    value={enhanceBass}
+                    onChange={e => setEnhanceBass(Number(e.target.value))}
+                    className="w-full accent-amber-500 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-500 mt-0.5">
+                    <span>Tự nhiên</span>
+                    <span>Dày ấm (+6dB)</span>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-xs text-gray-300 mb-1">
+                    <span>Làm Sáng Giọng (Treble Clarity)</span>
+                    <span className="font-mono text-amber-400">+{enhanceTreble} dB</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="6"
+                    step="0.5"
+                    value={enhanceTreble}
+                    onChange={e => setEnhanceTreble(Number(e.target.value))}
+                    className="w-full accent-amber-500 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-500 mt-0.5">
+                    <span>Bình thường</span>
+                    <span>Sắc nét (+6dB)</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* File Upload Zone */}
+          {!enhanceFile ? (
+            <div
+              onClick={() => document.getElementById('enhance-file-input').click()}
+              className="border-2 border-dashed border-gray-700 hover:border-amber-500/60 rounded-3xl p-10 text-center cursor-pointer transition-all bg-gray-950/40 hover:bg-amber-950/10 space-y-3"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
+                <Music size={28} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white">
+                  Kéo thả hoặc nhấp để chọn tệp Âm thanh hoặc Video cần nâng cấp
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Hỗ trợ MP3, WAV, M4A, OGG, AAC, MP4, MOV, MKV, WEBM (Tự động nhận diện)
+                </p>
+              </div>
+              <input
+                id="enhance-file-input"
+                type="file"
+                className="hidden"
+                accept="audio/*,video/*,.mp3,.wav,.m4a,.ogg,.aac,.mp4,.mov,.mkv,.webm"
+                onChange={e => {
+                  if (e.target.files && e.target.files[0]) {
+                    setEnhanceFile(e.target.files[0]);
+                    setEnhanceResult(null);
+                    setEnhanceStatus(null);
+                    setEnhanceError(null);
+                  }
+                }}
+              />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Selected File Card */}
+              <div className="flex items-center justify-between p-4 bg-gray-950/80 border border-gray-800 rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-mono text-xs font-bold uppercase">
+                    {enhanceFile.name.split('.').pop()}
+                  </div>
+                  <div>
+                    <p className="text-xs sm:text-sm font-semibold text-white truncate max-w-xs sm:max-w-md">
+                      {enhanceFile.name}
+                    </p>
+                    <p className="text-[11px] text-gray-400 font-mono">
+                      {(enhanceFile.size / (1024 * 1024)).toFixed(2)} MB
+                    </p>
+                  </div>
+                </div>
+
+                {!enhanceStatus && (
+                  <button
+                    type="button"
+                    onClick={() => { setEnhanceFile(null); setEnhanceResult(null); setEnhanceStatus(null); }}
+                    className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-950/40 rounded-xl transition-all cursor-pointer"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
+
+              {/* Video export options if input is video */}
+              {(enhanceFile.type.startsWith('video/') || /\.(mp4|mov|webm|mkv)$/i.test(enhanceFile.name)) && (
+                <div className="p-3.5 bg-gray-950/60 border border-gray-800 rounded-2xl flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 text-gray-300">
+                    <Film size={16} className="text-amber-400" />
+                    <span>Định dạng đầu ra mong muốn:</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEnhanceFormat('video')}
+                      className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                        enhanceFormat !== 'audio'
+                          ? 'bg-amber-500 text-black shadow'
+                          : 'bg-gray-800 text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      Video MP4 (Giữ nét hình, thay tiếng phòng thu)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEnhanceFormat('audio')}
+                      className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                        enhanceFormat === 'audio'
+                          ? 'bg-amber-500 text-black shadow'
+                          : 'bg-gray-800 text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      Chỉ lấy file MP3
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Button */}
+              {!enhanceStatus && (
+                <button
+                  type="button"
+                  onClick={handleEnhance}
+                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 text-black font-extrabold text-sm uppercase tracking-wider rounded-2xl transition-all shadow-lg shadow-amber-950/40 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Wand2 size={18} />
+                  <span>Bắt Đầu Nâng Cấp Chuẩn Phòng Thu</span>
+                </button>
+              )}
+
+              {/* Processing Progress */}
+              {enhanceStatus === 'processing' && (
+                <div className="p-5 bg-gray-950 border border-amber-800/40 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between text-xs text-gray-300">
+                    <div className="flex items-center gap-2">
+                      <Loader2 size={16} className="animate-spin text-amber-400" />
+                      <span className="font-semibold text-amber-300">
+                        Đang áp dụng bộ lọc FFT Denoise, Dynamic Compressor và Loudnorm...
+                      </span>
+                    </div>
+                    <span className="font-mono font-bold text-amber-400">{enhanceProgress}%</span>
+                  </div>
+                  <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-amber-500 to-rose-500 h-full rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${enhanceProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Error */}
+              {enhanceError && (
+                <div className="p-4 bg-red-950/40 border border-red-800/60 rounded-2xl text-xs text-red-300 flex items-center gap-3">
+                  <AlertCircle size={18} className="shrink-0 text-red-400" />
+                  <span>{enhanceError}</span>
+                </div>
+              )}
+
+              {/* Result Preview & Download */}
+              {enhanceResult && (
+                <div className="p-5 bg-gray-950/90 border border-green-500/40 rounded-2xl space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-green-400 font-bold text-sm">
+                      <CheckCircle2 size={18} />
+                      <span>Xử lý âm thanh hoàn tất!</span>
+                    </div>
+                    <span className="text-[11px] font-mono text-gray-400 bg-gray-900 px-2 py-0.5 rounded border border-gray-800">
+                      {enhanceResult.outputType === 'video' ? 'Video MP4 Studio Audio' : 'Audio MP3 Studio'}
+                    </span>
+                  </div>
+
+                  {/* Player Preview */}
+                  <div className="p-3 bg-gray-900 rounded-xl border border-gray-800">
+                    {enhanceResult.outputType === 'video' ? (
+                      <video
+                        src={enhanceResult.viewUrl || `${API}/outputs/${enhanceResult.file}`}
+                        controls
+                        className="w-full max-h-72 rounded-lg bg-black"
+                      />
+                    ) : (
+                      <audio
+                        src={enhanceResult.viewUrl || `${API}/outputs/${enhanceResult.file}`}
+                        controls
+                        className="w-full"
+                      />
+                    )}
+                  </div>
+
+                  {/* Download Card */}
+                  <ResultDownload
+                    result={enhanceResult}
+                    onReset={() => {
+                      setEnhanceFile(null);
+                      setEnhanceResult(null);
+                      setEnhanceStatus(null);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 4: AI Voice Studio (VieNeu-TTS & CIT Voice Studio Style) */}
+      {tab === 'tts' && (
+        <AiVoiceStudio />
       )}
 
       {/* Output Display Panel (Shared for both Record & Upload) */}

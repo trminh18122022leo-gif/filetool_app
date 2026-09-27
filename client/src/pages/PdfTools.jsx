@@ -6,7 +6,7 @@ import {
   Minimize2, FileOutput, RotateCw, Stamp, Lock, Unlock, Moon, BookOpen,
   FileCode2, ScanLine, Scale, Globe, ArrowUpDown, Crop, FileSpreadsheet,
   Presentation, ImagePlus, Layers, Archive, Wrench, RefreshCw, CheckCircle2,
-  Download, AlertCircle, Sparkles, Sliders, Image as ImageIcon, Eye
+  Download, AlertCircle, Sparkles, Sliders, Image as ImageIcon, Eye, ShieldAlert
 } from 'lucide-react';
 import FileDropzone   from '../components/FileDropzone';
 import ProgressBar    from '../components/ProgressBar';
@@ -21,6 +21,7 @@ const TABS = [
   { id: 'sign',          label: 'Ký PDF',              icon: PenTool,          special: true },
   { id: 'delete',        label: 'Xóa trang',           icon: Trash2,           special: true },
   { id: 'reorder',       label: 'Sắp xếp trang',       icon: ArrowUpDown,      special: true },
+  { id: 'redact',        label: 'AI Che Bảo Mật (PII)',icon: ShieldAlert,      special: true },
 
   // ── Nhóm Chuyển Đổi Nâng Cao (Advanced Conversions) ──
   { id: 'to-markdown',   label: 'PDF → Markdown',      icon: FileCode2,        multiple: false, accept: '.pdf' },
@@ -107,6 +108,7 @@ export default function PdfTools() {
     if (id === 'sign') return navigate('/signature');
     if (id === 'delete') return navigate('/pdf/delete');
     if (id === 'reorder') return navigate('/pdf/organize');
+    if (id === 'redact') return navigate('/pdf/redact');
     setActiveTab(id);
     reset();
   };

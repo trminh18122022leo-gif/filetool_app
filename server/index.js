@@ -125,9 +125,12 @@ const defaultAllowedOrigins = [
   'http://localhost:3030',
   'http://127.0.0.1:3030',
   'http://localhost:5173',
-  'http://localhost:3000',
-  'http://localhost:3002',
   'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:3002',
+  'http://127.0.0.1:3002',
+  'https://filetool-app.vercel.app',
 ].filter(Boolean);
 
 if (process.env.ALLOWED_ORIGINS) {
@@ -143,16 +146,13 @@ app.use(cors({
     if (origin.startsWith('filetools://') || origin.startsWith('com.filetools.pro://')) {
       return callback(null, true);
     }
-    if (defaultAllowedOrigins.includes(origin)) {
+    // Cho phép tất cả các cổng local (localhost, 127.0.0.1) và preview deployments Vercel
+    if (
+      defaultAllowedOrigins.includes(origin) ||
+      /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
+      /^https:\/\/([a-zA-Z0-9_-]+\.)?vercel\.app$/.test(origin)
+    ) {
       return callback(null, true);
-    }
-    // Cho phép các preview deployments tương ứng nếu CLIENT_URL là domain vercel
-    if (process.env.CLIENT_URL && process.env.CLIENT_URL.includes('.vercel.app')) {
-      const baseApp = process.env.CLIENT_URL.replace(/^https?:\/\//, '').replace(/\.vercel\.app.*$/, '');
-      const escapedBase = baseApp.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      if (new RegExp(`^https:\\/\\/(${escapedBase}|${escapedBase}-[a-zA-Z0-9_-]+)\\.vercel\\.app$`).test(origin)) {
-        return callback(null, true);
-      }
     }
     return callback(null, false);
   },
@@ -238,6 +238,7 @@ app.use('/api/ai', toolRateLimit, validateUploadedFiles, require('./routes/ai.ro
 app.use('/api/convert', toolRateLimit, validateUploadedFiles, require('./routes/convert.routes'));
 app.use('/api/creative', toolRateLimit, validateUploadedFiles, require('./routes/creative.routes'));
 app.use('/api/speech', toolRateLimit, validateUploadedFiles, require('./routes/speech.routes'));
+app.use('/api/video-translate', toolRateLimit, validateUploadedFiles, require('./routes/videotranslate.routes'));
 
 // Download file kết quả local an toàn (chống Directory Traversal tuyệt đối)
 app.get('/api/download/:filename', (req, res) => {
