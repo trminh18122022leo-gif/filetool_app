@@ -120,15 +120,6 @@ export default function Dashboard() {
           >
             <Home size={14} /> Trang chủ
           </button>
-
-          {user?.plan === 'free' && (
-            <a
-              href="/pricing"
-              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-purple-900/40 shrink-0"
-            >
-              <Sparkles size={14} /> Nâng cấp Pro
-            </a>
-          )}
         </div>
       </div>
 

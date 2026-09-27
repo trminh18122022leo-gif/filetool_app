@@ -75,8 +75,13 @@ export default function Pricing() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body:    JSON.stringify({ planName: planId }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Khởi tạo thanh toán thất bại');
+      const text = await res.text();
+      let data = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (_) {}
+
+      if (!res.ok) throw new Error(data.error || 'Cổng thanh toán đang được bảo trì nâng cấp.');
 
       if (data.url) {
         window.location.href = data.url;

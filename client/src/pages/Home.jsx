@@ -3,8 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   FileText, Image, Archive, Sparkles,
-  FileOutput, ScanText, PenLine, Layers,
-  QrCode, Mic, Upload, ArrowUpRight, CheckCircle2, Lock, Zap, FileCode, ChevronDown
+  FileOutput, ScanText, PenLine, Layers, Film,
+  QrCode, Mic, Upload, ArrowUpRight, CheckCircle2, Lock, Zap, FileCode, ChevronDown, Wand2
 } from 'lucide-react';
 
 const TOOL_GROUPS = [
@@ -15,8 +15,8 @@ const TOOL_GROUPS = [
     to: '/pdf',
     accentColor: 'text-amber-400',
     haloColor: 'hover:shadow-[0_20px_45px_rgba(245,158,11,0.18)] hover:border-amber-400/40',
-    desc: 'Gộp, tách, nén và bảo vệ tài liệu PDF chỉ trong vài giây.',
-    tools: ['Merge', 'Split', 'Compress', 'Rotate', 'Watermark', 'Protect'],
+    desc: 'Gộp, tách, nén, che thông tin nhạy cảm PII và bảo vệ tài liệu PDF.',
+    tools: ['Merge', 'Split', 'AI Che PII', 'Compress', 'Watermark', 'Protect'],
   },
   {
     id: 'image',
@@ -25,8 +25,18 @@ const TOOL_GROUPS = [
     to: '/image',
     accentColor: 'text-rose-400',
     haloColor: 'hover:shadow-[0_20px_45px_rgba(251,113,133,0.18)] hover:border-rose-400/40',
-    desc: 'Chuyển đổi, thay đổi kích thước và tối ưu hình ảnh hàng loạt.',
-    tools: ['Convert', 'Resize', 'Compress', 'Crop', 'Filter', 'Remove BG'],
+    desc: 'Chuyển đổi, vector hóa SVG vô hạn, xóa nền và tối ưu ảnh.',
+    tools: ['Vectorize SVG', 'Remove BG', 'Resize', 'Compress', 'Crop', 'Filter'],
+  },
+  {
+    id: 'creative',
+    label: 'Creative & Media AI',
+    icon: Wand2,
+    to: '/creative',
+    accentColor: 'text-pink-400',
+    haloColor: 'hover:shadow-[0_20px_45px_rgba(236,72,153,0.22)] hover:border-pink-400/50',
+    desc: 'AI Viral Shorts & TikTok Clipper, Tách lời & Beat Karaoke, Trích màu, Watermark, Collage.',
+    tools: ['Viral Shorts 9:16', 'Tách Beat & Lời', 'Trích màu', 'Watermark', 'Ghép ảnh', 'Mã vạch'],
   },
   {
     id: 'editor',
@@ -97,6 +107,16 @@ const TOOL_GROUPS = [
     haloColor: 'hover:shadow-[0_20px_45px_rgba(244,63,94,0.18)] hover:border-rose-400/40',
     desc: 'Ghi âm trực tiếp hoặc tải lên để chuyển thành văn bản.',
     tools: ['Ghi âm trực tiếp', 'MP3/WAV/MP4', 'Xuất PDF / SRT / TXT'],
+  },
+  {
+    id: 'video-translate',
+    label: 'Video Translate Pro',
+    icon: Film,
+    to: '/video-translate',
+    accentColor: 'text-amber-400',
+    haloColor: 'hover:shadow-[0_20px_45px_rgba(245,158,11,0.22)] hover:border-amber-400/50',
+    desc: 'Dịch phụ đề đa ngữ (VEED-style) & lồng tiếng AI Audio Ducking (HeyGen-style).',
+    tools: ['Phụ đề tự động', 'Biên tập trực quan', 'Lồng tiếng AI', 'Audio Ducking', 'Ép Sub'],
   },
   {
     id: 'batch',
@@ -261,11 +281,10 @@ export default function Home() {
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`liquid-glass-card specular-sheen p-6 sm:p-8 cursor-pointer text-center relative group transition-all duration-300 ${
-                  dragOver
+                className={`liquid-glass-card specular-sheen p-6 sm:p-8 cursor-pointer text-center relative group transition-all duration-300 ${dragOver
                     ? 'border-amber-400 bg-amber-500/10 scale-[1.02] shadow-[0_0_35px_rgba(245,158,11,0.3)]'
                     : ''
-                }`}
+                  }`}
               >
                 <input
                   ref={fileInputRef}
@@ -332,82 +351,82 @@ export default function Home() {
           </div>
         </section>
 
-      {/* ── 2. INFINITE MARQUEE TICKER (Jacob & Co Editorial) ── */}
-      <section className="py-2 border-y border-white/10 bg-black/40 backdrop-blur-xl -mx-4 sm:-mx-6 px-4">
-        <div className="marquee-container">
-          <div className="marquee-track py-3 font-mono text-xs uppercase tracking-widest text-gray-400 font-bold">
-            {MARQUEE_ITEMS.concat(MARQUEE_ITEMS).map((item, idx) => (
-              <span key={idx} className="flex items-center gap-8 hover:text-amber-300 transition-colors">
-                <span>{item}</span>
-                <span className="text-amber-400/70 select-none">✦</span>
+        {/* ── 2. INFINITE MARQUEE TICKER (Jacob & Co Editorial) ── */}
+        <section className="py-2 border-y border-white/10 bg-black/40 backdrop-blur-xl -mx-4 sm:-mx-6 px-4">
+          <div className="marquee-container">
+            <div className="marquee-track py-3 font-mono text-xs uppercase tracking-widest text-gray-400 font-bold">
+              {MARQUEE_ITEMS.concat(MARQUEE_ITEMS).map((item, idx) => (
+                <span key={idx} className="flex items-center gap-8 hover:text-amber-300 transition-colors">
+                  <span>{item}</span>
+                  <span className="text-amber-400/70 select-none">✦</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── 3. TOOL LIBRARY (10 Tool Groups) ── */}
+        <section id="tools" className="scroll-mt-24 space-y-8 pb-12">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <div className="space-y-1">
+              <span className="text-xs font-bold tracking-widest uppercase text-amber-400 font-mono">
+                Thư viện công cụ
               </span>
-            ))}
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+                Nhóm công cụ
+              </h2>
+              <p className="text-xs sm:text-sm text-gray-400">
+                13 nhóm chức năng được thiết kế để bạn xử lý mọi loại tệp chỉ trong vài cú nhấp.
+              </p>
+            </div>
+            <div className="shrink-0">
+              <span className="px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold text-gray-300">
+                {TOOL_GROUPS.length} danh mục
+              </span>
+            </div>
           </div>
-        </div>
-      </section>
 
-      {/* ── 3. TOOL LIBRARY (10 Tool Groups) ── */}
-      <section id="tools" className="scroll-mt-24 space-y-8 pb-12">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div className="space-y-1">
-            <span className="text-xs font-bold tracking-widest uppercase text-amber-400 font-mono">
-              Thư viện công cụ
-            </span>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Nhóm công cụ
-            </h2>
-            <p className="text-xs sm:text-sm text-gray-400">
-              10 nhóm chức năng được thiết kế để bạn xử lý mọi loại tệp chỉ trong vài cú nhấp.
-            </p>
-          </div>
-          <div className="shrink-0">
-            <span className="px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold text-gray-300">
-              {TOOL_GROUPS.length} danh mục
-            </span>
-          </div>
-        </div>
+          {/* 10 Tool Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {TOOL_GROUPS.map(({ id, label, icon: Icon, to, accentColor, haloColor, desc, tools }) => (
+              <Link
+                key={id}
+                to={to}
+                className={`liquid-glass-card specular-sheen p-6 flex flex-col justify-between group ${haloColor}`}
+              >
+                <div>
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 group-hover:border-amber-400/40 group-hover:bg-amber-500/10 transition-all duration-300">
+                      <Icon size={24} className={`${accentColor} transition-transform group-hover:scale-110 duration-300`} />
+                    </div>
+                    <div className="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-500 group-hover:text-amber-300 group-hover:border-amber-400/40 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all duration-300">
+                      <ArrowUpRight size={16} />
+                    </div>
+                  </div>
 
-        {/* 10 Tool Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {TOOL_GROUPS.map(({ id, label, icon: Icon, to, accentColor, haloColor, desc, tools }) => (
-            <Link
-              key={id}
-              to={to}
-              className={`liquid-glass-card specular-sheen p-6 flex flex-col justify-between group ${haloColor}`}
-            >
-              <div>
-                <div className="flex items-start justify-between mb-4">
-                  <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 group-hover:border-amber-400/40 group-hover:bg-amber-500/10 transition-all duration-300">
-                    <Icon size={24} className={`${accentColor} transition-transform group-hover:scale-110 duration-300`} />
-                  </div>
-                  <div className="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-500 group-hover:text-amber-300 group-hover:border-amber-400/40 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all duration-300">
-                    <ArrowUpRight size={16} />
-                  </div>
+                  <h3 className="text-lg font-bold text-white group-hover:text-amber-300 transition-colors">
+                    {label}
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-1.5 line-clamp-2 leading-relaxed font-normal">
+                    {desc}
+                  </p>
                 </div>
 
-                <h3 className="text-lg font-bold text-white group-hover:text-amber-300 transition-colors">
-                  {label}
-                </h3>
-                <p className="text-xs text-gray-400 mt-1.5 line-clamp-2 leading-relaxed font-normal">
-                  {desc}
-                </p>
-              </div>
-
-              {/* Sub-tool tags */}
-              <div className="flex flex-wrap gap-1.5 mt-5 pt-4 border-t border-white/5">
-                {tools.map((t, idx) => (
-                  <span
-                    key={idx}
-                    className="text-[11px] bg-white/5 text-gray-400 px-2.5 py-1 rounded-lg border border-white/5 group-hover:border-white/15 group-hover:text-gray-200 transition-all"
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
+                {/* Sub-tool tags */}
+                <div className="flex flex-wrap gap-1.5 mt-5 pt-4 border-t border-white/5">
+                  {tools.map((t, idx) => (
+                    <span
+                      key={idx}
+                      className="text-[11px] bg-white/5 text-gray-400 px-2.5 py-1 rounded-lg border border-white/5 group-hover:border-white/15 group-hover:text-gray-200 transition-all"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
       </div>
     </>
   );

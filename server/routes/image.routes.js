@@ -4,6 +4,7 @@ const express  = require('express');
 const router   = express.Router();
 const upload   = require('../middleware/upload');
 const imageSvc = require('../services/image.service');
+const vectorizeSvc = require('../services/vectorize.service');
 const { respondFile } = require('../utils/cloudRespond');
 
 let optionalAuth = (req, res, next) => next();
@@ -73,6 +74,34 @@ router.post('/remove-object', optionalAuth, upload.any(), wrap(async (req, res) 
 
   const out = await imageSvc.removeObject(file.path, maskInput);
   await respondFile(req, res, out, 'remove-object');
+}));
+
+// Vector hóa ảnh (Raster to SVG Vectorizer)
+router.post('/vectorize', optionalAuth, upload.single('file'), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Thiếu file ảnh để chuyển đổi vector' });
+  const {
+    mode = 'monochrome',
+    color = '#000000',
+    background = '',
+    threshold = 128,
+    steps = 4,
+    turdSize = 2,
+    optCurve = 'true'
+  } = req.body;
+
+  const out = await vectorizeSvc.vectorizeImage(req.file.path, {
+    mode,
+    color,
+    background,
+    threshold: Number(threshold),
+    steps: Number(steps),
+    turdSize: Number(turdSize),
+    optCurve: optCurve === 'true' || optCurve === true
+  });
+
+  await respondFile(req, res, out.svgPath, 'image-vectorize', {
+    svgContent: out.svgContent
+  });
 }));
 
 module.exports = router;

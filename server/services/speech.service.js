@@ -39,11 +39,18 @@ const LANG_MAP = {
   auto: 'auto-detect',
 };
 
+function getSingleKey(rawKey) {
+  if (!rawKey) return '';
+  const parts = String(rawKey).split(',').map(s => s.trim()).filter(Boolean);
+  if (!parts.length) return '';
+  return parts[Math.floor(Math.random() * parts.length)];
+}
+
 // ── Transcribe bằng Groq Whisper (Rất nhanh & Hoàn toàn miễn phí) ────────────
 
 async function transcribeWithGroq(filePath, opts = {}) {
   const { language = 'vi', withTimestamps = false } = opts;
-  const key = process.env.GROQ_API_KEY;
+  const key = getSingleKey(process.env.GROQ_API_KEY);
   if (!key) throw new Error('GROQ_API_KEY chưa được cấu hình trong .env');
 
   const fileBytes = fs.readFileSync(filePath);
@@ -110,7 +117,7 @@ async function transcribeWithGroq(filePath, opts = {}) {
 
 async function transcribeWithGemini(filePath, opts = {}) {
   const { language = 'vi', withTimestamps = false } = opts;
-  const key = process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_API_KEY;
+  const key = getSingleKey(process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_API_KEY);
   if (!key) throw new Error('GOOGLE_AI_API_KEY chưa được cấu hình trong .env');
 
   const audioBytes = fs.readFileSync(filePath);
