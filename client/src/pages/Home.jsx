@@ -212,7 +212,7 @@ export default function Home() {
             <div className="lg:col-span-7 space-y-6 text-left">
               <div className="luxury-badge">
                 <Sparkles size={13} className="text-amber-400" />
-                <span>FileTools Pro Full-Stack 2.0</span>
+                <span>FileTools v1.1.3</span>
               </div>
 
               <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight leading-[1.08] text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.3)]">
