@@ -282,8 +282,8 @@ export default function Home() {
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 className={`liquid-glass-card specular-sheen p-6 sm:p-8 cursor-pointer text-center relative group transition-all duration-300 ${dragOver
-                    ? 'border-amber-400 bg-amber-500/10 scale-[1.02] shadow-[0_0_35px_rgba(245,158,11,0.3)]'
-                    : ''
+                  ? 'border-amber-400 bg-amber-500/10 scale-[1.02] shadow-[0_0_35px_rgba(245,158,11,0.3)]'
+                  : ''
                   }`}
               >
                 <input
@@ -376,7 +376,7 @@ export default function Home() {
                 Nhóm công cụ
               </h2>
               <p className="text-xs sm:text-sm text-gray-400">
-                13 nhóm chức năng được thiết kế để bạn xử lý mọi loại tệp chỉ trong vài cú nhấp.
+                13 nhóm chức năng được thiết kế để bạn xử lý mọi loại tệp.
               </p>
             </div>
             <div className="shrink-0">
