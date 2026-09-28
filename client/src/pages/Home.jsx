@@ -39,6 +39,16 @@ const TOOL_GROUPS = [
     tools: ['Viral Shorts 9:16', 'Tách Beat & Lời', 'Trích màu', 'Watermark', 'Ghép ảnh', 'Mã vạch'],
   },
   {
+    id: 'video',
+    label: 'Video Studio & BotocIT',
+    icon: Film,
+    to: '/video',
+    accentColor: 'text-purple-400',
+    haloColor: 'hover:shadow-[0_20px_45px_rgba(168,85,247,0.22)] hover:border-purple-400/50',
+    desc: 'Gỡ watermark Google Flow / Veo 3, Video Người Que 2D và 20 công cụ CapCut + Adobe + DaVinci.',
+    tools: ['Gỡ Watermark Flow', 'Người Que 2D AI', 'Cắt & Ghép xfade', 'Nén CRF', 'Chỉnh màu LUT', 'Chống rung'],
+  },
+  {
     id: 'editor',
     label: 'Advanced Editor',
     icon: FileCode,

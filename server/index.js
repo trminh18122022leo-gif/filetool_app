@@ -239,6 +239,7 @@ app.use('/api/convert', toolRateLimit, validateUploadedFiles, require('./routes/
 app.use('/api/creative', toolRateLimit, validateUploadedFiles, require('./routes/creative.routes'));
 app.use('/api/speech', toolRateLimit, validateUploadedFiles, require('./routes/speech.routes'));
 app.use('/api/video-translate', toolRateLimit, validateUploadedFiles, require('./routes/videotranslate.routes'));
+app.use('/api/video', toolRateLimit, validateUploadedFiles, require('./routes/video.routes'));
 
 // Download file kết quả local an toàn (chống Directory Traversal tuyệt đối)
 app.get('/api/download/:filename', (req, res) => {

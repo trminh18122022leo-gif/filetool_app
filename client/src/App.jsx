@@ -10,7 +10,7 @@ import SolitudeSkyBackground from './components/backgrounds/SolitudeSkyBackgroun
 import { useAuth } from './context/AuthContext';
 import {
   FileText, Image, Sparkles, Layers,
-  ScanText, Archive, QrCode, ArrowRightLeft, Wand2, FileCode, Menu, X
+  ScanText, Archive, QrCode, ArrowRightLeft, Wand2, FileCode, Menu, X, Film
 } from 'lucide-react';
 
 // Code Splitting & Lazy Loading for all 26 secondary pages
@@ -37,6 +37,7 @@ const SignaturePage  = lazy(() => import('./pages/SignaturePage'));
 const BatchTools     = lazy(() => import('./pages/BatchTools'));
 const SpeechToText   = lazy(() => import('./pages/SpeechToText'));
 const VideoTranslate = lazy(() => import('./pages/VideoTranslate'));
+const VideoTools     = lazy(() => import('./pages/VideoTools'));
 const ApiDocs        = lazy(() => import('./pages/ApiDocs'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword  = lazy(() => import('./pages/ResetPassword'));
@@ -59,6 +60,7 @@ const NAV = [
   { path: '/image',     label: 'Hình ảnh',  icon: Image },
   { path: '/convert',   label: 'Convert',   icon: ArrowRightLeft },
   { path: '/creative',  label: 'Creative',  icon: Wand2 },
+  { path: '/video',     label: 'Video',     icon: Film },
   { path: '/office',    label: 'Office',    icon: Layers },
   { path: '/ai',        label: 'AI Tools',  icon: Sparkles },
   { path: '/editor',    label: 'Editor',    icon: FileCode },
@@ -222,6 +224,7 @@ export default function App() {
             <Route path="/batch" element={<BatchTools />} />
             <Route path="/speech" element={<SpeechToText />} />
             <Route path="/video-translate" element={<VideoTranslate />} />
+            <Route path="/video" element={<VideoTools />} />
             <Route path="/pricing" element={<Navigate to="/" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
