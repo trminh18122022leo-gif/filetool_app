@@ -16,6 +16,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const { v4: uuidv4 } = require('uuid');
+const { getPopplerBinary, pdfToImages } = require('../utils/binaries');
 
 const OUT_DIR = path.resolve('outputs');
 if (!fs.existsSync(OUT_DIR)) {
@@ -66,7 +67,8 @@ async function scanPdfForPII(pdfPath, options = {}) {
   // 1. Chạy pdftotext -tsv để lấy toạ độ từng từ
   let tsvOutput = '';
   try {
-    tsvOutput = execFileSync('pdftotext', ['-tsv', '--', pdfPath, '-'], {
+    const pdftotextBin = getPopplerBinary('pdftotext');
+    tsvOutput = execFileSync(pdftotextBin, ['-tsv', '--', pdfPath, '-'], {
       maxBuffer: 20 * 1024 * 1024,
       windowsHide: true,
     }).toString('utf-8');
@@ -197,6 +199,10 @@ async function scanPdfForPII(pdfPath, options = {}) {
  * Thực hiện che giấu thông tin nhạy cảm trên PDF
  */
 async function redactPdf(pdfPath, redactions = [], options = {}) {
+  if (!Array.isArray(redactions) && typeof redactions === 'object' && redactions !== null) {
+    options = redactions;
+    redactions = options.redactions || [];
+  }
   const {
     fillColor = 'black',     // 'black' | 'white' | 'gray'
     stampLabel = '',          // Ví dụ: '[ĐÃ CHE BẢO MẬT]'
@@ -286,26 +292,17 @@ async function redactPdf(pdfPath, redactions = [], options = {}) {
   const modifiedBytes = await doc.save();
   fs.writeFileSync(tempPath, modifiedBytes);
 
-  // Nếu người dùng chọn Flatten (Loại bỏ 100% text ngầm bằng pdftoppm)
+  // Nếu người dùng chọn Flatten (Loại bỏ 100% text ngầm bằng pdftoppm / ghostscript)
   if (flatten) {
     const flatDir = path.join(OUT_DIR, `flat_temp_${uid}`);
     try {
       fs.mkdirSync(flatDir, { recursive: true });
-      const prefix = path.join(flatDir, 'page');
-      execFileSync('pdftoppm', ['-png', '-r', '150', '--', tempPath, prefix], { windowsHide: true });
+      const files = await pdfToImages(tempPath, flatDir, { format: 'png', dpi: 150 });
 
       // Gom các ảnh lại vào PDF mới
       const newDoc = await PDFDocument.create();
-      const files = fs.readdirSync(flatDir)
-        .filter(f => f.endsWith('.png'))
-        .sort((a, b) => {
-          const numA = parseInt(a.match(/-(\d+)\.png$/)?.[1] || '0', 10);
-          const numB = parseInt(b.match(/-(\d+)\.png$/)?.[1] || '0', 10);
-          return numA - numB;
-        });
 
-      for (const imgName of files) {
-        const imgPath = path.join(flatDir, imgName);
+      for (const imgPath of files) {
         const imgBytes = fs.readFileSync(imgPath);
         const embeddedImg = await newDoc.embedPng(imgBytes);
         const newPage = newDoc.addPage([embeddedImg.width * 72 / 150, embeddedImg.height * 72 / 150]);

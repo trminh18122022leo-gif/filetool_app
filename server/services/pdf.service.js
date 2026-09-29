@@ -5,16 +5,9 @@ const { execFileSync } = require('child_process');
 const path = require('path');
 const fs   = require('fs');
 const { v4: uuidv4 } = require('uuid');
+const { getGsExecutable, getLoExecutable } = require('../utils/binaries');
 
 const OUT = path.resolve('outputs');
-
-function getLoExecutable() {
-  if (process.platform === 'win32') {
-    const winPath = 'C:\\Program Files\\LibreOffice\\program\\soffice.exe';
-    if (fs.existsSync(winPath)) return winPath;
-  }
-  return 'libreoffice';
-}
 
 // Helper: Chạy command trực tiếp bằng execFileSync (không qua shell, chống command injection)
 function runSafe(executable, args = []) {
@@ -96,7 +89,7 @@ async function compressPDF(filePath, quality = 'ebook') {
   const setting = qualities[quality] || qualities.ebook;
   const outPath = path.join(OUT, `compressed_${uuidv4()}.pdf`);
 
-  const gsCmd = process.platform === 'win32' ? 'gswin64c' : 'gs';
+  const gsCmd = getGsExecutable();
   const args = [
     '-sDEVICE=pdfwrite',
     '-dCompatibilityLevel=1.4',

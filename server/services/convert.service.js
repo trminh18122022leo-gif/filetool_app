@@ -8,6 +8,7 @@ const { execFileSync }  = require('child_process');
 const pdfParse          = require('pdf-parse');
 const sharp             = require('sharp');
 const { withPage }      = require('../utils/browser');
+const { pdfToImages: extractPdfPages } = require('../utils/binaries');
 const path              = require('path');
 const fs                = require('fs');
 const archiver          = require('archiver');
@@ -83,22 +84,13 @@ async function imagesToPdf(filePaths, opts = {}) {
 
 async function pdfToImages(pdfPath, opts = {}) {
   const { format = 'jpg', dpi = 150 } = opts;
-  const gsDev  = format === 'png' ? 'png16m' : 'jpeg';
   const ext    = format === 'png' ? 'png'    : 'jpg';
 
   const tmpDir = path.resolve('uploads/p2i_' + uuidv4());
   fs.mkdirSync(tmpDir, { recursive: true });
 
-  const gsCmd = process.platform === 'win32' ? 'gswin64c' : 'gs';
-  runSafe(gsCmd, [
-    '-dNOPAUSE', '-dBATCH', '-dQUIET',
-    `-sDEVICE=${gsDev}`,
-    `-r${dpi}`,
-    `-sOutputFile=${tmpDir}/page_%04d.${ext}`,
-    pdfPath,
-  ]);
-
-  const images = fs.readdirSync(tmpDir).filter(f => f.endsWith('.' + ext)).sort();
+  const imageFiles = await extractPdfPages(pdfPath, tmpDir, { format, dpi });
+  const images = imageFiles.map(fp => path.basename(fp));
   if (!images.length) throw new Error('Không tạo được ảnh từ file PDF.');
 
   const zipPath = path.join(OUT, 'pdf2img_' + uuidv4() + '.zip');

@@ -1,27 +1,19 @@
 'use strict';
 
-const { execFileSync } = require('child_process');
 const { PDFDocument } = require('pdf-lib');
 const sharp = require('sharp');
 const path  = require('path');
 const fs    = require('fs');
 const { v4: uuidv4 } = require('uuid');
+const { pdfToImages } = require('../utils/binaries');
 
 const OUT = path.resolve('outputs');
-
-function runSafe(executable, args = []) {
-  try {
-    return execFileSync(executable, args, { stdio: 'pipe' });
-  } catch (err) {
-    throw new Error(`Lệnh thực thi thất bại: ${executable} ${args.join(' ')}\nChi tiết: ${err.stderr?.toString() || err.message}`);
-  }
-}
 
 /**
  * Chuyển PDF sang nền tối (Dark Mode).
  * 
  * Pipeline:
- * 1. Ghostscript render từng trang thành PNG
+ * 1. pdftoppm / Ghostscript render từng trang thành PNG
  * 2. Sharp negate màu (đảo sáng <-> tối) + điều chỉnh tương phản
  * 3. pdf-lib gom các trang đã xử lý thành PDF mới
  */
@@ -33,20 +25,11 @@ async function convertToDarkMode(filePath, opts = {}) {
   const pageDir = path.join(OUT, `dark_tmp_${tmpId}`);
   fs.mkdirSync(pageDir, { recursive: true });
 
-  const gsCmd = process.platform === 'win32' ? 'gswin64c' : 'gs';
-  runSafe(gsCmd, [
-    '-dNOPAUSE', '-dBATCH', '-dQUIET',
-    '-sDEVICE=png16m',
-    '-r200',
-    `-sOutputFile=${path.join(pageDir, 'page_%04d.png')}`,
-    filePath,
-  ]);
-
-  const pageFiles = fs.readdirSync(pageDir).sort();
+  const pageFiles = await pdfToImages(filePath, pageDir, { format: 'png', dpi: 200 });
   const newPdf    = await PDFDocument.create();
 
   for (const pf of pageFiles) {
-    const rawPng = path.join(pageDir, pf);
+    const rawPng = pf;
 
     // Đảo màu bằng sharp: trắng -> đen, đen -> trắng
     let img = sharp(rawPng).negate({ alpha: false });
