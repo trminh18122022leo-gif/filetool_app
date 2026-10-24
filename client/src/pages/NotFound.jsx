@@ -1,9 +1,15 @@
 import { Link } from 'react-router-dom';
 import { Home, AlertTriangle } from 'lucide-react';
+import MetaTags from '../components/seo/MetaTags';
 
 export default function NotFound() {
   return (
     <div className="min-h-[65vh] flex items-center justify-center p-6 text-center">
+      <MetaTags
+        title="404 — Không Tìm Thấy Trang"
+        description="Trang bạn tìm kiếm không tồn tại trên hệ sinh thái FileTools Pro."
+        noIndex={true}
+      />
       <div className="max-w-md w-full space-y-5">
         <div className="w-16 h-16 bg-red-950/50 border border-red-800/40 rounded-3xl flex items-center justify-center mx-auto text-red-400">
           <AlertTriangle size={32} />

@@ -137,6 +137,15 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
+    if (typeof window !== 'undefined' && 'caches' in window) {
+      caches.keys().then(names => {
+        for (const name of names) {
+          if (name.includes('api') || name.includes('user')) {
+            caches.delete(name);
+          }
+        }
+      }).catch(() => {});
+    }
     fetch(`${API}/api/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
   };
 
@@ -145,6 +154,15 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
+    if (typeof window !== 'undefined' && 'caches' in window) {
+      caches.keys().then(names => {
+        for (const name of names) {
+          if (name.includes('api') || name.includes('user')) {
+            caches.delete(name);
+          }
+        }
+      }).catch(() => {});
+    }
     await fetch(`${API}/api/auth/logout-all`, { method: 'POST', credentials: 'include' }).catch(() => {});
   };
 

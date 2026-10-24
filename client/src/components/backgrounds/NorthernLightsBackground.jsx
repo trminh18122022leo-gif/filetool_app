@@ -38,9 +38,17 @@ export default function NorthernLightsBackground({ className = '' }) {
     const rayCount = 26;
     let t = 0;
 
+    const prefersReducedMotion = () =>
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
     const render = () => {
-      // Nếu đang ở chế độ sáng, tạm ngưng vẽ canvas để tiết kiệm pin/GPU
-      if (document.documentElement.classList.contains('light')) {
+      // 1. Tạm dừng hoàn toàn nếu tab ẩn, chế độ sáng, hoặc người dùng yêu cầu giảm chuyển động (prefers-reduced-motion)
+      if (
+        document.hidden ||
+        document.documentElement.classList.contains('light') ||
+        prefersReducedMotion()
+      ) {
         animId = requestAnimationFrame(render);
         return;
       }

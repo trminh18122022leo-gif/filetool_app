@@ -3,6 +3,7 @@
 const express      = require('express');
 const router       = express.Router();
 const upload       = require('../middleware/upload');
+const authSvc      = require('../services/auth.service');
 const creativeSvc  = require('../services/creative.service');
 const { respondFile } = require('../utils/cloudRespond');
 
@@ -87,9 +88,16 @@ router.post('/viral-shorts/detect', optionalAuth, freeModeUpgrade, upload.single
   if (req.file) {
     videoPath = req.file.path;
     videoFilename = req.file.filename;
-  } else if (req.body.videoFilename) {
-    const safeName = path.basename(req.body.videoFilename);
-    videoPath = path.join(UPLOAD_DIR, safeName);
+  } else if (req.body.videoFilename || req.body.fileId) {
+    const target = req.body.fileId || req.body.videoFilename;
+    const safeName = path.basename(target);
+    if (safeName !== target || safeName.includes('..') || target.includes('/') || target.includes('\\')) {
+      return res.status(400).json({ error: 'Định danh file không hợp lệ hoặc nghi vấn path traversal', code: 'PATH_TRAVERSAL_DETECTED' });
+    }
+    videoPath = path.resolve(UPLOAD_DIR, safeName);
+    if (!videoPath.startsWith(UPLOAD_DIR)) {
+      return res.status(403).json({ error: 'Đường dẫn file ngoài phạm vi cho phép', code: 'FORBIDDEN_FILE_PATH' });
+    }
     videoFilename = safeName;
     if (!fs.existsSync(videoPath)) {
       return res.status(404).json({ error: 'Video gốc không tồn tại trong hệ thống' });
@@ -101,10 +109,13 @@ router.post('/viral-shorts/detect', optionalAuth, freeModeUpgrade, upload.single
   const { language = 'auto' } = req.body;
   const scanResult = await viralClipperSvc.detectHighlights(videoPath, { language });
 
+  const downloadToken = authSvc.signDownloadToken(videoFilename, req.user?._id ? String(req.user._id) : 'anonymous', '2h');
+
   res.json({
     success: true,
+    fileId: videoFilename,
     videoFilename,
-    videoUrl: `/uploads/${videoFilename}`,
+    videoUrl: `/api/view/${encodeURIComponent(videoFilename)}?token=${encodeURIComponent(downloadToken)}`,
     duration: scanResult.duration,
     detectedLanguage: scanResult.detectedLanguage,
     highlights: scanResult.highlights,
@@ -116,6 +127,7 @@ router.post('/viral-shorts/detect', optionalAuth, freeModeUpgrade, upload.single
 router.post('/viral-shorts/render', optionalAuth, freeModeUpgrade, wrap(async (req, res) => {
   const {
     videoFilename,
+    fileId,
     clip,
     allSegments = [],
     subtitleStyle = 'tiktok',
@@ -123,12 +135,20 @@ router.post('/viral-shorts/render', optionalAuth, freeModeUpgrade, wrap(async (r
     blurBackground = true
   } = req.body;
 
-  if (!videoFilename || !clip) {
-    return res.status(400).json({ error: 'Thiếu thông tin videoFilename hoặc dữ liệu clip cần cắt' });
+  const target = fileId || videoFilename;
+  if (!target || !clip) {
+    return res.status(400).json({ error: 'Thiếu thông tin fileId/videoFilename hoặc dữ liệu clip cần cắt' });
   }
 
-  const safeName = path.basename(videoFilename);
-  const videoPath = path.join(UPLOAD_DIR, safeName);
+  const safeName = path.basename(target);
+  if (safeName !== target || safeName.includes('..') || target.includes('/') || target.includes('\\')) {
+    return res.status(400).json({ error: 'Định danh video không hợp lệ hoặc nghi vấn path traversal', code: 'PATH_TRAVERSAL_DETECTED' });
+  }
+
+  const videoPath = path.resolve(UPLOAD_DIR, safeName);
+  if (!videoPath.startsWith(UPLOAD_DIR)) {
+    return res.status(403).json({ error: 'Đường dẫn video ngoài phạm vi cho phép', code: 'FORBIDDEN_FILE_PATH' });
+  }
 
   if (!fs.existsSync(videoPath)) {
     return res.status(404).json({ error: 'File video gốc không tồn tại' });

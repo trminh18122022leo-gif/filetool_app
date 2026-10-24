@@ -7,6 +7,7 @@
 
 const path = require('path');
 const fs   = require('fs');
+const authSvc = require('../services/auth.service');
 
 let uploadToCloud = null;
 try {
@@ -80,13 +81,18 @@ async function respondFile(req, res, localPath, operation, extra = {}) {
 
   cleanupReqFiles(req, localPath);
 
+  const userId = req.user?._id ? String(req.user._id) : 'anonymous';
+  const downloadToken = authSvc.signDownloadToken(filename, userId, '1h');
+  const tokenQuery = `?token=${encodeURIComponent(downloadToken)}`;
+
   return res.json({
-    success:     true,
-    file:        filename,
-    downloadUrl: `/api/download/${encodeURIComponent(filename)}`,
-    viewUrl:     `/outputs/${encodeURIComponent(filename)}`,
-    dataUrl:     extra.dataUrl || dataUrl,
-    cloud:       false,
+    success:       true,
+    file:          filename,
+    downloadUrl:   `/api/download/${encodeURIComponent(filename)}${tokenQuery}`,
+    viewUrl:       `/api/view/${encodeURIComponent(filename)}${tokenQuery}`,
+    downloadToken,
+    dataUrl:       extra.dataUrl || dataUrl,
+    cloud:         false,
     ...extra,
   });
 }
@@ -128,13 +134,17 @@ async function respondFiles(req, res, localPaths, operation, extra = {}) {
     }
   }
 
+  const userId = req.user?._id ? String(req.user._id) : 'anonymous';
   const records = localPaths.map(p => {
     const fn = path.basename(p);
+    const downloadToken = authSvc.signDownloadToken(fn, userId, '1h');
+    const tokenQuery = `?token=${encodeURIComponent(downloadToken)}`;
     return {
-      file:        fn,
-      downloadUrl: `/api/download/${encodeURIComponent(fn)}`,
-      viewUrl:     `/outputs/${encodeURIComponent(fn)}`,
-      recordId:    null,
+      file:          fn,
+      downloadUrl:   `/api/download/${encodeURIComponent(fn)}${tokenQuery}`,
+      viewUrl:       `/api/view/${encodeURIComponent(fn)}${tokenQuery}`,
+      downloadToken,
+      recordId:      null,
     };
   });
 

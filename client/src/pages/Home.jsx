@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import MetaTags from '../components/seo/MetaTags';
 import {
   FileText, Image, Archive, Sparkles,
   FileOutput, ScanText, PenLine, Layers, Film,
@@ -213,6 +214,11 @@ export default function Home() {
 
   return (
     <>
+      <MetaTags
+        title="Nền Tảng Xử Lý Tệp Tốc Độ Cao & Bảo Mật"
+        description="Nén, chuyển đổi, gộp PDF, ảnh, Office, OCR và AI trực tiếp trên trình duyệt của bạn với tốc độ cao, bảo mật và chuẩn Apple HIG."
+        canonicalPath="/"
+      />
       <div className="space-y-16 py-2 relative z-10">
         {/* ── 1. HERO SECTION ── */}
         {/* ── 1. EDITORIAL HERO SECTION (Ảnh 2) ── */}

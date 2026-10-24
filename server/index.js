@@ -22,13 +22,19 @@ const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
 const slowDown = require('express-slow-down');
 const { execFileSync } = require('child_process');
+const { v4: uuidv4 } = require('uuid');
 
 const { authDB, dataDB, isAuthConnected, isDataConnected } = require('./config/database');
+const { isRedisReady } = require('./queue/connection');
+const { isUrlToPdfEnabled } = require('./utils/ssrfGuard');
+const { isCloudConfigured } = require('./services/storage.service');
 const AuditLog = require('./models/AuditLog');
 const { initSocket } = require('./socket');
 const { cleanupTempFiles } = require('./middleware/cleanup');
 const { apiRateLimit, toolRateLimit, uploadRateLimit } = require('./middleware/rateLimit');
 const { sanitizeBody, detectSuspicious, validateUploadedFiles } = require('./middleware/security');
+const { optionalAuth } = require('./middleware/auth');
+const { validateDownloadAccess } = require('./middleware/accessControl');
 
 // ── Winston Logger ────────────────────────────────────────────────────────────
 const logger = winston.createLogger({
@@ -77,8 +83,47 @@ try {
 
   server.on('upgrade', (request, socket, head) => {
     try {
-      const { pathname } = new URL(request.url, 'http://localhost');
-      if (pathname === '/collab') {
+      const parsedUrl = new URL(request.url, 'http://localhost');
+      if (parsedUrl.pathname === '/collab') {
+        // Trích xuất JWT từ query param hoặc cookie
+        let token = parsedUrl.searchParams.get('token');
+        if (!token && request.headers.cookie) {
+          const match = request.headers.cookie.match(/(?:accessToken|token)=([^;]+)/);
+          if (match) token = match[1];
+        }
+
+        if (!token) {
+          socket.write('HTTP/1.1 401 Unauthorized\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nMissing token for collab\r\n');
+          socket.destroy();
+          return;
+        }
+
+        let decoded;
+        try {
+          const authSvc = require('./services/auth.service');
+          decoded = authSvc.verifyAccessToken(token);
+        } catch (_) {
+          socket.write('HTTP/1.1 401 Unauthorized\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nInvalid or expired token\r\n');
+          socket.destroy();
+          return;
+        }
+
+        // Kiểm tra quyền truy cập phòng (Tenant Boundary & User Isolation)
+        const docName = parsedUrl.searchParams.get('room') || 'default';
+        const userId = decoded.userId || decoded.id;
+
+        // Nếu room có định dạng user_<ownerId>_... hoặc user:<ownerId>:... thì chỉ chủ phòng mới được truy cập
+        if (docName.startsWith('user_') || docName.startsWith('user:')) {
+          const parts = docName.split(/[_:]/);
+          const roomOwnerId = parts[1];
+          if (roomOwnerId && String(roomOwnerId) !== String(userId)) {
+            socket.write('HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nForbidden: cross-user collaboration room access denied\r\n');
+            socket.destroy();
+            return;
+          }
+        }
+
+        request.user = decoded;
         collabWSS.handleUpgrade(request, socket, head, (ws) => {
           collabWSS.emit('connection', ws, request);
         });
@@ -131,6 +176,7 @@ const defaultAllowedOrigins = [
   'http://localhost:3002',
   'http://127.0.0.1:3002',
   'https://filetool-app.vercel.app',
+  'https://filetools-app.vercel.app',
 ].filter(Boolean);
 
 if (process.env.ALLOWED_ORIGINS) {
@@ -213,53 +259,62 @@ app.use((req, res, next) => {
 // 11. Áp dụng Rate Limit chung cho toàn bộ API
 app.use('/api', apiRateLimit);
 
-// ── Static Files ──────────────────────────────────────────────────────────────
-app.use('/outputs', express.static(path.resolve('outputs'), { maxAge: '1h' }));
-app.use('/uploads', express.static(path.resolve('uploads'), { maxAge: '1h' }));
+// 12. Request ID Correlation & Tracing
+app.use((req, res, next) => {
+  const reqId = req.headers['x-request-id'] || uuidv4();
+  req.id = reqId;
+  res.setHeader('X-Request-Id', reqId);
+  next();
+});
+
+// Ghi chú bảo mật: Không serve công khai static thư mục /outputs và /uploads
+// Mọi truy cập file đều bắt buộc qua /api/download/:filename và /api/view/:filename có ACL token.
 
 // ── Routes ───────────────────────────────────────────────────────────────────
+// Durable Distributed Job System
+app.use('/api/jobs', toolRateLimit, require('./routes/job.routes'));
+
 // Auth & User & Billing
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/user', require('./routes/user.routes'));
 app.use('/api/payment', require('./routes/payment.routes'));
 app.use('/api/apikey', require('./routes/apikey.routes'));
 app.use('/api/storage', require('./routes/storage.routes'));
+app.use('/api/workflows', toolRateLimit, require('./routes/workflow.routes'));
 
-// Tool Routes (có gắn toolRateLimit và validateUploadedFiles)
-app.use('/api/pdf', toolRateLimit, validateUploadedFiles, require('./routes/pdf.routes'));
-app.use('/api/image', toolRateLimit, validateUploadedFiles, require('./routes/image.routes'));
-app.use('/api/office', toolRateLimit, validateUploadedFiles, require('./routes/office.routes'));
-app.use('/api/ocr', toolRateLimit, validateUploadedFiles, require('./routes/ocr.routes'));
-app.use('/api/archive', toolRateLimit, validateUploadedFiles, require('./routes/archive.routes'));
-app.use('/api/batch', toolRateLimit, validateUploadedFiles, require('./routes/batch.routes'));
-app.use('/api/qr', toolRateLimit, validateUploadedFiles, require('./routes/qr.routes'));
-app.use('/api/signature', toolRateLimit, validateUploadedFiles, require('./routes/signature.routes'));
-app.use('/api/ai', toolRateLimit, validateUploadedFiles, require('./routes/ai.routes'));
-app.use('/api/convert', toolRateLimit, validateUploadedFiles, require('./routes/convert.routes'));
-app.use('/api/creative', toolRateLimit, validateUploadedFiles, require('./routes/creative.routes'));
-app.use('/api/speech', toolRateLimit, validateUploadedFiles, require('./routes/speech.routes'));
-app.use('/api/video-translate', toolRateLimit, validateUploadedFiles, require('./routes/videotranslate.routes'));
-app.use('/api/video', toolRateLimit, validateUploadedFiles, require('./routes/video.routes'));
+// Tool Routes (bảo vệ bởi toolRateLimit và auto-quarantine validation trong upload middleware)
+app.use('/api/pdf', toolRateLimit, require('./routes/pdf.routes'));
+app.use('/api/image', toolRateLimit, require('./routes/image.routes'));
+app.use('/api/office', toolRateLimit, require('./routes/office.routes'));
+app.use('/api/ocr', toolRateLimit, require('./routes/ocr.routes'));
+app.use('/api/archive', toolRateLimit, require('./routes/archive.routes'));
+app.use('/api/batch', toolRateLimit, require('./routes/batch.routes'));
+app.use('/api/qr', toolRateLimit, require('./routes/qr.routes'));
+app.use('/api/signature', toolRateLimit, require('./routes/signature.routes'));
+app.use('/api/ai', toolRateLimit, require('./routes/ai.routes'));
+app.use('/api/convert', toolRateLimit, require('./routes/convert.routes'));
+app.use('/api/creative', toolRateLimit, require('./routes/creative.routes'));
+app.use('/api/speech', toolRateLimit, require('./routes/speech.routes'));
+app.use('/api/video-translate', toolRateLimit, require('./routes/videotranslate.routes'));
+app.use('/api/video', toolRateLimit, require('./routes/video.routes'));
 
-// Download file kết quả local an toàn (chống Directory Traversal tuyệt đối)
-app.get('/api/download/:filename', (req, res) => {
-  const safeName = path.basename(req.params.filename);
-  const filePath = path.join(path.resolve('outputs'), safeName);
+// Download file kết quả local an toàn có kiểm soát quyền truy cập (ACL / Signed Download Token)
+app.get('/api/download/:filename', optionalAuth, validateDownloadAccess, (req, res) => {
+  const filePath = req.resolvedFilePath || path.join(path.resolve('outputs'), req.safeFilename);
 
   if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'File không tồn tại hoặc đã bị xóa tự động sau 1h' });
+    return res.status(404).json({ error: 'File không tồn tại hoặc đã bị xóa tự động sau 1h', code: 'FILE_NOT_FOUND' });
   }
 
-  res.download(filePath, safeName);
+  res.download(filePath, req.safeFilename);
 });
 
-// View file trực tiếp trong browser (inline image, pdf preview, svg...)
-app.get('/api/view/:filename', (req, res) => {
-  const safeName = path.basename(req.params.filename);
-  const filePath = path.join(path.resolve('outputs'), safeName);
+// View file trực tiếp trong browser có kiểm soát quyền truy cập (ACL / Signed Download Token)
+app.get('/api/view/:filename', optionalAuth, validateDownloadAccess, (req, res) => {
+  const filePath = req.resolvedFilePath || path.join(path.resolve('outputs'), req.safeFilename);
 
   if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'File không tồn tại hoặc đã bị xóa' });
+    return res.status(404).json({ error: 'File không tồn tại hoặc đã bị xóa', code: 'FILE_NOT_FOUND' });
   }
 
   res.sendFile(filePath);
@@ -297,20 +352,89 @@ function checkSystemTools() {
   return systemToolsCache;
 }
 
-// Health check endpoint
+// Health check endpoint (Hardened S-19: reflects actual DB connection state)
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
+  const authOk = isAuthConnected();
+  const dataOk = isDataConnected();
+  const isHealthy = authOk || dataOk;
+  res.status(isHealthy ? 200 : 503).json({
+    status: isHealthy ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     systemTools: checkSystemTools(),
     database: {
-      authConnected: isAuthConnected(),
-      dataConnected: isDataConnected(),
+      authConnected: authOk,
+      dataConnected: dataOk,
       mode: process.env.DATA_DB_URI || process.env.MONGODB_DATA_URI ? 'Dual-Cluster (Separated DB)' : 'Single-Cluster (Unified DB)',
     },
   });
 });
+
+// ── Health & Observability Endpoints (Reliability Spec) ───────────────────────
+// 1. Liveness check: Process is alive and responding
+const handleLive = (req, res) => {
+  res.status(200).json({
+    status: 'alive',
+    timestamp: new Date().toISOString(),
+    uptime: Math.round(process.uptime()),
+    pid: process.pid,
+  });
+};
+app.get('/live', handleLive);
+app.get('/api/live', handleLive);
+
+// 2. Readiness check: Deep verification of all critical backing services
+const handleReady = (req, res) => {
+  const authReady = isAuthConnected();
+  const dataReady = isDataConnected();
+  const redisReady = isRedisReady();
+  const cloudStorageReady = isCloudConfigured();
+
+  const dependencies = {
+    authDatabase: authReady ? 'connected' : 'disconnected',
+    dataDatabase: dataReady ? 'connected' : 'disconnected',
+    queueBackend: redisReady ? 'bullmq-redis-ready' : 'in-memory-fallback',
+    cloudStorage: cloudStorageReady ? 'configured' : 'local-storage-only',
+  };
+
+  const isHealthy = authReady || dataReady;
+  const statusCode = isHealthy ? 200 : 503;
+
+  res.status(statusCode).json({
+    status: isHealthy ? 'ready' : 'degraded',
+    timestamp: new Date().toISOString(),
+    dependencies,
+  });
+};
+app.get('/ready', handleReady);
+app.get('/api/ready', handleReady);
+
+// 3. Capabilities: Safe public feature readiness (No sensitive infrastructure disclosure)
+const handleCapabilities = (req, res) => {
+  res.status(200).json({
+    version: '1.0.0',
+    backgroundWorkers: true,
+    queueEngine: isRedisReady() ? 'bullmq-redis' : 'in-memory-fallback',
+    durableQueue: isRedisReady(),
+    urlToPdf: isUrlToPdfEnabled(),
+    cloudStorage: isCloudConfigured(),
+    supportedJobOperations: [
+      'pdf-compress',
+      'pdf-merge',
+      'pdf-split',
+      'pdf-to-word',
+      'word-to-pdf',
+      'pdf-redact',
+      'batch-process',
+      'image-convert',
+      'image-compress',
+      'image-resize',
+      'html-to-pdf',
+    ],
+  });
+};
+app.get('/capabilities', handleCapabilities);
+app.get('/api/capabilities', handleCapabilities);
 
 // Endpoint cực nhẹ cho ping
 app.get('/ping', (req, res) => res.send('pong'));
@@ -358,16 +482,17 @@ if (fs.existsSync(clientDist)) {
   });
 }
 
-// ── Cron Auto Cleanup ────────────────────────────────────────────────────────
-// Dọn dẹp files tạm sau 1 giờ (chạy mỗi 30 phút)
-cron.schedule('*/30 * * * *', () => {
+// ── Cron Auto Cleanup & Storage Reconciliation ──────────────────────────────
+// Dọn dẹp files tạm và đối soát tệp cloud hết hạn (chạy mỗi 30 phút)
+const { reconcileStorage } = require('./services/cleanup.service');
+cron.schedule('*/30 * * * *', async () => {
   try {
-    const { uploadsDeleted, outputsDeleted } = cleanupTempFiles(60 * 60 * 1000);
-    if (uploadsDeleted > 0 || outputsDeleted > 0) {
-      logger.info(`[cleanup] Đã xóa: ${uploadsDeleted} upload(s), ${outputsDeleted} output(s)`);
+    const stats = await reconcileStorage(60 * 60 * 1000);
+    if (stats.uploadsDeleted > 0 || stats.outputsDeleted > 0 || stats.cloudDeleted > 0) {
+      logger.info(`[cleanup] Đã dọn dẹp: ${stats.uploadsDeleted} upload(s), ${stats.outputsDeleted} output(s), ${stats.cloudDeleted} cloud record(s)`);
     }
   } catch (err) {
-    logger.error('[cleanup] Lỗi dọn dẹp file tạm:', err.message);
+    logger.error('[cleanup] Lỗi dọn dẹp & đối soát kho lưu trữ:', err.message);
   }
 });
 

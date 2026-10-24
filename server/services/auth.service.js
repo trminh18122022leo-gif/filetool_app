@@ -56,6 +56,25 @@ function verifyAccessToken(token) {
   return jwt.verify(token, ACCESS_SECRET);
 }
 
+function signDownloadToken(filename, userId = 'anonymous', expiresIn = '1h') {
+  return jwt.sign(
+    { filename, userId: String(userId), type: 'file_download' },
+    ACCESS_SECRET,
+    { expiresIn }
+  );
+}
+
+function verifyDownloadToken(token) {
+  if (!token || typeof token !== 'string') {
+    throw new Error('Thiếu token download');
+  }
+  const decoded = jwt.verify(token, ACCESS_SECRET);
+  if (decoded.type !== 'file_download') {
+    throw new Error('Loại token không hợp lệ');
+  }
+  return decoded;
+}
+
 function cookieOptions(maxAge = 7 * 24 * 60 * 60 * 1000) {
   return {
     httpOnly: true,
@@ -462,6 +481,8 @@ module.exports = {
   signToken,
   generateTokens,
   verifyAccessToken,
+  signDownloadToken,
+  verifyDownloadToken,
   cookieOptions,
   clearCookieOptions,
   register,

@@ -74,17 +74,16 @@ jobs:
           fi
 
   # --------------------------------------------------------------------------
-  # 2. DEPLOY FRONTEND TO VERCEL
+  # 2. DEPLOY FRONTEND TO VERCEL (Hardened: S-16 Resolved, Approval Gates & SHA Provenance)
   # --------------------------------------------------------------------------
-  deploy-vercel:
-    name: Deploy Frontend to Vercel
-    # Only deploy if:
-    # 1. Manually triggered with target 'all' or 'vercel'
-    # 2. Automatically triggered via workflow_run AND CI succeeded
+  deploy-vercel-preview:
+    name: Deploy Frontend (Vercel Preview)
     if: >-
-      (github.event_name == 'workflow_dispatch' && (github.event.inputs.target == 'all' || github.event.inputs.target == 'vercel')) ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+      github.event_name == 'workflow_dispatch' &&
+      (github.event.inputs.target == 'all' || github.event.inputs.target == 'vercel') &&
+      github.event.inputs.environment == 'preview'
     runs-on: ubuntu-latest
+    environment: preview
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
@@ -97,40 +96,75 @@ jobs:
           cache-dependency-path: client/package-lock.json
 
       - name: Install Client Dependencies
-        run: |
-          cd client
-          npm ci
+        run: cd client && npm ci
 
       - name: Build Production Client
-        run: |
-          cd client
-          npm run build
+        run: cd client && npm run build
 
-      - name: Validate Vercel Secrets
-        id: check-vercel-secrets
+      - name: Deploy to Vercel (Preview via Official CLI)
         run: |
-          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
-            echo "::warning ::VERCEL_TOKEN is not configured in GitHub Secrets. Skipping Vercel deployment."
-            echo "has_token=false" >> $GITHUB_OUTPUT
+          npx vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+          PREVIEW_URL=$(npx vercel deploy --token=${{ secrets.VERCEL_TOKEN }})
+          echo "Preview deployment URL: $PREVIEW_URL"
+        working-directory: ./client
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  deploy-vercel-production:
+    name: Deploy Frontend (Vercel Production - Approval Gate)
+    if: >-
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.target == 'all' || github.event.inputs.target == 'vercel') && github.event.inputs.environment == 'production') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Log Release Provenance
+        run: |
+          echo "================ RELEASE PROVENANCE ================"
+          echo "Target Commit SHA : ${{ github.sha }}"
+          echo "Target Git Ref    : ${{ github.ref }}"
+          echo "Triggered By User : ${{ github.actor }}"
+          echo "Workflow Run ID   : ${{ github.run_id }}"
+          echo "Timestamp (UTC)   : $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "===================================================="
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install Client Dependencies
+        run: cd client && npm ci
+
+      - name: Build Production Client
+        run: cd client && npm run build
+
+      - name: Deploy to Vercel (Production via Official CLI)
+        run: |
+          npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+          npx vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+          PROD_URL=$(npx vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "Production deployment URL: $PROD_URL"
+        working-directory: ./client
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Post-Deployment Smoke Verification
+        run: |
+          echo "🔎 Running post-deployment health check on production edge..."
+          PROD_HOST="https://filetools-app.vercel.app"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PROD_HOST" || echo "000")
+          echo "Edge response HTTP status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -eq 200 ] || [ "$HTTP_STATUS" -eq 304 ]; then
+            echo "✅ Smoke check passed: Production frontend is reachable."
           else
-            echo "has_token=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Smoke check warning: Received HTTP $HTTP_STATUS from edge."
+            echo "Refer to docs/ops/ROLLBACK_PLAN.md for immediate traffic rollback."
           fi
-
-      - name: Deploy to Vercel (Production)
-        if: steps.check-vercel-secrets.outputs.has_token == 'true' && (github.event_name == 'workflow_run' || github.event.inputs.environment == 'production')
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: '--prod'
-          working-directory: ./client
-
-      - name: Deploy to Vercel (Preview)
-        if: steps.check-vercel-secrets.outputs.has_token == 'true' && github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'preview'
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          working-directory: ./client

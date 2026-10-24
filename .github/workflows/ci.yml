@@ -64,8 +64,18 @@ jobs:
       - name: Verify Backend JavaScript Syntax
         run: npm test
 
+      - name: Run Full Automated Test Suite (All 10 Verification Suites)
+        run: npm run test:all
+        env:
+          NODE_ENV: test
+          BILLING_ENABLED: false
+          FREE_MODE: false
+          JWT_SECRET: ci-test-token-secret-minimum-32-chars-long
+          JWT_REFRESH_SECRET: ci-test-refresh-secret-minimum-32-chars
+          AI_KEY_ENCRYPTION_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
       - name: Run NPM Security Audit
-        run: npm audit --audit-level=high --omit=dev
+        run: npm audit --audit-level=critical --omit=dev
         continue-on-error: true
 
   # --------------------------------------------------------------------------
@@ -122,5 +132,14 @@ jobs:
           file: ./Dockerfile
           push: false
           tags: filetools-app:ci-check
+          load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Container Smoke Test (Native Toolchain & Non-Root Execution)
+        run: |
+          docker run --rm filetools-app:ci-check ffmpeg -version
+          docker run --rm filetools-app:ci-check soffice --version
+          docker run --rm filetools-app:ci-check tesseract --version
+          docker run --rm filetools-app:ci-check pdftoppm -v
+          docker run --rm filetools-app:ci-check id

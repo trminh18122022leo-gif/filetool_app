@@ -18,17 +18,25 @@ function getClientUrl(req) {
     if (req.cookies.auth_platform === 'electron') return 'filetools://auth';
     if (req.cookies.auth_platform === 'android') return 'com.filetools.pro://auth';
   }
-  if (process.env.CLIENT_URL && !process.env.CLIENT_URL.includes('localhost')) {
-    return process.env.CLIENT_URL.replace(/\/$/, '');
+  const configuredClientUrl = (process.env.CLIENT_URL || '').replace(/\/$/, '');
+  if (configuredClientUrl && !configuredClientUrl.includes('localhost')) {
+    return configuredClientUrl;
   }
   if (req) {
-    const host = req.get('x-forwarded-host') || req.get('host');
+    const rawHost = req.get('x-forwarded-host') || req.get('host') || '';
+    const host = rawHost.split(':')[0].toLowerCase();
     const proto = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
-    if (host && !host.includes('localhost:3002') && !host.includes('127.0.0.1:3002')) {
-      return `${proto}://${host}`;
+    const isAllowedHost =
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host.endsWith('.vercel.app') ||
+      (configuredClientUrl && configuredClientUrl.includes(host));
+
+    if (isAllowedHost && !host.includes('3002')) {
+      return `${proto}://${rawHost}`;
     }
   }
-  return (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
+  return configuredClientUrl || 'http://localhost:5173';
 }
 
 function getOAuthRedirectUrl(req, clientUrl, token) {
@@ -138,16 +146,56 @@ if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
   ));
 }
 
+const processedTelegramHashes = new Map();
+
+function cleanupTelegramHashes() {
+  const now = Date.now();
+  for (const [h, ts] of processedTelegramHashes.entries()) {
+    if (now - ts > 15 * 60 * 1000) {
+      processedTelegramHashes.delete(h);
+    }
+  }
+}
+
 function checkTelegramAuth(data, botToken) {
-  const { hash, ...rest } = data;
-  if (!hash || !botToken) return false;
+  const { hash, ...rest } = data || {};
+  if (!hash || !botToken) return { valid: false, reason: 'missing_credentials' };
+
+  // 1. Kiểm tra tính tươi mới của auth_date
+  const authDate = parseInt(data.auth_date, 10);
+  if (isNaN(authDate)) return { valid: false, reason: 'invalid_auth_date' };
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  // Hết hạn nếu quá 15 phút (900 giây)
+  if (nowSec - authDate > 900) return { valid: false, reason: 'expired_auth_date' };
+  // Chống clock-skew trong tương lai (> 60 giây)
+  if (authDate - nowSec > 60) return { valid: false, reason: 'future_auth_date' };
+
+  // 2. Chống tấn công lặp lại (Replay Attack)
+  cleanupTelegramHashes();
+  if (processedTelegramHashes.has(hash)) {
+    return { valid: false, reason: 'replay_detected' };
+  }
+
+  // 3. Chuẩn hóa check string theo tài liệu Telegram
   const checkString = Object.keys(rest)
     .sort()
-    .map(k => k + '=' + rest[k])
+    .map(k => `${k}=${rest[k]}`)
     .join('\n');
+
   const secret = crypto.createHash('sha256').update(botToken).digest();
   const hmac = crypto.createHmac('sha256', secret).update(checkString).digest('hex');
-  return hmac === hash;
+
+  const expectedBuf = Buffer.from(hmac, 'hex');
+  const receivedBuf = Buffer.from(hash, 'hex');
+
+  if (expectedBuf.length !== receivedBuf.length || !crypto.timingSafeEqual(expectedBuf, receivedBuf)) {
+    return { valid: false, reason: 'invalid_signature' };
+  }
+
+  // Ghi nhận hash hợp lệ vào memory cache (TTL 15m)
+  processedTelegramHashes.set(hash, Date.now());
+  return { valid: true };
 }
 
 // ── Google Routes ─────────────────────────────────────────────────────────────
@@ -202,11 +250,16 @@ router.get('/github/callback',
 router.get('/telegram/callback', async (req, res) => {
   const clientUrl = getClientUrl(req);
   try {
-    const data = req.query;
-    if (process.env.TELEGRAM_BOT_TOKEN) {
-      const valid = checkTelegramAuth(data, process.env.TELEGRAM_BOT_TOKEN);
-      if (!valid) return res.redirect(clientUrl + '/login?error=telegram_auth_invalid');
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      return res.redirect(clientUrl + '/login?error=telegram_auth_disabled');
     }
+
+    const data = req.query;
+    const authResult = checkTelegramAuth(data, process.env.TELEGRAM_BOT_TOKEN);
+    if (!authResult.valid) {
+      return res.redirect(clientUrl + `/login?error=telegram_auth_${authResult.reason}`);
+    }
+
     const telegramId = data.id;
     if (!telegramId) return res.redirect(clientUrl + '/login?error=no_telegram_id');
 
@@ -455,6 +508,24 @@ router.post('/2fa/complete', async (req, res) => {
     res.json({ success: true, ...result });
   } catch (err) {
     res.status(401).json({ error: err.message });
+  }
+});
+
+// ── Account Self-Service Deletion (Apple Guideline 5.1.1(v) & Google Play Compliance) ──
+router.delete('/account', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    // 1. Thu hồi toàn bộ refresh tokens
+    await RefreshToken.updateMany({ userId }, { revokedAt: new Date(), revokeReason: 'account_deleted' });
+    // 2. Xóa tài khoản người dùng
+    await User.findByIdAndDelete(userId);
+    // 3. Xóa sạch session cookies
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
+    res.clearCookie('token');
+    res.json({ success: true, message: 'Tài khoản và dữ liệu người dùng đã được xóa hoàn toàn theo tiêu chuẩn Store Policy' });
+  } catch (err) {
+    res.status(500).json({ error: 'Không thể xóa tài khoản: ' + err.message });
   }
 });
 

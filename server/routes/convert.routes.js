@@ -39,6 +39,12 @@ router.post('/pdf-to-images', optionalAuth, freeModeUpgrade, upload.single('file
 }));
 
 router.post('/url-to-pdf', optionalAuth, freeModeUpgrade, wrap(async (req, res) => {
+  if (process.env.ENABLE_URL_TO_PDF !== 'true') {
+    return res.status(403).json({
+      error: 'Tính năng URL sang PDF tạm thời bị vô hiệu hóa theo chính sách bảo mật mạng (ENABLE_URL_TO_PDF=false). Yêu cầu cấu hình container sandbox cô lập trước khi kích hoạt.',
+      code: 'FEATURE_DISABLED',
+    });
+  }
   const { url, format = 'A4' } = req.body;
   if (!url?.trim()) return res.status(400).json({ error: 'Thiếu URL trang web' });
   const out = await convertSvc.urlToPdf(url.trim(), { format });

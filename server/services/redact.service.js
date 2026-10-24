@@ -6,9 +6,10 @@
  * Các tính năng:
  * 1. Tự động nhận diện PII qua Poppler TSV & Regex (CCCD 12 số, CMND 9 số, SĐT VN, Email, Thẻ tín dụng, STK ngân hàng).
  * 2. Hỗ trợ tìm kiếm và khoanh vùng từ khóa tùy biến do người dùng nhập.
- * 3. Che vĩnh viễn bằng pdf-lib (vẽ khối che mờ đè lên toạ độ).
- * 4. Chế độ Flatten bảo mật 100%: Rasterize trang sang ảnh độ nét cao rồi đóng gói lại PDF để loại bỏ triệt để mọi text ngầm trong PDF stream.
- * 5. Tẩy rửa siêu dữ liệu (Metadata scrubbing: Author, Title, Subject, Producer).
+ * 3. Secure Redaction: Loại bỏ hoàn toàn vector text streams và metadata khỏi file PDF.
+ *    Tuân thủ Finding S-04: Mặc định Secure-Redact (Raster-backed content removal).
+ *    Fail-closed: Nếu quá trình loại bỏ nội dung thất bại, trả về lỗi, TUYỆT ĐỐI KHÔNG fallback về black rectangles overlay.
+ * 4. Tẩy rửa siêu dữ liệu (Metadata scrubbing: Author, Title, Subject, Producer, Creator, Keywords, AcroForms).
  */
 
 const fs = require('fs');
@@ -197,6 +198,9 @@ async function scanPdfForPII(pdfPath, options = {}) {
 
 /**
  * Thực hiện che giấu thông tin nhạy cảm trên PDF
+ * Chế độ Secure Redaction bắt buộc (Finding S-04):
+ * Mặc định loại bỏ vĩnh viễn text stream bằng rasterize phẳng và tẩy sạch siêu dữ liệu.
+ * Cấm tuyệt đối chế độ vẽ đè hình chữ nhật vector (flatten=false) vì có thể copy/extract lại text gốc.
  */
 async function redactPdf(pdfPath, redactions = [], options = {}) {
   if (!Array.isArray(redactions) && typeof redactions === 'object' && redactions !== null) {
@@ -206,16 +210,34 @@ async function redactPdf(pdfPath, redactions = [], options = {}) {
   const {
     fillColor = 'black',     // 'black' | 'white' | 'gray'
     stampLabel = '',          // Ví dụ: '[ĐÃ CHE BẢO MẬT]'
-    flatten = false,          // Biến toàn bộ trang thành ảnh raster chống extract text ngầm
+    flatten = true,           // MẶC ĐỊNH BẢO MẬT: Phẳng hóa thành raster loại bỏ triệt để content stream
+    dpi = 200,                // Độ phân giải raster đảm bảo độ sắc nét đọc văn bản
   } = options;
+
+  // Nghiêm cấm chế độ flatten=false gây hiểu lầm là đã che nhưng vẫn còn nguyên text stream
+  if (flatten === false && redactions.length > 0) {
+    throw new Error('INSECURE_REDACTION_DISALLOWED: Chế độ che phủ vector giả (flatten=false) bị nghiêm cấm vì không loại bỏ nội dung gốc. Mọi thao tác che nhạy cảm phải sử dụng Secure Redaction.');
+  }
 
   if (!fs.existsSync(pdfPath)) {
     throw new Error('File PDF đầu vào không tồn tại');
   }
 
-  const bytes = fs.readFileSync(pdfPath);
-  const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
-  const totalPages = doc.getPageCount();
+  let doc;
+  let totalPages = 0;
+  try {
+    const bytes = fs.readFileSync(pdfPath);
+    doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    totalPages = doc.getPageCount();
+  } catch (err) {
+    throw new Error(`SECURE_REDACTION_FAILED: Không thể nạp hoặc phân tích cấu trúc PDF đầu vào (${err.message}). Thao tác bị hủy để bảo đảm an toàn.`);
+  }
+
+  // Flatten AcroForms nếu có để tránh text còn ẩn trong form field dictionaries
+  try {
+    const form = doc.getForm();
+    form.flatten();
+  } catch (_) {}
 
   let boxColor = rgb(0, 0, 0); // Đen
   if (fillColor === 'white') boxColor = rgb(1, 1, 1);
@@ -281,70 +303,74 @@ async function redactPdf(pdfPath, redactions = [], options = {}) {
   doc.setAuthor('');
   doc.setSubject('');
   doc.setKeywords([]);
-  doc.setProducer('FileTools AI Privacy Redactor');
-  doc.setCreator('FileTools Platform');
+  doc.setProducer('');
+  doc.setCreator('');
 
   const uid = uuidv4().slice(0, 8);
   const outFilename = `redacted_${uid}.pdf`;
   const tempPath = path.join(OUT_DIR, `temp_${outFilename}`);
   const finalPath = path.join(OUT_DIR, outFilename);
+  const flatDir = path.join(OUT_DIR, `flat_temp_${uid}`);
 
   const modifiedBytes = await doc.save();
   fs.writeFileSync(tempPath, modifiedBytes);
 
-  // Nếu người dùng chọn Flatten (Loại bỏ 100% text ngầm bằng pdftoppm / ghostscript)
-  if (flatten) {
-    const flatDir = path.join(OUT_DIR, `flat_temp_${uid}`);
-    try {
-      fs.mkdirSync(flatDir, { recursive: true });
-      const files = await pdfToImages(tempPath, flatDir, { format: 'png', dpi: 150 });
+  // SECURE REDACTION: Rasterize trang sang ảnh độ nét cao rồi đóng gói lại PDF mới
+  // Loại bỏ 100% mọi vector text stream, hidden layers, và form values ngầm
+  try {
+    fs.mkdirSync(flatDir, { recursive: true });
+    const rasterDpi = Math.max(100, Math.min(Number(dpi) || 200, 300));
+    const files = await pdfToImages(tempPath, flatDir, { format: 'png', dpi: rasterDpi });
 
-      // Gom các ảnh lại vào PDF mới
-      const newDoc = await PDFDocument.create();
-
-      for (const imgPath of files) {
-        const imgBytes = fs.readFileSync(imgPath);
-        const embeddedImg = await newDoc.embedPng(imgBytes);
-        const newPage = newDoc.addPage([embeddedImg.width * 72 / 150, embeddedImg.height * 72 / 150]);
-        newPage.drawImage(embeddedImg, {
-          x: 0,
-          y: 0,
-          width: newPage.getWidth(),
-          height: newPage.getHeight(),
-        });
-      }
-
-      fs.unlink(tempPath, () => {});
-      const flatBytes = await newDoc.save();
-      fs.writeFileSync(finalPath, flatBytes);
-
-      // Xóa sạch thư mục tạm
-      fs.rm(flatDir, { recursive: true, force: true }, () => {});
-
-      return {
-        outputPath: finalPath,
-        filename: outFilename,
-        flattened: true,
-      };
-    } catch (err) {
-      console.warn(`[redact] Flatten failed, falling back to vector redact:`, err.message);
-      try { fs.rmSync(flatDir, { recursive: true, force: true }); } catch (_) {}
-      fs.renameSync(tempPath, finalPath);
-      return {
-        outputPath: finalPath,
-        filename: outFilename,
-        flattened: false,
-      };
+    if (!files || files.length === 0) {
+      throw new Error('Bộ chuyển đổi hình ảnh không xuất ra trang nào');
     }
-  }
 
-  // Chế độ vector chuẩn
-  fs.renameSync(tempPath, finalPath);
-  return {
-    outputPath: finalPath,
-    filename: outFilename,
-    flattened: false,
-  };
+    // Gom các ảnh vào PDF hoàn toàn mới không chứa text stream
+    const newDoc = await PDFDocument.create();
+
+    for (const imgPath of files) {
+      const imgBytes = fs.readFileSync(imgPath);
+      const embeddedImg = await newDoc.embedPng(imgBytes);
+      const newPage = newDoc.addPage([embeddedImg.width * 72 / rasterDpi, embeddedImg.height * 72 / rasterDpi]);
+      newPage.drawImage(embeddedImg, {
+        x: 0,
+        y: 0,
+        width: newPage.getWidth(),
+        height: newPage.getHeight(),
+      });
+    }
+
+    // Tẩy sạch metadata trên tài liệu mới
+    newDoc.setTitle('');
+    newDoc.setAuthor('');
+    newDoc.setSubject('');
+    newDoc.setKeywords([]);
+    newDoc.setProducer('FileTools Secure Redaction Engine');
+    newDoc.setCreator('FileTools Platform Enterprise');
+
+    const flatBytes = await newDoc.save();
+    fs.writeFileSync(finalPath, flatBytes);
+
+    // Dọn dẹp an toàn các file tạm
+    try { fs.unlinkSync(tempPath); } catch (_) {}
+    try { fs.rmSync(flatDir, { recursive: true, force: true }); } catch (_) {}
+
+    return {
+      outputPath: finalPath,
+      filename: outFilename,
+      flattened: true,
+      secureRedacted: true,
+      dpi: rasterDpi,
+    };
+  } catch (err) {
+    // FAIL-CLOSED: Tuyệt đối không fallback về file vector che giả
+    try { fs.rmSync(flatDir, { recursive: true, force: true }); } catch (_) {}
+    try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch (_) {}
+    try { if (fs.existsSync(finalPath)) fs.unlinkSync(finalPath); } catch (_) {}
+
+    throw new Error(`SECURE_REDACTION_FAILED: Không thể rasterize/flatten trang an toàn để loại bỏ hoàn toàn nội dung nhạy cảm (${err.message}). Thao tác bị hủy để chống rò rỉ dữ liệu (Fail-Closed).`);
+  }
 }
 
 module.exports = {

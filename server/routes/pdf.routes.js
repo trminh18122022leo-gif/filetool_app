@@ -343,7 +343,8 @@ router.post('/redact-scan', optionalAuth, upload.single('file'), wrap(async (req
   const result = await redactSvc.scanPdfForPII(req.file.path, { customKeywords });
   res.json({
     success: true,
-    tempFilePath: req.file.path,
+    fileId: req.file.filename,
+    tempFilePath: req.file.filename, // Opaque identifier thay vì absolute path
     ...result,
   });
 }));
@@ -353,10 +354,16 @@ router.post('/redact', optionalAuth, upload.single('file'), wrap(async (req, res
   const UPLOAD_DIR = path.resolve('uploads');
   let filePath = req.file?.path;
 
-  if (!filePath && req.body.tempFilePath) {
-    const resolved = path.resolve(req.body.tempFilePath);
-    if (!resolved.startsWith(UPLOAD_DIR + path.sep)) {
-      return res.status(403).json({ error: 'Đường dẫn file không hợp lệ hoặc nằm ngoài phạm vi cho phép' });
+  const targetIdentifier = req.body.fileId || req.body.tempFilePath;
+  if (!filePath && targetIdentifier) {
+    // Chống Directory Traversal: Chỉ chấp nhận basename không chứa ký tự điều hướng
+    const safeName = path.basename(targetIdentifier);
+    if (safeName !== targetIdentifier || safeName.includes('..') || targetIdentifier.includes('/') || targetIdentifier.includes('\\')) {
+      return res.status(400).json({ error: 'Định danh file không hợp lệ hoặc nghi vấn path traversal', code: 'PATH_TRAVERSAL_DETECTED' });
+    }
+    const resolved = path.resolve(UPLOAD_DIR, safeName);
+    if (!resolved.startsWith(UPLOAD_DIR)) {
+      return res.status(403).json({ error: 'Đường dẫn file nằm ngoài phạm vi cho phép', code: 'FORBIDDEN_FILE_PATH' });
     }
     filePath = resolved;
   }
@@ -374,16 +381,24 @@ router.post('/redact', optionalAuth, upload.single('file'), wrap(async (req, res
     } catch (_) {}
   }
 
+  if (req.body.flatten === 'false' || req.body.flatten === false) {
+    return res.status(400).json({
+      error: 'Chế độ che phủ vector giả (flatten=false) đã bị vô hiệu hóa vì lý do an toàn thông tin (S-04). Mọi thao tác che nhạy cảm đều được xử lý bằng Secure Redact (loại bỏ triệt để content stream).',
+      code: 'INSECURE_REDACTION_DISALLOWED',
+    });
+  }
+
   const {
     fillColor = 'black',
     stampLabel = '',
-    flatten = 'false',
+    dpi = 200,
   } = req.body;
 
   const result = await redactSvc.redactPdf(filePath, redactions, {
     fillColor,
     stampLabel,
-    flatten: flatten === 'true' || flatten === true,
+    flatten: true,
+    dpi: Number(dpi) || 200,
   });
 
   await respondFile(req, res, result.outputPath, 'pdf-redact', {
