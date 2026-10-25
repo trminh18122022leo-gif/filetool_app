@@ -13,7 +13,8 @@ const { commitQuota, refundQuota } = require('../services/quota.service');
 const { emitProgress, emitComplete, emitError, registerJob } = require('../services/jobEmitter');
 const { executeJob } = require('./jobProcessors');
 
-const QUEUE_NAME = 'filetools-jobs';
+const QUEUE_NAME = process.env.BULLMQ_QUEUE_NAME || 'filetools-jobs';
+const QUEUE_PREFIX = process.env.BULLMQ_PREFIX || undefined;
 let bullQueue = null;
 
 function getBullQueue() {
@@ -22,7 +23,7 @@ function getBullQueue() {
   if (!client) return null;
 
   try {
-    bullQueue = new Queue(QUEUE_NAME, {
+    const queueOptions = {
       connection: client,
       defaultJobOptions: {
         attempts: 3,
@@ -33,7 +34,11 @@ function getBullQueue() {
         removeOnComplete: { age: 3600 * 24 }, // Giữ lịch sử 24h
         removeOnFail:     { age: 3600 * 48 }, // Giữ log lỗi 48h
       },
-    });
+    };
+    if (QUEUE_PREFIX) {
+      queueOptions.prefix = QUEUE_PREFIX;
+    }
+    bullQueue = new Queue(QUEUE_NAME, queueOptions);
     return bullQueue;
   } catch (err) {
     console.warn(`⚠️ [BullMQ] Không thể khởi tạo BullMQ queue: ${err.message}`);

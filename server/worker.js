@@ -15,7 +15,8 @@ const { commitQuota, refundQuota } = require('./services/quota.service');
 const { emitProgress, emitComplete, emitError } = require('./services/jobEmitter');
 const { closeConnections } = require('./config/database');
 
-const QUEUE_NAME = 'filetools-jobs';
+const QUEUE_NAME = process.env.BULLMQ_QUEUE_NAME || 'filetools-jobs';
+const QUEUE_PREFIX = process.env.BULLMQ_PREFIX || undefined;
 let workerInstance = null;
 
 async function startWorker() {
@@ -89,6 +90,7 @@ async function startWorker() {
         max: 50,
         duration: 1000,
       },
+      ...(QUEUE_PREFIX ? { prefix: QUEUE_PREFIX } : {}),
     }
   );
 
