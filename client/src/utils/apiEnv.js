@@ -18,6 +18,10 @@ export const PRODUCTION_HOSTS = [
 export const PRODUCTION_API_URL = 'https://filetools-api.onrender.com';
 export const STAGING_API_URL = 'https://staging-filetools-api.onrender.com';
 
+export const PRODUCTION_WS_URL = 'wss://filetools-api.onrender.com';
+export const STAGING_WS_URL = 'wss://staging-filetools-api.onrender.com';
+export const LOCAL_WS_URL = 'ws://localhost:3002';
+
 /**
  * Check if the given hostname corresponds to the production frontend domain
  * @param {string} [hostname]
@@ -91,21 +95,45 @@ export function getApiBaseUrl() {
  * Resolves the WebSocket Base URL, keeping WebSocket connections strictly
  * in the same environment as HTTP API traffic.
  * 
+ * Invariants:
+ * - Browser SPA connects directly to backend wss:// (Render) because Vercel rewrites
+ *   do not reliably support persistent WebSocket Upgrade to external HTTP origins.
+ * - Production frontends connect to PRODUCTION_WS_URL.
+ * - Staging and preview frontends connect strictly to STAGING_WS_URL.
+ * - Localhost connects to LOCAL_WS_URL (ws://localhost:3002).
+ * 
+ * @param {string} [overrideHostname] - Optional hostname for testing or SSR
  * @returns {string}
  */
-export function getWebSocketBaseUrl() {
+export function getWebSocketBaseUrl(overrideHostname) {
+  const explicitWs = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_WS_URL)
+    ? String(import.meta.env.VITE_WS_URL).replace(/\/$/, '')
+    : '';
+
+  if (explicitWs) {
+    if (isPreviewOrStagingDomain(overrideHostname) && explicitWs === PRODUCTION_WS_URL) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[ENVIRONMENT ISOLATION] Overriding production VITE_WS_URL on staging domain with isolated staging WebSocket.');
+      }
+      return STAGING_WS_URL;
+    }
+    return explicitWs;
+  }
+
+  // Check if getApiBaseUrl() provided an explicit origin (e.g. native apps)
   const apiBase = getApiBaseUrl();
   if (apiBase) {
     return apiBase.replace(/^http/, 'ws');
   }
 
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1') {
-      return 'http://localhost:3002';
-    }
-    return window.location.origin.replace(/^http/, 'ws');
+  const host = overrideHostname || (typeof window !== 'undefined' ? window.location.hostname : '');
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return LOCAL_WS_URL;
   }
 
-  return '';
+  if (isProductionDomain(host)) {
+    return PRODUCTION_WS_URL;
+  }
+
+  return STAGING_WS_URL;
 }

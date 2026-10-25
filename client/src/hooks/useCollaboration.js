@@ -33,11 +33,18 @@ export function useCollaboration(documentId, monacoEditorRef, opts = {}) {
       docRef.current = ydoc;
 
       const wsUrl = getWsUrl();
+      const token = typeof localStorage !== 'undefined'
+        ? (localStorage.getItem('accessToken') || localStorage.getItem('token'))
+        : null;
+      const params = { room: documentId };
+      if (token) {
+        params.token = token;
+      }
       const provider = new WebsocketProvider(
         `${wsUrl}/collab`,
         documentId,
         ydoc,
-        { connect: true, params: { room: documentId } }
+        { connect: true, params }
       );
       providerRef.current = provider;
 

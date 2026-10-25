@@ -29,6 +29,7 @@ const {
 
 const {
   PROVIDER_SPECS,
+  normalizeModelName,
   getCircuitBreaker,
   recordCircuitSuccess,
   recordCircuitFailure,
@@ -248,6 +249,28 @@ describe('🤖 AI Systems, Privacy, BYOK & FinOps Evaluation Suite', () => {
       injections.forEach(inj => {
         assert.strictEqual(inj.ground, 'DEFENDED');
       });
+    });
+  });
+
+  // ── 8. Model Deprecation Normalization & Alias Defense ─────────────────────
+  describe('8. Model Deprecation Normalization & Alias Defense', () => {
+    it('normalizes legacy gemini-1.5-flash to active model and never returns deprecated ID', () => {
+      const normalized = normalizeModelName('gemini', 'gemini-1.5-flash');
+      assert.ok(!normalized.includes('1.5'), 'Must not return deprecated 1.5 model name');
+      assert.ok(normalized.startsWith('gemini-2.'), 'Must resolve to active Gemini 2.x flash series');
+    });
+
+    it('normalizes legacy gemini-1.5-pro and gemini-pro to active pro model', () => {
+      const norm1 = normalizeModelName('gemini', 'gemini-1.5-pro');
+      const norm2 = normalizeModelName('gemini', 'gemini-pro');
+      assert.ok(!norm1.includes('1.5'), 'Must not return deprecated 1.5-pro model name');
+      assert.ok(norm1.startsWith('gemini-2.'), 'Must resolve to active Gemini 2.x pro series');
+      assert.strictEqual(norm1, norm2, 'gemini-pro and gemini-1.5-pro must resolve to same canonical active pro model');
+    });
+
+    it('preserves non-gemini valid provider models', () => {
+      assert.strictEqual(normalizeModelName('groq', 'llama-3.3-70b-versatile'), 'llama-3.3-70b-versatile');
+      assert.strictEqual(normalizeModelName('cerebras', 'llama3.3-70b'), 'llama3.3-70b');
     });
   });
 });

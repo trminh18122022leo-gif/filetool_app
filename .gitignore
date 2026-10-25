@@ -16,6 +16,8 @@ client/dist
 Thumbs.db
 OPEN_CODE_REVIEW_REPORT.md
 *plan*.md
+!reports/**
+!docs/**
 *.dll
 electron/dist
 electron/node_modules

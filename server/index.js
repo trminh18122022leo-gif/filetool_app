@@ -85,6 +85,17 @@ try {
     try {
       const parsedUrl = new URL(request.url, 'http://localhost');
       if (parsedUrl.pathname === '/collab') {
+        // Validate Origin header when present to prevent Cross-Site WebSocket Hijacking (CSWSH)
+        const origin = request.headers.origin;
+        if (origin) {
+          const { isOriginAllowed } = require('./utils/corsGuard');
+          if (!isOriginAllowed(origin)) {
+            socket.write('HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nForbidden Origin for Collab\r\n');
+            socket.destroy();
+            return;
+          }
+        }
+
         // Trích xuất JWT từ query param hoặc cookie
         let token = parsedUrl.searchParams.get('token');
         if (!token && request.headers.cookie) {
@@ -318,11 +329,12 @@ function checkSystemTools() {
   return systemToolsCache;
 }
 
-// Health check endpoint (Hardened S-19: reflects actual DB connection state)
+// Health check endpoint (Hardened S-19: reflects actual DB connection state, dual-cluster fail-closed)
 app.get('/api/health', (req, res) => {
   const authOk = isAuthConnected();
   const dataOk = isDataConnected();
-  const isHealthy = authOk || dataOk;
+  const isDualCluster = Boolean((process.env.DATA_DB_URI || process.env.MONGODB_DATA_URI) && (process.env.DATA_DB_URI !== process.env.AUTH_DB_URI));
+  const isHealthy = isDualCluster ? (authOk && dataOk) : authOk;
   res.status(isHealthy ? 200 : 503).json({
     status: isHealthy ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
@@ -331,7 +343,7 @@ app.get('/api/health', (req, res) => {
     database: {
       authConnected: authOk,
       dataConnected: dataOk,
-      mode: process.env.DATA_DB_URI || process.env.MONGODB_DATA_URI ? 'Dual-Cluster (Separated DB)' : 'Single-Cluster (Unified DB)',
+      mode: isDualCluster ? 'Dual-Cluster (Separated DB)' : 'Single-Cluster (Unified DB)',
     },
   });
 });
@@ -350,25 +362,48 @@ app.get('/live', handleLive);
 app.get('/api/live', handleLive);
 
 // 2. Readiness check: Deep verification of all critical backing services
+// Fails closed (HTTP 503) if ANY required dependency for active role is unavailable.
 const handleReady = (req, res) => {
+  const isStagingOrProd = process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'staging';
+  const activeRole = process.env.SERVICE_ROLE || 'web';
+
   const authReady = isAuthConnected();
   const dataReady = isDataConnected();
+  const isDualCluster = Boolean((process.env.DATA_DB_URI || process.env.MONGODB_DATA_URI) && (process.env.DATA_DB_URI !== process.env.AUTH_DB_URI));
+  const dbReady = isDualCluster ? (authReady && dataReady) : authReady;
+
   const redisReady = isRedisReady();
+  const requireDurableQueue = isStagingOrProd || process.env.REQUIRE_DURABLE_QUEUE === 'true' || Boolean(process.env.REDIS_URL);
+  const queueReady = requireDurableQueue ? redisReady : true;
+
   const cloudStorageReady = isCloudConfigured();
+  const requireCloudStorage = (isStagingOrProd && process.env.REQUIRE_CLOUD_STORAGE === 'true') || Boolean(process.env.R2_BUCKET_NAME || process.env.AWS_S3_BUCKET);
+  const storageReady = requireCloudStorage ? cloudStorageReady : true;
+
+  const isReady = Boolean(dbReady && queueReady && storageReady);
+  const statusCode = isReady ? 200 : 503;
 
   const dependencies = {
     authDatabase: authReady ? 'connected' : 'disconnected',
     dataDatabase: dataReady ? 'connected' : 'disconnected',
-    queueBackend: redisReady ? 'bullmq-redis-ready' : 'in-memory-fallback',
+    queueBackend: redisReady ? 'bullmq-redis-ready' : (queueReady ? 'in-memory-dev' : 'disconnected'),
     cloudStorage: cloudStorageReady ? 'configured' : 'local-storage-only',
   };
 
-  const isHealthy = authReady || dataReady;
-  const statusCode = isHealthy ? 200 : 503;
-
   res.status(statusCode).json({
-    status: isHealthy ? 'ready' : 'degraded',
+    status: isReady ? 'ready' : 'not_ready',
+    ready: isReady,
+    role: activeRole,
     timestamp: new Date().toISOString(),
+    checks: {
+      authDatabase: authReady,
+      dataDatabase: dataReady,
+      dualClusterMode: isDualCluster,
+      queueEngine: redisReady ? 'bullmq-redis' : 'in-memory',
+      durableQueueReady: queueReady,
+      cloudStorageConfigured: cloudStorageReady,
+      storageReady,
+    },
     dependencies,
   });
 };

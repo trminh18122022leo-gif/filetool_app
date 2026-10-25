@@ -1,13 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { getApiBaseUrl } from '../utils/apiEnv';
+import { getWebSocketBaseUrl } from '../utils/apiEnv';
 
 const getSocketUrl = () => {
-  const base = getApiBaseUrl();
-  if (base) return base;
-  return typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost:3002'
-    : '';
+  return getWebSocketBaseUrl();
 };
 
 /**

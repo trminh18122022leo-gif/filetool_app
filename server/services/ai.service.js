@@ -66,7 +66,8 @@ function markKeyCooldown(provider, key, durationMs = 60000) {
 
 // ── Models & Constants ────────────────────────────────────────────────────────
 const GEMINI_PRO_THRESHOLD = 5000;
-const DEFAULT_GEMINI_MODEL = process.env.GEMINI_FLASH_MODEL || 'gemini-2.5-flash';
+const DEFAULT_GEMINI_MODEL = normalizeModelName('gemini', process.env.GEMINI_FLASH_MODEL || 'gemini-2.5-flash');
+const DEFAULT_GEMINI_PRO_MODEL = normalizeModelName('gemini', process.env.GEMINI_PRO_MODEL || 'gemini-2.5-pro');
 const DEFAULT_GROQ_MODEL   = process.env.GROQ_MODEL         || 'llama-3.3-70b-versatile';
 
 // ── 1. Google Gemini API ──────────────────────────────────────────────────────
@@ -521,10 +522,10 @@ async function callAI(userPrompt, opts = {}) {
 
   // 1. Direct forced provider
   if (forceProvider === 'gemini-flash' || forceProvider === 'google-flash') {
-    return callGemini(userPrompt, { system, model: 'gemini-2.0-flash', maxTokens, user, operation, idempotencyKey });
+    return callGemini(userPrompt, { system, model: DEFAULT_GEMINI_MODEL, maxTokens, user, operation, idempotencyKey });
   }
   if (forceProvider === 'gemini-pro' || forceProvider === 'google-pro') {
-    return callGemini(userPrompt, { system, model: 'gemini-1.5-pro', maxTokens, user, operation, idempotencyKey });
+    return callGemini(userPrompt, { system, model: DEFAULT_GEMINI_PRO_MODEL, maxTokens, user, operation, idempotencyKey });
   }
   if (forceProvider === 'gemini') {
     return callGemini(userPrompt, { system, maxTokens, user, operation, idempotencyKey });
@@ -548,7 +549,7 @@ async function callAI(userPrompt, opts = {}) {
   // 2. Auto Failover Cascade: Gemini -> Cerebras -> Groq -> OpenRouter -> Mistral -> GitHub
   const poolGemini = process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_API_KEY;
   const candidateProviders = [
-    { id: 'gemini', name: 'Gemini', fn: () => callGemini(userPrompt, { system, maxTokens, user, operation, idempotencyKey, model: textLength > GEMINI_PRO_THRESHOLD ? 'gemini-1.5-pro' : DEFAULT_GEMINI_MODEL }), hasKey: !!poolGemini },
+    { id: 'gemini', name: 'Gemini', fn: () => callGemini(userPrompt, { system, maxTokens, user, operation, idempotencyKey, model: textLength > GEMINI_PRO_THRESHOLD ? DEFAULT_GEMINI_PRO_MODEL : DEFAULT_GEMINI_MODEL }), hasKey: !!poolGemini },
     { id: 'cerebras', name: 'Cerebras', fn: () => callCerebras(userPrompt, { system, maxTokens, user, operation, idempotencyKey }), hasKey: !!process.env.CEREBRAS_API_KEY },
     { id: 'groq', name: 'Groq', fn: () => callGroq(userPrompt, { system, maxTokens, user, operation, idempotencyKey }), hasKey: !!process.env.GROQ_API_KEY },
     { id: 'openrouter', name: 'OpenRouter', fn: () => callOpenRouter(userPrompt, { system, maxTokens, user, operation, idempotencyKey }), hasKey: !!process.env.OPENROUTER_API_KEY },

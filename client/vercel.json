@@ -22,6 +22,16 @@
       "destination": "https://staging-filetools-api.onrender.com/socket.io/$1"
     },
     {
+      "source": "/collab/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "(?<subdomain>.*-(?:git|preview|staging|candidate).*)\\.vercel\\.app"
+        }
+      ],
+      "destination": "https://staging-filetools-api.onrender.com/collab/$1"
+    },
+    {
       "source": "/api/(.*)",
       "has": [
         {
@@ -42,12 +52,26 @@
       "destination": "https://filetools-api.onrender.com/socket.io/$1"
     },
     {
+      "source": "/collab/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "^(?:filetool-app|filetools-app|filetools|www\\.filetools)\\.(?:vercel\\.app|pro)$"
+        }
+      ],
+      "destination": "https://filetools-api.onrender.com/collab/$1"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "https://staging-filetools-api.onrender.com/api/$1"
     },
     {
       "source": "/socket.io/(.*)",
       "destination": "https://staging-filetools-api.onrender.com/socket.io/$1"
+    },
+    {
+      "source": "/collab/(.*)",
+      "destination": "https://staging-filetools-api.onrender.com/collab/$1"
     },
     {
       "source": "/(.*)",

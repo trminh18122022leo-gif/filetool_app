@@ -1,15 +1,25 @@
 'use strict';
 
-// Explicit verified Vercel origins for FileTools Pro
-const VERIFIED_VERCEL_ORIGINS = [
+// Explicit verified Vercel production origins
+const VERIFIED_PRODUCTION_ORIGINS = [
   'https://filetool-app.vercel.app',
   'https://filetools-app.vercel.app',
+  'https://filetools.pro',
+  'https://www.filetools.pro',
+];
+
+// Explicit verified Vercel staging & preview origins
+const VERIFIED_STAGING_ORIGINS = [
   'https://filetool-app-git-staging.vercel.app',
   'https://filetools-app-git-staging.vercel.app',
   'https://filetool-app-git-release-v1-0-0-candidate.vercel.app',
   'https://filetools-app-git-release-v1-0-0-candidate.vercel.app',
-  'https://filetools.pro',
-  'https://www.filetools.pro',
+];
+
+// Explicit verified Vercel origins for FileTools Pro
+const VERIFIED_VERCEL_ORIGINS = [
+  ...VERIFIED_PRODUCTION_ORIGINS,
+  ...VERIFIED_STAGING_ORIGINS,
 ];
 
 const VERIFIED_NATIVE_SCHEMES = [
@@ -101,6 +111,63 @@ function isOriginAllowed(origin) {
 }
 
 /**
+ * Validates whether an origin is authorized specifically for a given environment (staging vs production).
+ * Prevents cross-environment token leakage and CSRF redirect redirection.
+ * 
+ * @param {string} origin
+ * @param {'staging'|'production'|'development'} [env]
+ * @returns {boolean}
+ */
+function isOriginAllowedForEnv(origin, env) {
+  if (!origin) return false;
+  const targetEnv = env || (process.env.APP_ENV === 'staging' ? 'staging' : (process.env.NODE_ENV === 'production' ? 'production' : 'development'));
+  const normalized = String(origin).trim().replace(/\/$/, '');
+
+  // Native app schemes are permitted across environments
+  if (VERIFIED_NATIVE_SCHEMES.some(scheme => normalized.startsWith(scheme))) {
+    return true;
+  }
+
+  // Must first satisfy general origin hardening (no null, no pseudo protocols)
+  if (!isOriginAllowed(normalized)) {
+    return false;
+  }
+
+  if (targetEnv === 'staging') {
+    // Staging MUST NOT redirect to production origins
+    if (VERIFIED_PRODUCTION_ORIGINS.includes(normalized)) {
+      return false;
+    }
+    if (process.env.CLIENT_URL && normalized === process.env.CLIENT_URL.replace(/\/$/, '')) {
+      // If CLIENT_URL is a production domain, forbid it in staging
+      if (VERIFIED_PRODUCTION_ORIGINS.includes(normalized)) return false;
+    }
+    // Allowed staging origins
+    if (VERIFIED_STAGING_ORIGINS.includes(normalized)) return true;
+    if (process.env.STAGING_CLIENT_URL && normalized === process.env.STAGING_CLIENT_URL.replace(/\/$/, '')) return true;
+    if (/^https:\/\/.*-(?:git|preview|staging|candidate).*\.vercel\.app$/i.test(normalized)) return true;
+    return false;
+  }
+
+  if (targetEnv === 'production') {
+    // Production MUST NOT redirect to staging or preview origins
+    if (VERIFIED_STAGING_ORIGINS.includes(normalized)) {
+      return false;
+    }
+    if (/^https:\/\/.*-(?:git|preview|staging|candidate).*\.vercel\.app$/i.test(normalized)) {
+      return false;
+    }
+    if (VERIFIED_PRODUCTION_ORIGINS.includes(normalized)) return true;
+    if (process.env.CLIENT_URL && normalized === process.env.CLIENT_URL.replace(/\/$/, '')) return true;
+    return false;
+  }
+
+  // Development
+  if (LOCAL_DEV_ORIGINS.includes(normalized)) return true;
+  return isOriginAllowed(normalized);
+}
+
+/**
  * Dynamic CORS options delegate for Express cors() middleware.
  * Ensures credentialed CORS headers are ONLY returned for explicitly authorized browser origins.
  */
@@ -127,10 +194,13 @@ function corsOptionsDelegate(req, callback) {
 }
 
 module.exports = {
+  VERIFIED_PRODUCTION_ORIGINS,
+  VERIFIED_STAGING_ORIGINS,
   VERIFIED_VERCEL_ORIGINS,
   VERIFIED_NATIVE_SCHEMES,
   LOCAL_DEV_ORIGINS,
   getAllowedOrigins,
   isOriginAllowed,
+  isOriginAllowedForEnv,
   corsOptionsDelegate,
 };

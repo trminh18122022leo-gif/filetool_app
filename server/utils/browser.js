@@ -36,11 +36,14 @@ function getBrowserArgs(options = {}) {
     '--safebrowsing-disable-auto-update',
   ];
 
-  const isRootInLinux = process.platform === 'linux' && typeof process.getuid === 'function' && process.getuid() === 0;
-  const explicitNoSandbox = process.env.CHROMIUM_NO_SANDBOX === 'true' || forceNoSandbox;
+  // Explicit dual authorization required: Admin must specify CHROMIUM_NO_SANDBOX=true
+  // AND container isolation must be verified with ALLOW_SANDBOX_FALLBACK=true.
+  // Unconditional Linux fallback (process.platform === 'linux') is strictly forbidden.
+  const isFallbackAuthorized = process.env.CHROMIUM_NO_SANDBOX === 'true' && process.env.ALLOW_SANDBOX_FALLBACK === 'true';
+  const explicitNoSandbox = isFallbackAuthorized || forceNoSandbox;
 
-  // Sandbox is ONLY disabled when explicitly requested via administrative env or forced root fallback
-  if (explicitNoSandbox || isRootInLinux) {
+  // Sandbox is ONLY disabled when both administrative flags are verified or forced by authorized caller
+  if (explicitNoSandbox) {
     if (!process.env.SUPPRESS_SANDBOX_WARNING) {
       console.warn('[SECURITY WARNING] Chromium running in no-sandbox mode. Strict compensating network and container isolation must be verified.');
     }
@@ -52,8 +55,9 @@ function getBrowserArgs(options = {}) {
 
 /**
  * Retrieves or launches the singleton Puppeteer Chromium browser instance.
- * Attempts sandboxed execution first; falls back only if kernel denies user namespaces
- * and compensating isolation controls are verified.
+ * Attempts sandboxed execution first; falls back ONLY if kernel denies user namespaces
+ * AND explicit dual authorization (CHROMIUM_NO_SANDBOX=true + ALLOW_SANDBOX_FALLBACK=true) is present.
+ * If sandboxing is unavailable and authorization is missing, FAILS CLOSED with HTML_RENDERING_DISABLED_NO_SANDBOX.
  * 
  * @returns {Promise<import('puppeteer').Browser>}
  */
@@ -76,15 +80,23 @@ async function getBrowser() {
           args: getBrowserArgs({ forceNoSandbox: false }),
         });
       } catch (launchErr) {
-        const isSandboxError = /No usable sandbox|zygote_host_impl_linux|setuid sandbox/i.test(launchErr.message);
-        const allowFallback = process.env.ALLOW_SANDBOX_FALLBACK === 'true' || process.env.CHROMIUM_NO_SANDBOX === 'true' || process.platform === 'linux';
+        const isSandboxError = /No usable sandbox|zygote_host_impl_linux|setuid sandbox|running as root without --no-sandbox/i.test(launchErr.message);
+        const isDualAuthorized = process.env.CHROMIUM_NO_SANDBOX === 'true' && process.env.ALLOW_SANDBOX_FALLBACK === 'true';
 
-        if (isSandboxError && allowFallback) {
-          console.warn('[APPSEC AUDIT] Operating system kernel does not support unprivileged user namespaces. Activating compensating container isolation and no-sandbox fallback.');
-          browser = await puppeteer.launch({
-            headless: true,
-            args: getBrowserArgs({ forceNoSandbox: true }),
-          });
+        if (isSandboxError) {
+          if (isDualAuthorized) {
+            console.warn('[APPSEC AUDIT] Operating system kernel does not support unprivileged user namespaces. Activating compensating container isolation and no-sandbox fallback.');
+            browser = await puppeteer.launch({
+              headless: true,
+              args: getBrowserArgs({ forceNoSandbox: true }),
+            });
+          } else {
+            console.error('[APPSEC FAIL-CLOSED] Chromium sandbox unavailable and container isolation fallback is unauthorized. Failing closed.');
+            const error = new Error('HTML rendering disabled: Chromium sandbox unavailable and container isolation fallback is unauthorized (HTML_RENDERING_DISABLED_NO_SANDBOX)');
+            error.code = 'HTML_RENDERING_DISABLED_NO_SANDBOX';
+            error.statusCode = 503;
+            throw error;
+          }
         } else {
           throw launchErr;
         }

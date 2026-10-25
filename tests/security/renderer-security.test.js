@@ -47,15 +47,60 @@ describe('🔒 Chromium Renderer Security & Sandboxing Suite', () => {
       }
     });
 
-    it('enables --no-sandbox only when CHROMIUM_NO_SANDBOX=true is explicitly set', () => {
+    it('enables --no-sandbox only when BOTH CHROMIUM_NO_SANDBOX=true and ALLOW_SANDBOX_FALLBACK=true are explicitly set', () => {
       const origNoSandbox = process.env.CHROMIUM_NO_SANDBOX;
+      const origFallback = process.env.ALLOW_SANDBOX_FALLBACK;
       try {
         process.env.CHROMIUM_NO_SANDBOX = 'true';
+        process.env.ALLOW_SANDBOX_FALLBACK = 'true';
         const args = getBrowserArgs();
-        assert.ok(args.includes('--no-sandbox'), 'Must include --no-sandbox when CHROMIUM_NO_SANDBOX=true');
+        assert.ok(args.includes('--no-sandbox'), 'Must include --no-sandbox when dual authorization is set');
         assert.ok(args.includes('--disable-setuid-sandbox'), 'Must include --disable-setuid-sandbox');
       } finally {
         if (origNoSandbox) process.env.CHROMIUM_NO_SANDBOX = origNoSandbox; else delete process.env.CHROMIUM_NO_SANDBOX;
+        if (origFallback) process.env.ALLOW_SANDBOX_FALLBACK = origFallback; else delete process.env.ALLOW_SANDBOX_FALLBACK;
+      }
+    });
+
+    it('strictly forbids --no-sandbox when CHROMIUM_NO_SANDBOX=true without ALLOW_SANDBOX_FALLBACK=true', () => {
+      const origNoSandbox = process.env.CHROMIUM_NO_SANDBOX;
+      const origFallback = process.env.ALLOW_SANDBOX_FALLBACK;
+      try {
+        process.env.CHROMIUM_NO_SANDBOX = 'true';
+        delete process.env.ALLOW_SANDBOX_FALLBACK;
+        const args = getBrowserArgs();
+        assert.equal(args.includes('--no-sandbox'), false, 'Cannot enable --no-sandbox without verified container isolation');
+      } finally {
+        if (origNoSandbox) process.env.CHROMIUM_NO_SANDBOX = origNoSandbox; else delete process.env.CHROMIUM_NO_SANDBOX;
+        if (origFallback) process.env.ALLOW_SANDBOX_FALLBACK = origFallback; else delete process.env.ALLOW_SANDBOX_FALLBACK;
+      }
+    });
+
+    it('strictly forbids --no-sandbox when ALLOW_SANDBOX_FALLBACK=true without CHROMIUM_NO_SANDBOX=true', () => {
+      const origNoSandbox = process.env.CHROMIUM_NO_SANDBOX;
+      const origFallback = process.env.ALLOW_SANDBOX_FALLBACK;
+      try {
+        delete process.env.CHROMIUM_NO_SANDBOX;
+        process.env.ALLOW_SANDBOX_FALLBACK = 'true';
+        const args = getBrowserArgs();
+        assert.equal(args.includes('--no-sandbox'), false, 'Cannot enable --no-sandbox without admin authorization');
+      } finally {
+        if (origNoSandbox) process.env.CHROMIUM_NO_SANDBOX = origNoSandbox; else delete process.env.CHROMIUM_NO_SANDBOX;
+        if (origFallback) process.env.ALLOW_SANDBOX_FALLBACK = origFallback; else delete process.env.ALLOW_SANDBOX_FALLBACK;
+      }
+    });
+
+    it('does NOT permit --no-sandbox merely because platform is Linux', () => {
+      const origNoSandbox = process.env.CHROMIUM_NO_SANDBOX;
+      const origFallback = process.env.ALLOW_SANDBOX_FALLBACK;
+      try {
+        delete process.env.CHROMIUM_NO_SANDBOX;
+        delete process.env.ALLOW_SANDBOX_FALLBACK;
+        const args = getBrowserArgs({ forceNoSandbox: false });
+        assert.equal(args.includes('--no-sandbox'), false, 'Linux platform must NOT automatically disable sandbox');
+      } finally {
+        if (origNoSandbox) process.env.CHROMIUM_NO_SANDBOX = origNoSandbox; else delete process.env.CHROMIUM_NO_SANDBOX;
+        if (origFallback) process.env.ALLOW_SANDBOX_FALLBACK = origFallback; else delete process.env.ALLOW_SANDBOX_FALLBACK;
       }
     });
 

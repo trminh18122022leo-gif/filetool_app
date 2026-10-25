@@ -17,12 +17,36 @@ const { isVaultConfigured, decryptApiKey } = require('../utils/aiKeyVault');
 const UserByokKey = require('../models/UserByokKey');
 const AiUsageLedger = require('../models/AiUsageLedger');
 
+const CANONICAL_ACTIVE_FLASH = 'gemini-2.5-flash';
+const CANONICAL_ACTIVE_PRO   = 'gemini-2.5-pro';
+
+function isDeprecatedGeminiModel(name) {
+  if (!name) return true;
+  const n = String(name).trim().toLowerCase();
+  return (
+    n.startsWith('gemini-1.') ||
+    n === 'gemini-pro' ||
+    n === 'gemini-1.0-pro' ||
+    n === 'gemini-1.5-pro' ||
+    n === 'gemini-1.5-flash' ||
+    n === 'gemini-1.5-flash-8b' ||
+    n === 'gemini-ultra'
+  );
+}
+
+function resolveActiveGeminiModel(configured, fallback) {
+  if (configured && !isDeprecatedGeminiModel(configured)) {
+    return configured;
+  }
+  return fallback;
+}
+
 // ── 1. Provider Capabilities & Pricing Matrix ─────────────────────────────────
 const PROVIDER_SPECS = Object.freeze({
   gemini: {
     name: 'Google Gemini',
-    defaultModel: process.env.GEMINI_FLASH_MODEL || 'gemini-2.5-flash',
-    proModel: process.env.GEMINI_PRO_MODEL || 'gemini-2.5-pro',
+    defaultModel: resolveActiveGeminiModel(process.env.GEMINI_FLASH_MODEL, CANONICAL_ACTIVE_FLASH),
+    proModel: resolveActiveGeminiModel(process.env.GEMINI_PRO_MODEL, CANONICAL_ACTIVE_PRO),
     visionSupported: true,
     streamingSupported: true,
     costPer1MPromptUSD: 0.300,
@@ -74,17 +98,33 @@ const PROVIDER_SPECS = Object.freeze({
 
 // ── 1.1 Model Deprecation & Canonical Alias Normalization ─────────────────────
 function normalizeModelName(provider, model) {
-  if (!model) return PROVIDER_SPECS[provider]?.defaultModel || model;
-  const m = String(model).trim();
   if (provider === 'gemini') {
-    if (m === 'gemini-2.0-flash' || m === 'gemini-1.5-flash' || m === 'gemini-2.0-flash-exp') {
-      return process.env.GEMINI_FLASH_MODEL || 'gemini-2.5-flash';
+    const activeFlash = resolveActiveGeminiModel(process.env.GEMINI_FLASH_MODEL, CANONICAL_ACTIVE_FLASH);
+    const activePro   = resolveActiveGeminiModel(process.env.GEMINI_PRO_MODEL, CANONICAL_ACTIVE_PRO);
+
+    if (!model) return activeFlash;
+    const m = String(model).trim();
+
+    // Any flash alias or deprecated flash model normalizes to active flash
+    if (m === 'flash' || m === 'gemini-flash' || m === 'gemini-1.5-flash' || m === 'gemini-2.0-flash' || m === 'gemini-2.0-flash-exp' || m === 'gemini-1.5-flash-8b') {
+      return activeFlash;
     }
-    if (m === 'gemini-1.5-pro' || m === 'gemini-2.0-pro') {
-      return process.env.GEMINI_PRO_MODEL || 'gemini-2.5-pro';
+
+    // Any pro alias or deprecated pro model normalizes to active pro
+    if (m === 'pro' || m === 'gemini-pro' || m === 'gemini-1.0-pro' || m === 'gemini-1.5-pro' || m === 'gemini-2.0-pro') {
+      return activePro;
     }
+
+    // If a deprecated model is passed directly, guarantee it NEVER returns the deprecated string
+    if (isDeprecatedGeminiModel(m)) {
+      return m.includes('pro') ? activePro : activeFlash;
+    }
+
+    return m;
   }
-  return m;
+
+  if (!model) return PROVIDER_SPECS[provider]?.defaultModel || model;
+  return String(model).trim();
 }
 
 // ── 2. Circuit Breaker State Machine ──────────────────────────────────────────
