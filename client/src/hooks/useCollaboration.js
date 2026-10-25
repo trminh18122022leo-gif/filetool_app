@@ -6,10 +6,10 @@ import { useEffect, useRef, useState } from 'react';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { MonacoBinding } from 'y-monaco';
+import { getWebSocketBaseUrl } from '../utils/apiEnv';
 
 function getWsUrl() {
-  const apiUrl = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3002');
-  return apiUrl.replace(/^http/, 'ws');
+  return getWebSocketBaseUrl();
 }
 
 export function useCollaboration(documentId, monacoEditorRef, opts = {}) {

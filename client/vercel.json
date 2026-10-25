@@ -3,11 +3,51 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "(?<subdomain>.*-(?:git|preview|staging|candidate).*)\\.vercel\\.app"
+        }
+      ],
+      "destination": "https://staging-filetools-api.onrender.com/api/$1"
+    },
+    {
+      "source": "/socket.io/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "(?<subdomain>.*-(?:git|preview|staging|candidate).*)\\.vercel\\.app"
+        }
+      ],
+      "destination": "https://staging-filetools-api.onrender.com/socket.io/$1"
+    },
+    {
+      "source": "/api/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "^(?:filetool-app|filetools-app|filetools|www\\.filetools)\\.(?:vercel\\.app|pro)$"
+        }
+      ],
       "destination": "https://filetools-api.onrender.com/api/$1"
     },
     {
       "source": "/socket.io/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "^(?:filetool-app|filetools-app|filetools|www\\.filetools)\\.(?:vercel\\.app|pro)$"
+        }
+      ],
       "destination": "https://filetools-api.onrender.com/socket.io/$1"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "https://staging-filetools-api.onrender.com/api/$1"
+    },
+    {
+      "source": "/socket.io/(.*)",
+      "destination": "https://staging-filetools-api.onrender.com/socket.io/$1"
     },
     {
       "source": "/(.*)",

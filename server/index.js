@@ -165,20 +165,11 @@ app.use(helmet({
 app.use(compression({ level: 6, threshold: 1024 }));
 
 // 3. CORS — bảo vệ truy cập đa nguồn có xác thực với allowlist cấu hình từ môi trường
-const { defaultAllowedOrigins, isOriginAllowed } = require('./utils/corsGuard');
+const { defaultAllowedOrigins, getAllowedOrigins, isOriginAllowed, corsOptionsDelegate } = require('./utils/corsGuard');
 app.isOriginAllowed = isOriginAllowed;
+app.getAllowedOrigins = getAllowedOrigins;
 
-app.use(cors({
-  origin: (origin, callback) => {
-    if (isOriginAllowed(origin)) {
-      return callback(null, true);
-    }
-    return callback(null, false);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'x-api-key'],
-}));
+app.use(cors(corsOptionsDelegate));
 
 app.isOriginAllowed = isOriginAllowed;
 

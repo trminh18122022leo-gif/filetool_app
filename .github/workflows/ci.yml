@@ -34,7 +34,7 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
+          GITLEAKS_CONFIG: .gitleaks.toml
 
   # --------------------------------------------------------------------------
   # 2. BACKEND VERIFICATION (Matrix Node 20.x & 22.x)
@@ -62,6 +62,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends poppler-utils ghostscript
+          # Allow unprivileged user namespaces for sandboxed Chromium on Ubuntu 24.04
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
 
       - name: Install Root Dependencies
         run: npm ci
@@ -81,8 +83,10 @@ jobs:
           AI_KEY_ENCRYPTION_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 
       - name: Run NPM Security Audit
-        run: npm audit --audit-level=critical --omit=dev
-        continue-on-error: true
+        run: |
+          # Policy: Zero CRITICAL severity vulnerabilities permitted in production dependencies.
+          # High/Moderate findings are quarantined in sandbox workers and documented in SBOM.
+          npm audit --audit-level=critical --omit=dev
 
   # --------------------------------------------------------------------------
   # 3. FRONTEND VERIFICATION (Vite Build + Bundle Check)

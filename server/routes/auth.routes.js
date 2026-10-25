@@ -12,6 +12,7 @@ const User         = require('../models/User');
 const RefreshToken = require('../models/RefreshToken');
 const { requireAuth } = require('../middleware/auth');
 const { loginRateLimit, registerRateLimit, forgotPasswordRateLimit } = require('../middleware/rateLimit');
+const { isOriginAllowed } = require('../utils/corsGuard');
 
 const VERIFIED_VERCEL_HOSTS = [
   'filetool-app.vercel.app',
@@ -29,25 +30,48 @@ function getClientUrl(req) {
     if (req.cookies.auth_platform === 'electron') return 'filetools://auth';
     if (req.cookies.auth_platform === 'android') return 'com.filetools.pro://auth';
   }
-  const configuredClientUrl = (process.env.CLIENT_URL || '').replace(/\/$/, '');
-  if (configuredClientUrl && !configuredClientUrl.includes('localhost')) {
-    return configuredClientUrl;
-  }
-  if (req) {
-    const rawHost = req.get('x-forwarded-host') || req.get('host') || '';
-    const host = rawHost.split(':')[0].toLowerCase();
-    const proto = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
-    const isAllowedHost =
-      host === 'localhost' ||
-      host === '127.0.0.1' ||
-      VERIFIED_VERCEL_HOSTS.includes(host) ||
-      (configuredClientUrl && configuredClientUrl.includes(host));
 
-    if (isAllowedHost && !host.includes('3002')) {
-      return `${proto}://${rawHost}`;
+  const isStaging = process.env.APP_ENV === 'staging';
+  const isSecureEnv = process.env.NODE_ENV === 'production' || isStaging;
+
+  const configuredClientUrl = (
+    (isStaging ? process.env.STAGING_CLIENT_URL : null) ||
+    process.env.CLIENT_URL ||
+    ''
+  ).replace(/\/$/, '');
+
+  // 1. If incoming request has verified Origin or Referer matching allowlist, adhere to calling origin
+  if (req) {
+    const originHeader = req.get('origin');
+    if (originHeader && isOriginAllowed(originHeader)) {
+      return originHeader.replace(/\/$/, '');
+    }
+
+    const refererHeader = req.get('referer');
+    if (refererHeader) {
+      try {
+        const refUrl = new URL(refererHeader);
+        const refOrigin = `${refUrl.protocol}//${refUrl.host}`;
+        if (isOriginAllowed(refOrigin)) {
+          return refOrigin;
+        }
+      } catch (_) {}
     }
   }
-  return configuredClientUrl || 'http://localhost:5173';
+
+  // 2. Configured client URL from environment
+  if (configuredClientUrl && (!isSecureEnv || !configuredClientUrl.includes('localhost'))) {
+    return configuredClientUrl;
+  }
+
+  // 3. Fallback defaults strictly segregated by environment
+  if (!isSecureEnv) {
+    return 'http://localhost:5173';
+  }
+
+  return isStaging
+    ? 'https://filetool-app-git-staging.vercel.app'
+    : 'https://filetool-app.vercel.app';
 }
 
 function getOAuthRedirectUrl(req, clientUrl, token) {

@@ -1,7 +1,14 @@
 import { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
+import { getApiBaseUrl } from '../utils/apiEnv';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:3002' : '');
+const getSocketUrl = () => {
+  const base = getApiBaseUrl();
+  if (base) return base;
+  return typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://localhost:3002'
+    : '';
+};
 
 /**
  * Hook lắng nghe tiến độ real-time của một batch job qua Socket.io.
@@ -51,7 +58,7 @@ export function useJobSocket(jobId) {
     setError(null);
 
     const token = localStorage.getItem('token');
-    const socket = io(SOCKET_URL, {
+    const socket = io(getSocketUrl(), {
       auth: { token },
       transports: ['websocket', 'polling'],
     });

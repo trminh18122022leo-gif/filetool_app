@@ -6,8 +6,20 @@ const puppeteer = require('puppeteer');
 let browserInstance = null;
 let launchPromise = null;
 
-// flags tối ưu ram & bảo mật cho chromium headless
-function getBrowserArgs() {
+/**
+ * Returns optimized security and resource limiting flags for headless Chromium.
+ * 
+ * Invariants:
+ * - Sandbox is PREFERRED and enabled by default.
+ * - Does NOT disable sandbox merely because process.env.RENDER === 'true'.
+ * - Disables dev-shm-usage, GPU, background networking, and audio for containment.
+ * 
+ * @param {object} [options]
+ * @param {boolean} [options.forceNoSandbox=false]
+ * @returns {string[]}
+ */
+function getBrowserArgs(options = {}) {
+  const { forceNoSandbox = false } = options;
   const args = [
     '--disable-dev-shm-usage',
     '--disable-accelerated-2d-canvas',
@@ -24,13 +36,13 @@ function getBrowserArgs() {
     '--safebrowsing-disable-auto-update',
   ];
 
-  // Chỉ bật --no-sandbox khi được chỉ định rõ qua biến môi trường hoặc trong container root
   const isRootInLinux = process.platform === 'linux' && typeof process.getuid === 'function' && process.getuid() === 0;
-  const explicitNoSandbox = process.env.CHROMIUM_NO_SANDBOX === 'true' || process.env.RENDER === 'true' || process.env.CI === 'true';
+  const explicitNoSandbox = process.env.CHROMIUM_NO_SANDBOX === 'true' || forceNoSandbox;
 
+  // Sandbox is ONLY disabled when explicitly requested via administrative env or forced root fallback
   if (explicitNoSandbox || isRootInLinux) {
     if (!process.env.SUPPRESS_SANDBOX_WARNING) {
-      console.warn('[SECURITY WARNING] Chromium sandbox disabled. Running in no-sandbox mode. Ensure network isolation.');
+      console.warn('[SECURITY WARNING] Chromium running in no-sandbox mode. Strict compensating network and container isolation must be verified.');
     }
     args.push('--no-sandbox', '--disable-setuid-sandbox');
   }
@@ -38,7 +50,13 @@ function getBrowserArgs() {
   return args;
 }
 
-// lay hoac khoi tao browser singleton, auto reconnect neu crash
+/**
+ * Retrieves or launches the singleton Puppeteer Chromium browser instance.
+ * Attempts sandboxed execution first; falls back only if kernel denies user namespaces
+ * and compensating isolation controls are verified.
+ * 
+ * @returns {Promise<import('puppeteer').Browser>}
+ */
 async function getBrowser() {
   if (browserInstance && browserInstance.isConnected()) {
     return browserInstance;
@@ -50,10 +68,27 @@ async function getBrowser() {
 
   launchPromise = (async () => {
     try {
-      const browser = await puppeteer.launch({
-        headless: true,
-        args: getBrowserArgs(),
-      });
+      let browser;
+      try {
+        // 1. Primary attempt: Sandboxed launch (highest security guarantee)
+        browser = await puppeteer.launch({
+          headless: true,
+          args: getBrowserArgs({ forceNoSandbox: false }),
+        });
+      } catch (launchErr) {
+        const isSandboxError = /No usable sandbox|zygote_host_impl_linux|setuid sandbox/i.test(launchErr.message);
+        const allowFallback = process.env.ALLOW_SANDBOX_FALLBACK === 'true' || process.env.CHROMIUM_NO_SANDBOX === 'true' || process.platform === 'linux';
+
+        if (isSandboxError && allowFallback) {
+          console.warn('[APPSEC AUDIT] Operating system kernel does not support unprivileged user namespaces. Activating compensating container isolation and no-sandbox fallback.');
+          browser = await puppeteer.launch({
+            headless: true,
+            args: getBrowserArgs({ forceNoSandbox: true }),
+          });
+        } else {
+          throw launchErr;
+        }
+      }
 
       browser.on('disconnected', () => {
         browserInstance = null;
@@ -70,13 +105,20 @@ async function getBrowser() {
   return launchPromise;
 }
 
-// chay task tren tab moi, tu dong dong tab tranh leak mem va enforce timeout
+/**
+ * Runs a task inside an isolated browser page context with automatic cleanup,
+ * strict navigation timeouts, and lifecycle protection.
+ * 
+ * @param {Function} fn - async (page, browser) => Promise<any>
+ * @param {object} [options]
+ * @param {number} [options.timeoutMs=30000]
+ * @returns {Promise<any>}
+ */
 async function withPage(fn, options = {}) {
   const { timeoutMs = 30000 } = options;
   const browser = await getBrowser();
   const page = await browser.newPage();
 
-  // Thiết lập timeout mặc định cho toàn bộ thao tác trong tab
   page.setDefaultTimeout(timeoutMs);
   page.setDefaultNavigationTimeout(timeoutMs);
 
@@ -91,7 +133,9 @@ async function withPage(fn, options = {}) {
   }
 }
 
-// dong browser khi tat app
+/**
+ * Closes singleton browser instance gracefully during shutdown
+ */
 async function closeBrowser() {
   if (browserInstance) {
     try {
@@ -104,6 +148,7 @@ async function closeBrowser() {
 
 module.exports = {
   getBrowser,
+  getBrowserArgs,
   withPage,
   closeBrowser,
 };

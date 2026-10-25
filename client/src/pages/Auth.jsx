@@ -12,8 +12,9 @@ import { ClawCaptcha } from 'playcaptcha';
 import 'playcaptcha/clawcaptcha.css';
 import GlassyWisteriaBackground from '../components/backgrounds/GlassyWisteriaBackground';
 import MetaTags from '../components/seo/MetaTags';
+import { getApiBaseUrl } from '../utils/apiEnv';
 
-const API = import.meta.env.VITE_API_URL || (!!(window.Capacitor?.isNativePlatform?.() || window.electronAPI) ? 'https://filetool-app.vercel.app' : '');
+const API = getApiBaseUrl();
 const isNative = !!(window.Capacitor?.isNativePlatform?.() || window.electronAPI);
 const platform = window.electronAPI ? 'electron' : (window.Capacitor?.isNativePlatform?.() ? 'android' : '');
 const platformQuery = platform ? `?platform=${platform}` : '';
