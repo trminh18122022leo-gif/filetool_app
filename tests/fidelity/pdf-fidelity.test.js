@@ -34,12 +34,18 @@ describe('📄 PDF Studio Golden Fixtures & Output Fidelity Suite', () => {
     page.drawText(motto, { x: 50, y: 780, size: 12, font, color: rgb(0.3, 0.3, 0.3) });
 
     const pdfBytes = await doc.save();
-    const cleanBuf = Buffer.from(pdfBytes.slice());
-    const parsed = await pdfParse(cleanBuf);
+    const tmpFile = path.join(__dirname, 'fix01_temp.pdf');
+    fs.writeFileSync(tmpFile, Buffer.from(pdfBytes));
+    try {
+      const fileBuf = fs.readFileSync(tmpFile);
+      const parsed = await pdfParse(fileBuf);
 
-    assert.ok(parsed.text.includes('CONG HOA XA HOI CHU NGHIA VIET NAM'), 'Extracted text must match title');
-    assert.ok(parsed.text.includes('Doc lap - Tu do - Hanh phuc'), 'Extracted text must match motto');
-    assert.equal(parsed.numpages, 1, 'Should have exactly 1 page');
+      assert.ok(parsed.text.includes('CONG HOA XA HOI CHU NGHIA VIET NAM'), 'Extracted text must match title');
+      assert.ok(parsed.text.includes('Doc lap - Tu do - Hanh phuc'), 'Extracted text must match motto');
+      assert.equal(parsed.numpages, 1, 'Should have exactly 1 page');
+    } finally {
+      if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
+    }
   });
 
   it('FIX-02: Multilingual ASCII/CJK structural metadata and font handling', async () => {
