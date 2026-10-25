@@ -52,13 +52,13 @@ RUN npm install --omit=dev
 
 # Cài client dependencies và build
 COPY client/package*.json ./client/
-RUN cd client && npm install
+RUN cd client && npm install --include=dev
 
 # Copy toàn bộ source code
 COPY . .
 
 # Build React frontend
-RUN cd client && npm run build
+RUN cd client && npm run build && npm prune --omit=dev
 
 # Tạo các thư mục runtime cần thiết và phân quyền sở hữu cho non-root user
 RUN mkdir -p uploads outputs logs && \

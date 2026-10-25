@@ -26,7 +26,7 @@ function getBrowserArgs() {
 
   // Chỉ bật --no-sandbox khi được chỉ định rõ qua biến môi trường hoặc trong container root
   const isRootInLinux = process.platform === 'linux' && typeof process.getuid === 'function' && process.getuid() === 0;
-  const explicitNoSandbox = process.env.CHROMIUM_NO_SANDBOX === 'true' || process.env.RENDER === 'true';
+  const explicitNoSandbox = process.env.CHROMIUM_NO_SANDBOX === 'true' || process.env.RENDER === 'true' || process.env.CI === 'true';
 
   if (explicitNoSandbox || isRootInLinux) {
     if (!process.env.SUPPRESS_SANDBOX_WARNING) {

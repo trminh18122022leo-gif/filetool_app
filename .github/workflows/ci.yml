@@ -58,6 +58,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: package-lock.json
 
+      - name: Install System Dependencies (Poppler & Ghostscript)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils ghostscript
+
       - name: Install Root Dependencies
         run: npm ci
 
@@ -72,6 +77,7 @@ jobs:
           FREE_MODE: false
           JWT_SECRET: ci-test-token-secret-minimum-32-chars-long
           JWT_REFRESH_SECRET: ci-test-refresh-secret-minimum-32-chars
+          AI_KEY_VAULT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           AI_KEY_ENCRYPTION_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 
       - name: Run NPM Security Audit

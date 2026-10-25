@@ -33,7 +33,7 @@ describe('📄 PDF Studio Golden Fixtures & Output Fidelity Suite', () => {
     page.drawText(title, { x: 50, y: 800, size: 14, font, color: rgb(0.1, 0.1, 0.1) });
     page.drawText(motto, { x: 50, y: 780, size: 12, font, color: rgb(0.3, 0.3, 0.3) });
 
-    const pdfBytes = await doc.save();
+    const pdfBytes = await doc.save({ useObjectStreams: false });
     const parsed = await pdfParse(Buffer.from(pdfBytes));
 
     assert.ok(parsed.text.includes('CONG HOA XA HOI CHU NGHIA VIET NAM'), 'Extracted text must match title');
