@@ -33,8 +33,9 @@ describe('📄 PDF Studio Golden Fixtures & Output Fidelity Suite', () => {
     page.drawText(title, { x: 50, y: 800, size: 14, font, color: rgb(0.1, 0.1, 0.1) });
     page.drawText(motto, { x: 50, y: 780, size: 12, font, color: rgb(0.3, 0.3, 0.3) });
 
-    const pdfBytes = await doc.save({ useObjectStreams: false });
-    const parsed = await pdfParse(Buffer.from(pdfBytes));
+    const pdfBytes = await doc.save();
+    const cleanBuf = Buffer.from(pdfBytes.slice());
+    const parsed = await pdfParse(cleanBuf);
 
     assert.ok(parsed.text.includes('CONG HOA XA HOI CHU NGHIA VIET NAM'), 'Extracted text must match title');
     assert.ok(parsed.text.includes('Doc lap - Tu do - Hanh phuc'), 'Extracted text must match motto');
