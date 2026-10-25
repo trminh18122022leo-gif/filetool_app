@@ -183,14 +183,14 @@ describe('🤖 AI Systems, Privacy, BYOK & FinOps Evaluation Suite', () => {
       const promptTokens = 10000;
       const compTokens = 2000;
 
-      // Gemini: $0.075 / 1M prompt, $0.30 / 1M completion
+      // Gemini 2.5 Flash: $0.300 / 1M prompt, $2.500 / 1M completion (official 2026 pricing)
       const geminiSpec = PROVIDER_SPECS.gemini;
       const cost = (promptTokens * geminiSpec.costPer1MPromptUSD + compTokens * geminiSpec.costPer1MCompletionUSD) / 1000000;
 
-      // 10,000 * 0.075 / 1e6 = 0.00075
-      // 2,000 * 0.300 / 1e6 = 0.00060
-      // Total = 0.00135 USD
-      assert.strictEqual(Math.round(cost * 100000) / 100000, 0.00135);
+      // 10,000 * 0.300 / 1e6 = 0.00300
+      // 2,000 * 2.500 / 1e6 = 0.00500
+      // Total = 0.00800 USD
+      assert.strictEqual(Math.round(cost * 100000) / 100000, 0.008);
     });
 
     it('zeros provider cost when isBYOK is true', () => {

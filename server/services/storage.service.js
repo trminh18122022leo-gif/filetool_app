@@ -8,6 +8,7 @@ const crypto     = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const FileRecord = require('../models/FileRecord');
 const User       = require('../models/User');
+const { PLANS }  = require('../config/plans');
 
 function computeFileSha256(filePath) {
   return new Promise((resolve, reject) => {
@@ -76,9 +77,16 @@ async function uploadToCloud(localFilePath, opts = {}) {
   } catch (_) {}
   if (!client) throw new Error('Cloud storage chưa được cấu hình (thiếu R2_ENDPOINT)');
 
-  const { userId, originalName, operation, retentionDays = 7 } = opts;
+  const { userId, originalName, operation, retentionDays, userPlan } = opts;
   if (!fs.existsSync(localFilePath)) {
     throw new Error('Tệp nguồn không tồn tại trên máy chủ');
+  }
+
+  // Single Source of Truth (SSOT) cho thời hạn lưu trữ theo gói (Free: 1d, Plus: 7d, Pro: 30d, Business: 90d)
+  let effectiveRetentionDays = retentionDays;
+  if (!effectiveRetentionDays) {
+    const planKey = (userPlan || 'free').toLowerCase();
+    effectiveRetentionDays = PLANS[planKey]?.entitlements?.retentionDays ?? 1;
   }
 
   const stat = fs.statSync(localFilePath);
@@ -104,7 +112,7 @@ async function uploadToCloud(localFilePath, opts = {}) {
     },
   }));
 
-  const expiresAt = new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + effectiveRetentionDays * 24 * 60 * 60 * 1000);
   const record = await FileRecord.create({
     fileId,
     user:          userId,

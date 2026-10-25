@@ -127,11 +127,27 @@ async function enqueueJob(jobRecord, options = {}) {
     return { queued: true, engine: 'bullmq-redis' };
   }
 
-  // Chặn thực thi in-memory cho các tác vụ nặng trên Production khi Redis mất kết nối
-  const HEAVY_OPERATIONS = ['video-translate', 'audio-extract', 'libreoffice-convert', 'ocr-pdf', 'bulk-compress', 'workflow-dag', 'pdf-ocr'];
-  if (process.env.NODE_ENV === 'production' && !isRedisReady() && process.env.ALLOW_IN_MEMORY_FALLBACK !== 'true') {
-    if (HEAVY_OPERATIONS.includes(jobRecord.operation)) {
-      const err = new Error('Durable background queue is currently unavailable. Heavy operations cannot execute in-memory in production.');
+  // Trong môi trường Production, hàng đợi bắt buộc phải có tính bền vững (Durable Queue via Redis).
+  // Tuyệt đối không để job bất đồng bộ âm thầm rơi vào bộ nhớ RAM dễ biến mất khi restart/deploy.
+  const ALL_HEAVY_OPERATIONS = [
+    'video-translate',
+    'audio-extract',
+    'libreoffice-convert',
+    'ocr-pdf',
+    'pdf-ocr',
+    'bulk-compress',
+    'batch-process',
+    'workflow-dag',
+    'pdf-to-word',
+    'word-to-pdf',
+    'html-to-pdf',
+    'pdf-redact',
+    'pdf-compress',
+  ];
+
+  if (process.env.NODE_ENV === 'production' && !isRedisReady()) {
+    if (process.env.ALLOW_IN_MEMORY_FALLBACK !== 'true' || ALL_HEAVY_OPERATIONS.includes(jobRecord.operation)) {
+      const err = new Error(`Durable background queue is currently unavailable for operation '${jobRecord.operation}'. Asynchronous jobs cannot execute in volatile memory in production.`);
       err.code = 'DURABLE_QUEUE_UNAVAILABLE';
       err.status = 503;
       throw err;

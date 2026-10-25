@@ -29,7 +29,7 @@ function getClientUrl(req) {
     const isAllowedHost =
       host === 'localhost' ||
       host === '127.0.0.1' ||
-      host.endsWith('.vercel.app') ||
+      /^((filetool-app|filetools-app)(-[a-zA-Z0-9_-]+)?\.vercel\.app)$/.test(host) ||
       (configuredClientUrl && configuredClientUrl.includes(host));
 
     if (isAllowedHost && !host.includes('3002')) {

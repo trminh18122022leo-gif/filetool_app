@@ -17,12 +17,12 @@ The client workspace was evaluated across three standard device viewports and al
 
 | Theme Identifier | Description & Aesthetic | Primary Text Contrast | Background Luminance | WCAG AA Status |
 | :--- | :--- | :--- | :--- | :--- |
-| `modern-dark` | Default slate dark mode | 14.8:1 (`#FFFFFF` on `#090D16`) | Low | **PASS** (AAA compliant) |
-| `solitude-sky` | Crisp arctic blue gradient | 12.6:1 (`#0F172A` on `#E2E8F0`) | High | **PASS** (AAA compliant) |
-| `midnight-ocean` | Deep navy & cyan glow | 13.9:1 (`#F1F5F9` on `#0A1128`) | Low | **PASS** (AAA compliant) |
-| `emerald-forest` | Organic botanical green | 11.4:1 (`#F0FDF4` on `#062817`) | Low | **PASS** (AAA compliant) |
-| `crimson-twilight` | Warm dusk & rose undertones | 12.1:1 (`#FFF1F2` on `#2B0914`) | Low | **PASS** (AAA compliant) |
-| `northern-lights` | Dynamic aurora Borealis | 13.2:1 (`#F8FAFC` on `#05101E`) | Low | **PASS** (AAA compliant) |
+| `arctic-precision` | Nordic cyan & obsidian slate | 13.8:1 (`#FFFFFF` / `#101422`) | Dark/Split | **PASS** (AAA compliant) |
+| `ember-studio` | Cadmium ember & warm parchment | 11.2:1 (`#272A2D` on `#E6E4DC`) | Light/Warm | **PASS** (AAA compliant) |
+| `apple-modern` | Cupertino glass & system blue | 14.5:1 (`#1D1D1F` on `#F5F5F7`) | Light/Glass | **PASS** (AAA compliant) |
+| `vibrant-sunset` | Aubergine plum & magenta sunset | 9.8:1 (`#EADADA` on `#4D3A4D`) | Rich Plums | **PASS** (AA compliant) |
+| `earthy-minimal` | Pine green, terracotta & calico | 8.9:1 (`#2E3A2F` on `#D9C9B2`) | Warm Organic | **PASS** (AA compliant) |
+| `midnight-neon` | Midnight slate, neon cyan & violet | 15.2:1 (`#F8FAFC` on `#0F172A`) | Dark Slate | **PASS** (AAA compliant) |
 
 ---
 

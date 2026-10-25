@@ -3,12 +3,12 @@
 **Audit Phase:** Antigravity Release Evidence Gate  
 **System:** FileTools Pro Candidate Working Tree  
 **Verification Date:** October 2026  
-**Base Commit SHA:** `d1e5e30d359a5717f14cf20fdd972fb9ec168d31`  
-**Current Git Branch:** `main`  
-**Working Tree Status:** **DIRTY / UNCOMMITTED LOCAL CANDIDATE**  
+**Candidate Base Commit SHA:** `05751997197383fc68addcda4e8d8f45f1f67849`  
+**Current Git Branch:** `release/v1.0.0-candidate`  
+**Working Tree Status:** **DIRTY / UNCOMMITTED LOCAL CANDIDATE (8 MODIFIED, 1 UNTRACKED HELPER)**  
 
 > [!WARNING]
-> This release candidate is currently staged and present in the local working tree. It has **NOT** been pushed to GitHub `origin/main`. Consequently, remote GitHub Actions CI pipelines (e.g., `.github/workflows/ci.yml`) have not run against this exact candidate SHA. All assertions in this report reflect **local machine verification**, not remote CI verification.
+> This release candidate is currently staged and present in the local working tree on branch `release/v1.0.0-candidate`. It has **NOT** been pushed to GitHub `origin/release/v1.0.0-candidate` or merged into `main`. Consequently, remote GitHub Actions CI pipelines (e.g., `.github/workflows/ci.yml`) have not run against this exact candidate SHA. All assertions in this report reflect **local machine verification**, not remote CI verification.
 
 ---
 
@@ -46,9 +46,9 @@ The candidate contains modifications to 60 tracked files and 38 untracked direct
 
 ## 2. Integrity Hash & Working Tree Diff Metrics
 
-- **Base Git Commit:** `d1e5e30d359a5717f14cf20fdd972fb9ec168d31`
-- **Total Backend Files Checked by Syntax Validator:** 93 files (0 errors)
-- **Local Automated Tests:** 129 test cases across 67 suites (100% PASS)
+- **Candidate Base Git Commit:** `05751997197383fc68addcda4e8d8f45f1f67849`
+- **Total Backend Files Checked by Syntax Validator:** 94 files (0 errors)
+- **Local Automated Tests:** 130 test cases across 67 suites (100% PASS, 4.78s)
 - **Git Push Gate Status:** **HOLD — Pending Explicit User / Owner Approval**
 
 ---

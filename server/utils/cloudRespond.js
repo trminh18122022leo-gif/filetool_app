@@ -47,6 +47,7 @@ async function respondFile(req, res, localPath, operation, extra = {}) {
     try {
       const { record, downloadUrl } = await uploadToCloud(localPath, {
         userId:       req.user._id,
+        userPlan:     req.user.plan || 'free',
         originalName: req.file?.originalname || filename,
         operation,
       });
@@ -111,6 +112,7 @@ async function respondFiles(req, res, localPaths, operation, extra = {}) {
       for (const lp of localPaths) {
         const { record, downloadUrl } = await uploadToCloud(lp, {
           userId:       req.user._id,
+          userPlan:     req.user.plan || 'free',
           originalName: path.basename(lp),
           operation,
         });

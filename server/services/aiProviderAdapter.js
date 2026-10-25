@@ -25,8 +25,10 @@ const PROVIDER_SPECS = Object.freeze({
     proModel: process.env.GEMINI_PRO_MODEL || 'gemini-2.5-pro',
     visionSupported: true,
     streamingSupported: true,
-    costPer1MPromptUSD: 0.075,
-    costPer1MCompletionUSD: 0.300,
+    costPer1MPromptUSD: 0.300,
+    costPer1MCompletionUSD: 2.500,
+    proCostPer1MPromptUSD: 1.250,
+    proCostPer1MCompletionUSD: 10.000,
   },
   groq: {
     name: 'Groq Cloud LPU',
@@ -317,7 +319,10 @@ async function recordAiUsage(opts) {
 
     let providerCostUSD = 0;
     if (!isBYOK) {
-      providerCostUSD = (promptTokens * spec.costPer1MPromptUSD + completionTokens * spec.costPer1MCompletionUSD) / 1000000;
+      const isPro = model && model.toLowerCase().includes('pro');
+      const promptRate = (isPro && spec.proCostPer1MPromptUSD) ? spec.proCostPer1MPromptUSD : spec.costPer1MPromptUSD;
+      const compRate = (isPro && spec.proCostPer1MCompletionUSD) ? spec.proCostPer1MCompletionUSD : spec.costPer1MCompletionUSD;
+      providerCostUSD = (promptTokens * promptRate + completionTokens * compRate) / 1000000;
     }
 
     const infrastructureCostUSD = isBYOK ? 0.00020 : 0.00015; // fixed base compute, TLS, worker cycles & DB per request

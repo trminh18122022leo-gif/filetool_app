@@ -165,39 +165,12 @@ app.use(helmet({
 app.use(compression({ level: 6, threshold: 1024 }));
 
 // 3. CORS — bảo vệ truy cập đa nguồn có xác thực với allowlist cấu hình từ môi trường
-const defaultAllowedOrigins = [
-  process.env.CLIENT_URL,
-  'http://localhost:3030',
-  'http://127.0.0.1:3030',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'http://localhost:3002',
-  'http://127.0.0.1:3002',
-  'https://filetool-app.vercel.app',
-  'https://filetools-app.vercel.app',
-].filter(Boolean);
-
-if (process.env.ALLOWED_ORIGINS) {
-  process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).forEach(o => {
-    if (o && !defaultAllowedOrigins.includes(o)) defaultAllowedOrigins.push(o);
-  });
-}
+const { defaultAllowedOrigins, isOriginAllowed } = require('./utils/corsGuard');
+app.isOriginAllowed = isOriginAllowed;
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Cho phép request không có origin (mobile apps, server-to-server, curl, Postman, Electron file://)
-    if (!origin || origin === 'null') return callback(null, true);
-    if (origin.startsWith('filetools://') || origin.startsWith('com.filetools.pro://')) {
-      return callback(null, true);
-    }
-    // Cho phép tất cả các cổng local (localhost, 127.0.0.1) và preview deployments Vercel
-    if (
-      defaultAllowedOrigins.includes(origin) ||
-      /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
-      /^https:\/\/([a-zA-Z0-9_-]+\.)?vercel\.app$/.test(origin)
-    ) {
+    if (isOriginAllowed(origin)) {
       return callback(null, true);
     }
     return callback(null, false);
@@ -206,6 +179,8 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'x-api-key'],
 }));
+
+app.isOriginAllowed = isOriginAllowed;
 
 // 4. Route Stripe webhook cần raw body — phải đặt TRƯỚC express.json()
 app.use('/api/payment/webhook', express.raw({ type: 'application/json' }));
@@ -483,18 +458,20 @@ if (fs.existsSync(clientDist)) {
 }
 
 // ── Cron Auto Cleanup & Storage Reconciliation ──────────────────────────────
-// Dọn dẹp files tạm và đối soát tệp cloud hết hạn (chạy mỗi 30 phút)
+// Dọn dẹp files tạm và đối soát tệp cloud hết hạn (chạy mỗi 30 phút khi chạy server chính)
 const { reconcileStorage } = require('./services/cleanup.service');
-cron.schedule('*/30 * * * *', async () => {
-  try {
-    const stats = await reconcileStorage(60 * 60 * 1000);
-    if (stats.uploadsDeleted > 0 || stats.outputsDeleted > 0 || stats.cloudDeleted > 0) {
-      logger.info(`[cleanup] Đã dọn dẹp: ${stats.uploadsDeleted} upload(s), ${stats.outputsDeleted} output(s), ${stats.cloudDeleted} cloud record(s)`);
+if (require.main === module) {
+  cron.schedule('*/30 * * * *', async () => {
+    try {
+      const stats = await reconcileStorage(60 * 60 * 1000);
+      if (stats.uploadsDeleted > 0 || stats.outputsDeleted > 0 || stats.cloudDeleted > 0) {
+        logger.info(`[cleanup] Đã dọn dẹp: ${stats.uploadsDeleted} upload(s), ${stats.outputsDeleted} output(s), ${stats.cloudDeleted} cloud record(s)`);
+      }
+    } catch (err) {
+      logger.error('[cleanup] Lỗi dọn dẹp & đối soát kho lưu trữ:', err.message);
     }
-  } catch (err) {
-    logger.error('[cleanup] Lỗi dọn dẹp & đối soát kho lưu trữ:', err.message);
-  }
-});
+  });
+}
 
 // ── Error Handler ─────────────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
@@ -526,20 +503,22 @@ app.use((err, req, res, next) => {
 });
 
 // ── Khởi động Server ─────────────────────────────────────────────────────────
-server.listen(PORT, () => {
-  console.log(`⚡ FileTools Pro Server đang chạy tại http://localhost:${PORT}`);
-  console.log(`⚡ Socket.io real-time server đã sẵn sàng`);
-});
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`⚡ FileTools Pro Server đang chạy tại http://localhost:${PORT}`);
+    console.log(`⚡ Socket.io real-time server đã sẵn sàng`);
+  });
 
-// tat app don dep browser
-const { closeBrowser } = require('./utils/browser');
-process.on('SIGTERM', async () => {
-  await closeBrowser();
-  process.exit(0);
-});
-process.on('SIGINT', async () => {
-  await closeBrowser();
-  process.exit(0);
-});
+  // tat app don dep browser
+  const { closeBrowser } = require('./utils/browser');
+  process.on('SIGTERM', async () => {
+    await closeBrowser();
+    process.exit(0);
+  });
+  process.on('SIGINT', async () => {
+    await closeBrowser();
+    process.exit(0);
+  });
+}
 
 module.exports = app;
