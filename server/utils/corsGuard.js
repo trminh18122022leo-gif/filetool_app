@@ -1,7 +1,20 @@
 'use strict';
 
+// Danh sách tường minh các origin Vercel đã xác minh của dự án FileTools Pro
+const VERIFIED_VERCEL_ORIGINS = [
+  'https://filetool-app.vercel.app',
+  'https://filetools-app.vercel.app',
+  'https://filetool-app-git-staging.vercel.app',
+  'https://filetools-app-git-staging.vercel.app',
+  'https://filetool-app-git-release-v1-0-0-candidate.vercel.app',
+  'https://filetools-app-git-release-v1-0-0-candidate.vercel.app',
+  'https://filetools.pro',
+  'https://www.filetools.pro',
+];
+
 const defaultAllowedOrigins = [
   process.env.CLIENT_URL,
+  process.env.STAGING_CLIENT_URL,
   'http://localhost:3030',
   'http://127.0.0.1:3030',
   'http://localhost:5173',
@@ -10,8 +23,7 @@ const defaultAllowedOrigins = [
   'http://127.0.0.1:3000',
   'http://localhost:3002',
   'http://127.0.0.1:3002',
-  'https://filetool-app.vercel.app',
-  'https://filetools-app.vercel.app',
+  ...VERIFIED_VERCEL_ORIGINS,
 ].filter(Boolean);
 
 if (process.env.ALLOWED_ORIGINS) {
@@ -26,22 +38,20 @@ function isOriginAllowed(origin) {
   if (origin.startsWith('filetools://') || origin.startsWith('com.filetools.pro://')) {
     return true;
   }
-  // Cho phép các domain cấu hình tường minh
+  // Cho phép các domain trong danh sách cho phép tường minh
   if (defaultAllowedOrigins.includes(origin)) {
     return true;
   }
-  // Cho phép các cổng local chỉ trong môi trường phát triển (non-production)
-  if (process.env.NODE_ENV !== 'production' && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-    return true;
-  }
-  // Chỉ cho phép preview deployments Vercel thuộc tiền tố dự án này (chặn tùy tiện *.vercel.app)
-  if (/^https:\/\/(filetool-app|filetools-app)(-[a-zA-Z0-9_-]+)?\.vercel\.app$/.test(origin)) {
+  // Cho phép các cổng local chỉ trong môi trường phát triển (không áp dụng cho production hoặc staging)
+  const isSecureEnv = process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'staging';
+  if (!isSecureEnv && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
     return true;
   }
   return false;
 }
 
 module.exports = {
+  VERIFIED_VERCEL_ORIGINS,
   defaultAllowedOrigins,
   isOriginAllowed,
 };

@@ -488,21 +488,33 @@ describe('🛡️ P0 Security & Access Control Verification Suite', () => {
       const configuredClient = (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
       const testHosts = ['evil-attacker.com', 'phishing.vercel.app', 'malicious-clone.vercel.app'];
 
+      const VERIFIED_VERCEL_HOSTS = [
+        'filetool-app.vercel.app',
+        'filetools-app.vercel.app',
+        'filetool-app-git-staging.vercel.app',
+        'filetools-app-git-staging.vercel.app',
+        'filetool-app-git-release-v1-0-0-candidate.vercel.app',
+        'filetools-app-git-release-v1-0-0-candidate.vercel.app',
+        'filetools.pro',
+        'www.filetools.pro',
+      ];
+
       testHosts.forEach(rawHost => {
         const host = rawHost.split(':')[0].toLowerCase();
         const isAllowedHost =
           host === 'localhost' ||
           host === '127.0.0.1' ||
-          /^((filetool-app|filetools-app)(-[a-zA-Z0-9_-]+)?\.vercel\.app)$/.test(host) ||
+          VERIFIED_VERCEL_HOSTS.includes(host) ||
           (configuredClient && configuredClient.includes(host));
 
         assert.equal(isAllowedHost, false, `${rawHost} must NOT be allowed`);
       });
 
-      // Controlled project preview host must be allowed
-      const validPreview = 'filetool-app-preview-pr12.vercel.app';
-      const isValidPreview = /^((filetool-app|filetools-app)(-[a-zA-Z0-9_-]+)?\.vercel\.app)$/.test(validPreview);
-      assert.equal(isValidPreview, true, 'Controlled project preview must be allowed');
+      // Verified project deployment host must be allowed, arbitrary unverified host rejected
+      const verifiedPreview = 'filetool-app-git-staging.vercel.app';
+      const unverifiedPreview = 'filetool-app-arbitrary-pr999.vercel.app';
+      assert.equal(VERIFIED_VERCEL_HOSTS.includes(verifiedPreview), true, 'Verified project staging host must be allowed');
+      assert.equal(VERIFIED_VERCEL_HOSTS.includes(unverifiedPreview), false, 'Arbitrary unverified host must be rejected');
     });
 
     it('Strict CORS isOriginAllowed rejects arbitrary third-party vercel domains', () => {
@@ -510,6 +522,8 @@ describe('🛡️ P0 Security & Access Control Verification Suite', () => {
       assert.equal(isOriginAllowed('https://filetool-app.vercel.app'), true);
       assert.equal(isOriginAllowed('https://filetools-app.vercel.app'), true);
       assert.equal(isOriginAllowed('https://filetool-app-git-staging.vercel.app'), true);
+      assert.equal(isOriginAllowed('https://filetool-app-git-release-v1-0-0-candidate.vercel.app'), true);
+      assert.equal(isOriginAllowed('https://arbitrary-unverified.vercel.app'), false);
       assert.equal(isOriginAllowed('https://evil-phishing.vercel.app'), false);
       assert.equal(isOriginAllowed('https://attacker-site.com'), false);
     });

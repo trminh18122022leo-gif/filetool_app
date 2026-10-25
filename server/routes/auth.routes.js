@@ -13,6 +13,17 @@ const RefreshToken = require('../models/RefreshToken');
 const { requireAuth } = require('../middleware/auth');
 const { loginRateLimit, registerRateLimit, forgotPasswordRateLimit } = require('../middleware/rateLimit');
 
+const VERIFIED_VERCEL_HOSTS = [
+  'filetool-app.vercel.app',
+  'filetools-app.vercel.app',
+  'filetool-app-git-staging.vercel.app',
+  'filetools-app-git-staging.vercel.app',
+  'filetool-app-git-release-v1-0-0-candidate.vercel.app',
+  'filetools-app-git-release-v1-0-0-candidate.vercel.app',
+  'filetools.pro',
+  'www.filetools.pro',
+];
+
 function getClientUrl(req) {
   if (req && req.cookies && req.cookies.auth_platform) {
     if (req.cookies.auth_platform === 'electron') return 'filetools://auth';
@@ -29,7 +40,7 @@ function getClientUrl(req) {
     const isAllowedHost =
       host === 'localhost' ||
       host === '127.0.0.1' ||
-      /^((filetool-app|filetools-app)(-[a-zA-Z0-9_-]+)?\.vercel\.app)$/.test(host) ||
+      VERIFIED_VERCEL_HOSTS.includes(host) ||
       (configuredClientUrl && configuredClientUrl.includes(host));
 
     if (isAllowedHost && !host.includes('3002')) {

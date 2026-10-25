@@ -145,7 +145,7 @@ async function enqueueJob(jobRecord, options = {}) {
     'pdf-compress',
   ];
 
-  if (process.env.NODE_ENV === 'production' && !isRedisReady()) {
+  if ((process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'staging') && !isRedisReady()) {
     if (process.env.ALLOW_IN_MEMORY_FALLBACK !== 'true' || ALL_HEAVY_OPERATIONS.includes(jobRecord.operation)) {
       const err = new Error(`Durable background queue is currently unavailable for operation '${jobRecord.operation}'. Asynchronous jobs cannot execute in volatile memory in production.`);
       err.code = 'DURABLE_QUEUE_UNAVAILABLE';
