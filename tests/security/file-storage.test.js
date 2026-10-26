@@ -169,11 +169,13 @@ describe('📦 File Storage Security, Lifecycle & Negative Verification Suite', 
     it('Orphaned partial upload file is safely unlinked by cleanDirectory', () => {
       const orphanFile = path.join(testTempDir, 'aborted_upload_part_001.tmp');
       fs.writeFileSync(orphanFile, Buffer.alloc(1024));
+      const pastTime = (Date.now() - 2000) / 1000;
+      fs.utimesSync(orphanFile, pastTime, pastTime);
 
       assert.ok(fs.existsSync(orphanFile));
 
       // Clean files older than 0ms
-      const deleted = cleanDirectory(testTempDir, -1);
+      const deleted = cleanDirectory(testTempDir, 0);
       assert.ok(deleted >= 1);
       assert.equal(fs.existsSync(orphanFile), false, 'Aborted upload file must be removed');
     });

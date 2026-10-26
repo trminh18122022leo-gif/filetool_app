@@ -6,16 +6,22 @@
  * - Direct WSS Base URL Resolution across environments (Production, Staging/Preview, Localhost)
  * - Vercel Edge parity for /socket.io/ and /collab/
  * - Socket.IO hardened CORS origin verification (no 'null' bypass, verified Vercel & native schemes)
- * - Yjs /collab JWT token authentication requirement
- * - Yjs /collab cross-tenant room access isolation
- * - Yjs /collab origin verification against CSWSH
+ * - Yjs WebSocket Route Compatibility & Real y-websocket Client Integration
+ * - Database-backed Document-Level Yjs Authorization & Room Creation Security
+ * - Redis Pub/Sub Instance Identification across containers sharing identical PIDs
+ * - Colocated Background Worker Process Supervisor Lifecycle
  */
 
-const { describe, it } = require('node:test');
+const { describe, it, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 const jwt = require('jsonwebtoken');
+const WebSocket = require('ws');
+const Y = require('yjs');
+const { WebsocketProvider } = require('y-websocket');
+const { setupWSConnection, docs: ywsDocs } = require('y-websocket/bin/utils');
 
 const {
   getWebSocketBaseUrl,
@@ -28,6 +34,9 @@ const {
 const { isOriginAllowed } = require('../../server/utils/corsGuard');
 
 const {
+  isValidRoomIdentifier,
+  createCollabRoom,
+  deleteCollabRoom,
   verifyCollabRoomAccess,
   addCollabRoomCollaborator,
   resetCollabRoomsForTesting,
@@ -39,7 +48,18 @@ const {
   hasJobAccessAsync,
   emitProgress,
   emitComplete,
+  getInstanceId,
+  setInstanceIdForTesting,
+  processIncomingPubSubMessage,
+  REDIS_CHANNEL,
+  jobEmitter,
 } = require('../../server/services/jobEmitter');
+
+const {
+  isWorkerRunning,
+  getWorkerPid,
+  resetSupervisorForTesting,
+} = require('../../server/utils/workerSupervisor');
 
 describe('⚡ WebSocket Environment Isolation, Routing & Security Suite', () => {
 
@@ -76,7 +96,6 @@ describe('⚡ WebSocket Environment Isolation, Routing & Security Suite', () => 
     });
 
     it('prevents accidental production VITE_WS_URL override when running on preview hosts', () => {
-      // Direct call with staging hostname guarantees fail-safe fallback to staging
       const resolved = getWebSocketBaseUrl('filetool-app-preview-xyz.vercel.app');
       assert.equal(resolved, STAGING_WS_URL);
     });
@@ -91,13 +110,11 @@ describe('⚡ WebSocket Environment Isolation, Routing & Security Suite', () => 
       const collabRewrites = rewrites.filter(r => r.source === '/collab/(.*)');
       assert.ok(collabRewrites.length >= 2, 'Must have at least 2 environment-specific /collab/ rewrite rules');
 
-      // Staging collab rewrite
       const stagingCollab = collabRewrites.find(r =>
         r.destination.includes('staging-filetools-api.onrender.com/collab/')
       );
       assert.ok(stagingCollab, 'Must have rewrite routing staging /collab/ to staging backend');
 
-      // Production collab rewrite
       const prodCollab = collabRewrites.find(r =>
         r.destination.includes('filetools-api.onrender.com/collab/') && !r.destination.includes('staging-')
       );
@@ -134,128 +151,462 @@ describe('⚡ WebSocket Environment Isolation, Routing & Security Suite', () => 
     });
   });
 
-  describe('4. Database-Backed Document Authorization for Yjs /collab Rooms', () => {
+  describe('4. Yjs WebSocket Route Compatibility & Real Client Integration', () => {
+    let testHttpServer;
+    let testPort;
+    const jwtSecret = 'test-secret-for-real-collab-test-32chars!';
+    const userAlice = '65a123456789abcdef000001';
+    const userBob = '65a123456789abcdef000002';
+    const aliceToken = jwt.sign({ userId: userAlice, email: 'alice@example.com' }, jwtSecret, { expiresIn: '1h' });
+    const bobToken = jwt.sign({ userId: userBob, email: 'bob@example.com' }, jwtSecret, { expiresIn: '1h' });
+
+    beforeEach(() => {
+      resetCollabRoomsForTesting();
+    });
+
+    it('connects actual y-websocket client to real Node WebSocket server and syncs document updates', async () => {
+      const authorizedDocId = 'real-contract-doc-01';
+      await createCollabRoom(authorizedDocId, userAlice, { title: 'Alice Contract' });
+
+      // Create test server matching server/index.js upgrade handler
+      const server = http.createServer();
+      const sockets = new Set();
+      server.on('connection', s => {
+        sockets.add(s);
+        s.on('close', () => sockets.delete(s));
+      });
+
+      const collabWSS = new WebSocket.Server({ noServer: true });
+
+      collabWSS.on('connection', (ws, req) => {
+        const parsedUrl = new URL(req.url, 'http://localhost');
+        let docName = '';
+        if (parsedUrl.pathname.startsWith('/collab/')) {
+          docName = decodeURIComponent(parsedUrl.pathname.replace(/^\/collab\/?/, '').split('/')[0]);
+        }
+        if (!docName) {
+          docName = parsedUrl.searchParams.get('room') || 'default';
+        }
+        setupWSConnection(ws, req, { docName, gc: true });
+      });
+
+      server.on('upgrade', async (req, socket, head) => {
+        sockets.add(socket);
+        socket.on('close', () => sockets.delete(socket));
+        try {
+          const parsedUrl = new URL(req.url, 'http://localhost');
+          const isCollab = parsedUrl.pathname === '/collab' || parsedUrl.pathname.startsWith('/collab/');
+          if (!isCollab) {
+            socket.destroy();
+            return;
+          }
+
+          let token = parsedUrl.searchParams.get('token');
+          if (!token) {
+            socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+            socket.destroy();
+            return;
+          }
+
+          let decoded;
+          try {
+            decoded = jwt.verify(token, jwtSecret);
+          } catch (_) {
+            socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+            socket.destroy();
+            return;
+          }
+
+          let docName = '';
+          if (parsedUrl.pathname.startsWith('/collab/')) {
+            docName = decodeURIComponent(parsedUrl.pathname.replace(/^\/collab\/?/, '').split('/')[0]);
+          }
+          if (!docName) {
+            docName = parsedUrl.searchParams.get('room') || '';
+          }
+
+          const authResult = await verifyCollabRoomAccess(docName, decoded.userId);
+          if (!authResult.authorized) {
+            socket.write(`HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n`);
+            socket.destroy();
+            return;
+          }
+
+          collabWSS.handleUpgrade(req, socket, head, (ws) => {
+            collabWSS.emit('connection', ws, req);
+          });
+        } catch (_) {
+          socket.destroy();
+        }
+      });
+
+      await new Promise(resolve => server.listen(0, resolve));
+      testPort = server.address().port;
+
+      const activeProviders = [];
+      const activeDocs = [];
+
+      try {
+        // Connect Alice (Owner) using real y-websocket client library
+        const ydocAlice = new Y.Doc();
+        activeDocs.push(ydocAlice);
+        const providerAlice = new WebsocketProvider(
+          `ws://localhost:${testPort}/collab`,
+          authorizedDocId,
+          ydocAlice,
+          {
+            WebSocketPolyfill: WebSocket,
+            params: { token: aliceToken },
+          }
+        );
+        activeProviders.push(providerAlice);
+
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Alice connection timeout')), 3000);
+          providerAlice.on('status', ({ status }) => {
+            if (status === 'connected') {
+              clearTimeout(timeout);
+              resolve();
+            }
+          });
+        });
+
+        // Set content from Alice
+        const textAlice = ydocAlice.getText('monaco');
+        textAlice.insert(0, 'Hello from Alice');
+
+        // Connect Bob (Invited Collaborator)
+        await addCollabRoomCollaborator(authorizedDocId, userAlice, userBob);
+
+        const ydocBob = new Y.Doc();
+        activeDocs.push(ydocBob);
+        const providerBob = new WebsocketProvider(
+          `ws://localhost:${testPort}/collab`,
+          authorizedDocId,
+          ydocBob,
+          {
+            WebSocketPolyfill: WebSocket,
+            params: { token: bobToken },
+          }
+        );
+        activeProviders.push(providerBob);
+
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Bob connection timeout')), 3000);
+          providerBob.on('status', ({ status }) => {
+            if (status === 'connected') {
+              clearTimeout(timeout);
+              resolve();
+            }
+          });
+        });
+
+        // Verify synced text across clients
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const textBob = ydocBob.getText('monaco');
+        assert.equal(textBob.toString(), 'Hello from Alice');
+
+      } finally {
+        for (const p of activeProviders) {
+          p.shouldConnect = false;
+          if (p.ws) {
+            try { p.ws.terminate(); } catch (_) {}
+          }
+          try { p.destroy(); } catch (_) {}
+        }
+        for (const d of activeDocs) {
+          try { d.destroy(); } catch (_) {}
+        }
+        if (collabWSS && collabWSS.clients) {
+          for (const c of collabWSS.clients) {
+            try { c.terminate(); } catch (_) {}
+          }
+          await new Promise(resolve => collabWSS.close(resolve));
+        }
+        for (const s of sockets) {
+          try { s.destroy(); } catch (_) {}
+        }
+        await new Promise(resolve => server.close(resolve));
+        if (ywsDocs) {
+          ywsDocs.forEach(doc => { try { doc.destroy(); } catch (_) {} });
+          ywsDocs.clear();
+        }
+      }
+    });
+
+    it('rejects y-websocket connection when token is missing or room is unauthorized (HTTP 401/403)', async () => {
+      const server = http.createServer();
+      const sockets = new Set();
+      server.on('connection', s => {
+        sockets.add(s);
+        s.on('close', () => sockets.delete(s));
+      });
+
+      server.on('upgrade', async (req, socket) => {
+        sockets.add(socket);
+        socket.on('close', () => sockets.delete(socket));
+        const parsedUrl = new URL(req.url, 'http://localhost');
+        const token = parsedUrl.searchParams.get('token');
+        if (!token) {
+          socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+
+        let docName = parsedUrl.pathname.replace(/^\/collab\/?/, '').split('/')[0] || '';
+        let decoded = jwt.verify(token, jwtSecret);
+        const auth = await verifyCollabRoomAccess(docName, decoded.userId);
+        if (!auth.authorized) {
+          socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+      });
+
+      await new Promise(resolve => server.listen(0, resolve));
+      const port = server.address().port;
+
+      const activeProviders = [];
+      const activeDocs = [];
+
+      try {
+        // 1. Attempt connect without token -> Fails with HTTP 401
+        const ydoc1 = new Y.Doc();
+        activeDocs.push(ydoc1);
+        const providerMissingToken = new WebsocketProvider(
+          `ws://localhost:${port}/collab`,
+          'some-room',
+          ydoc1,
+          { WebSocketPolyfill: WebSocket }
+        );
+        activeProviders.push(providerMissingToken);
+
+        let error401Received = false;
+        providerMissingToken.on('connection-error', (err) => {
+          error401Received = true;
+        });
+
+        await new Promise(resolve => setTimeout(resolve, 300));
+        assert.equal(providerMissingToken.wsconnected, false);
+        assert.equal(error401Received, true);
+
+        // 2. Attempt connect with valid token to unauthorized room -> Fails with HTTP 403
+        const ydoc2 = new Y.Doc();
+        activeDocs.push(ydoc2);
+        const providerUnauthorized = new WebsocketProvider(
+          `ws://localhost:${port}/collab`,
+          'unauthorized-room-xyz',
+          ydoc2,
+          {
+            WebSocketPolyfill: WebSocket,
+            params: { token: bobToken },
+          }
+        );
+        activeProviders.push(providerUnauthorized);
+
+        let error403Received = false;
+        providerUnauthorized.on('connection-error', (err) => {
+          error403Received = true;
+        });
+
+        await new Promise(resolve => setTimeout(resolve, 300));
+        assert.equal(providerUnauthorized.wsconnected, false);
+        assert.equal(error403Received, true);
+
+      } finally {
+        for (const p of activeProviders) {
+          p.shouldConnect = false;
+          if (p.ws) {
+            try { p.ws.terminate(); } catch (_) {}
+          }
+          try { p.destroy(); } catch (_) {}
+        }
+        for (const d of activeDocs) {
+          try { d.destroy(); } catch (_) {}
+        }
+        for (const s of sockets) {
+          try { s.destroy(); } catch (_) {}
+        }
+        await new Promise(resolve => server.close(resolve));
+      }
+    });
+  });
+
+  describe('5. Collaboration Room Creation Security & Database Authorization', () => {
     const userA = '65a123456789abcdef000001';
     const userB = '65a123456789abcdef000002';
     const userC = '65a123456789abcdef000003';
 
-    it('enforces that rooms formatted as user_<ownerId>_... restrict access to room owner', async () => {
-      // User A accessing own room: Allowed
-      const resA = await verifyCollabRoomAccess(`user_${userA}_doc1`, userA);
+    beforeEach(() => {
+      resetCollabRoomsForTesting();
+    });
+
+    it('validates room identifiers and rejects dangerous or invalid patterns', () => {
+      assert.equal(isValidRoomIdentifier('valid-room_123'), true);
+      assert.equal(isValidRoomIdentifier('user_65a123_scratch'), true);
+      assert.equal(isValidRoomIdentifier('../etc/passwd'), false);
+      assert.equal(isValidRoomIdentifier('room/subpath'), false);
+      assert.equal(isValidRoomIdentifier('ab'), false); // too short
+      assert.equal(isValidRoomIdentifier(''), false);
+      assert.equal(isValidRoomIdentifier(null), false);
+    });
+
+    it('rejects unauthorized claims to unknown arbitrary room IDs (does not grant on connect)', async () => {
+      const res = await verifyCollabRoomAccess('unregistered-arbitrary-doc-123', userA);
+      assert.equal(res.authorized, false);
+      assert.equal(res.reason, 'ROOM_NOT_FOUND');
+    });
+
+    it('verifies personal user rooms for owner and rejects cross-user access', async () => {
+      const resOwner = await verifyCollabRoomAccess(`user_${userA}_myworkspace`, userA);
+      assert.equal(resOwner.authorized, true);
+      assert.equal(resOwner.role, 'personal_room_owner');
+
+      const resAttacker = await verifyCollabRoomAccess(`user_${userA}_myworkspace`, userB);
+      assert.equal(resAttacker.authorized, false);
+      assert.equal(resAttacker.reason, 'CROSS_USER_ROOM_FORBIDDEN');
+    });
+
+    it('requires verified creation flow, isolates across accounts, and supports invited collaborators', async () => {
+      const roomId = 'project-alpha-verified-doc';
+
+      // 1. Explicit creation by User A
+      await createCollabRoom(roomId, userA, { title: 'Project Alpha' });
+
+      // 2. User A access: Allowed as owner
+      const resA = await verifyCollabRoomAccess(roomId, userA);
       assert.equal(resA.authorized, true);
+      assert.equal(resA.role, 'room_owner');
 
-      // User B trying to access User A's room: Forbidden
-      const resB = await verifyCollabRoomAccess(`user_${userA}_doc1`, userB);
+      // 3. User B access before invitation: Strictly FORBIDDEN
+      const resB = await verifyCollabRoomAccess(roomId, userB);
       assert.equal(resB.authorized, false);
-      assert.equal(resB.reason, 'CROSS_USER_ROOM_FORBIDDEN');
+      assert.equal(resB.reason, 'ROOM_ACCESS_DENIED');
+
+      // 4. User A invites User B
+      await addCollabRoomCollaborator(roomId, userA, userB);
+
+      // 5. User B access after invitation: Allowed as collaborator
+      const resBAfter = await verifyCollabRoomAccess(roomId, userB);
+      assert.equal(resBAfter.authorized, true);
+      assert.equal(resBAfter.role, 'room_collaborator');
+
+      // 6. User C (uninvited): Still strictly rejected
+      const resC = await verifyCollabRoomAccess(roomId, userC);
+      assert.equal(resC.authorized, false);
+      assert.equal(resC.reason, 'ROOM_ACCESS_DENIED');
     });
 
-    it('rejects unauthenticated attempts without userId', async () => {
-      const res = await verifyCollabRoomAccess('confidential-report-2026', null);
-      assert.equal(res.authorized, false);
-      assert.equal(res.reason, 'UNAUTHENTICATED');
-    });
+    it('rejects access to deleted documents and rooms with DOCUMENT_DELETED', async () => {
+      const roomId = 'doc-to-be-deleted-999';
+      await createCollabRoom(roomId, userA, { title: 'Temporary Doc' });
 
-    it('rejects invalid or empty room identifiers', async () => {
-      const res = await verifyCollabRoomAccess('   ', userA);
-      assert.equal(res.authorized, false);
-      assert.equal(res.reason, 'INVALID_ROOM_ID');
-    });
+      // Accessible before deletion
+      const beforeDel = await verifyCollabRoomAccess(roomId, userA);
+      assert.equal(beforeDel.authorized, true);
 
-    it('binds document ownership on creation and strictly isolates across user accounts regardless of naming convention', async () => {
-      const docRoom = 'arbitrary-project-notes-room-99';
+      // Delete room
+      await deleteCollabRoom(roomId, userA);
 
-      // 1. User A first opens the document and becomes registered owner
-      const firstAccess = await verifyCollabRoomAccess(docRoom, userA);
-      assert.equal(firstAccess.authorized, true);
-      assert.equal(firstAccess.role, 'room_owner_created');
-
-      // 2. User A reconnects/re-enters and is recognized as room_owner
-      const ownerAccess = await verifyCollabRoomAccess(docRoom, userA);
-      assert.equal(ownerAccess.authorized, true);
-      assert.equal(ownerAccess.role, 'room_owner');
-
-      // 3. User B (different account) attempts access to the same document -> Strictly FORBIDDEN
-      const unauthorizedAccess = await verifyCollabRoomAccess(docRoom, userB);
-      assert.equal(unauthorizedAccess.authorized, false);
-      assert.equal(unauthorizedAccess.reason, 'ROOM_ACCESS_DENIED');
-
-      // 4. User A explicitly invites User B as collaborator
-      await addCollabRoomCollaborator(docRoom, userA, userB);
-
-      // 5. User B can now collaborate
-      const collaboratorAccess = await verifyCollabRoomAccess(docRoom, userB);
-      assert.equal(collaboratorAccess.authorized, true);
-      assert.equal(collaboratorAccess.role, 'room_collaborator');
-
-      // 6. User C (uninvited) is still strictly rejected
-      const uninvitedAccess = await verifyCollabRoomAccess(docRoom, userC);
-      assert.equal(uninvitedAccess.authorized, false);
-      assert.equal(uninvitedAccess.reason, 'ROOM_ACCESS_DENIED');
+      // Access after deletion must fail closed
+      const afterDel = await verifyCollabRoomAccess(roomId, userA);
+      assert.equal(afterDel.authorized, false);
+      assert.equal(afterDel.reason, 'DOCUMENT_DELETED');
     });
   });
 
-  describe('5. Cross-Process Realtime & Persistent Job Ownership Checks', () => {
-    const jobOwnerId = '65b123456789abcdef000010';
-    const otherUserId = '65b123456789abcdef000020';
-    const sampleJobId = 'job-collab-test-uuid-4455';
-    const guestSecret = 'guest-secure-secret-token-xyz';
+  describe('6. Redis Pub/Sub Instance Identification & Cross-Container Event Bridge', () => {
+    const originalInstanceId = getInstanceId();
+    const webInstanceId = 'container-web-pid1-instance-aaa';
+    const workerInstanceId = 'container-worker-pid1-instance-bbb';
 
-    it('verifies synchronous fast-path job ownership checks in memory', () => {
-      registerJob(sampleJobId, { ownerId: jobOwnerId, secret: guestSecret, action: 'pdf-compress' });
-
-      // Owner authorized
-      assert.equal(hasJobAccess(sampleJobId, { userId: jobOwnerId }), true);
-      // Secret authorized
-      assert.equal(hasJobAccess(sampleJobId, { secret: guestSecret }), true);
-      // Other user rejected
-      assert.equal(hasJobAccess(sampleJobId, { userId: otherUserId }), false);
-      // Missing credentials rejected
-      assert.equal(hasJobAccess(sampleJobId, { userId: null, secret: null }), false);
+    beforeEach(() => {
+      setInstanceIdForTesting(webInstanceId);
     });
 
-    it('verifies persistent async job ownership checks for reconnecting clients', async () => {
-      // Reconnect query with owner credentials
-      const ownerAllowed = await hasJobAccessAsync(sampleJobId, { userId: jobOwnerId });
-      assert.equal(ownerAllowed, true);
+    it('processes worker events even when both containers share identical PID 1', (t, done) => {
+      const sampleJob = 'job-identical-pid-test-001';
+      let eventReceived = false;
 
-      // Reconnect query with guest secret
-      const guestAllowed = await hasJobAccessAsync(sampleJobId, { secret: guestSecret });
-      assert.equal(guestAllowed, true);
-
-      // Unauthorized reconnect attempt rejected
-      const attackerAllowed = await hasJobAccessAsync(sampleJobId, { userId: otherUserId });
-      assert.equal(attackerAllowed, false);
-    });
-
-    it('emits progress and completion events without crashing when Redis bridge is active or local', (t, done) => {
-      let progressSeen = false;
-      let completeSeen = false;
-
-      const onProgress = ({ jobId, progress, currentStep }) => {
-        if (jobId === sampleJobId) {
-          progressSeen = true;
-          assert.equal(progress, 50);
-          assert.equal(currentStep, 'Compressing PDF');
-        }
-      };
-
-      const onComplete = ({ jobId, result }) => {
-        if (jobId === sampleJobId) {
-          completeSeen = true;
-          assert.equal(result.fileId, 'output-123');
-          assert.equal(progressSeen, true);
-          assert.equal(completeSeen, true);
+      const handler = ({ jobId, progress, currentStep }) => {
+        if (jobId === sampleJob) {
+          eventReceived = true;
+          assert.equal(progress, 75);
+          assert.equal(currentStep, 'OCR in progress');
+          jobEmitter.off('progress', handler);
           done();
         }
       };
 
-      const { jobEmitter } = require('../../server/services/jobEmitter');
-      jobEmitter.on('progress', onProgress);
-      jobEmitter.on('complete', onComplete);
+      jobEmitter.on('progress', handler);
 
-      emitProgress(sampleJobId, { progress: 50, currentStep: 'Compressing PDF' });
-      emitComplete(sampleJobId, { fileId: 'output-123' });
+      // Simulate Worker container publishing event with PID 1 and workerInstanceId
+      processIncomingPubSubMessage(REDIS_CHANNEL, JSON.stringify({
+        type: 'progress',
+        jobId: sampleJob,
+        data: { progress: 75, currentStep: 'OCR in progress' },
+        senderInstanceId: workerInstanceId,
+        senderPid: 1, // Identical PID to Web container
+      }));
+
+      assert.equal(eventReceived, true);
+    });
+
+    it('filters out self-published events matching current instanceId to prevent loops', () => {
+      const sampleJob = 'job-self-published-test';
+      let selfEventProcessed = false;
+
+      const handler = () => {
+        selfEventProcessed = true;
+      };
+
+      jobEmitter.on('progress', handler);
+
+      // Publish with webInstanceId (matching current instanceId)
+      processIncomingPubSubMessage(REDIS_CHANNEL, JSON.stringify({
+        type: 'progress',
+        jobId: sampleJob,
+        data: { progress: 100 },
+        senderInstanceId: webInstanceId,
+        senderPid: process.pid,
+      }));
+
+      jobEmitter.off('progress', handler);
+      assert.equal(selfEventProcessed, false);
+    });
+
+    it('verifies persistent async job ownership checks for reconnecting clients', async () => {
+      const jobOwnerId = '65b123456789abcdef000010';
+      const otherUserId = '65b123456789abcdef000020';
+      const sampleJobId = 'job-reconnect-test-uuid-99';
+      const guestSecret = 'guest-secure-secret-token-xyz';
+
+      registerJob(sampleJobId, { ownerId: jobOwnerId, secret: guestSecret, action: 'pdf-compress' });
+
+      // Owner authorized
+      assert.equal(hasJobAccess(sampleJobId, { userId: jobOwnerId }), true);
+      const ownerAllowed = await hasJobAccessAsync(sampleJobId, { userId: jobOwnerId });
+      assert.equal(ownerAllowed, true);
+
+      // Guest authorized
+      assert.equal(hasJobAccess(sampleJobId, { secret: guestSecret }), true);
+      const guestAllowed = await hasJobAccessAsync(sampleJobId, { secret: guestSecret });
+      assert.equal(guestAllowed, true);
+
+      // Unauthorized rejected
+      assert.equal(hasJobAccess(sampleJobId, { userId: otherUserId }), false);
+      const attackerAllowed = await hasJobAccessAsync(sampleJobId, { userId: otherUserId });
+      assert.equal(attackerAllowed, false);
+    });
+  });
+
+  describe('7. Colocated Background Worker Process Supervisor Lifecycle', () => {
+    it('verifies worker supervisor status helpers without launching redundant processes in test', () => {
+      resetSupervisorForTesting();
+      assert.equal(typeof isWorkerRunning, 'function');
+      assert.equal(typeof getWorkerPid, 'function');
+      assert.equal(isWorkerRunning(), false);
+      assert.equal(getWorkerPid(), null);
     });
   });
 

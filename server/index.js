@@ -74,7 +74,18 @@ try {
   collabWSS.on('connection', (ws, req) => {
     try {
       const parsedUrl = new URL(req.url, 'http://localhost');
-      const docName = parsedUrl.searchParams.get('room') || 'default';
+      let docName = '';
+      if (parsedUrl.pathname.startsWith('/collab/')) {
+        const sub = parsedUrl.pathname.replace(/^\/collab\/?/, '');
+        if (sub) docName = decodeURIComponent(sub.split('/')[0]);
+      }
+      if (!docName) {
+        docName = parsedUrl.searchParams.get('room') || '';
+      }
+      if (!docName && req.docName) {
+        docName = req.docName;
+      }
+      docName = docName || 'default';
       setupWSConnection(ws, req, { docName, gc: true });
     } catch (err) {
       logger.error(`[Collab] Connection error: ${err.message}`);
@@ -84,7 +95,9 @@ try {
   server.on('upgrade', async (request, socket, head) => {
     try {
       const parsedUrl = new URL(request.url, 'http://localhost');
-      if (parsedUrl.pathname === '/collab') {
+      const isCollabRoute = parsedUrl.pathname === '/collab' || parsedUrl.pathname.startsWith('/collab/');
+
+      if (isCollabRoute) {
         // Validate Origin header when present to prevent Cross-Site WebSocket Hijacking (CSWSH)
         const origin = request.headers.origin;
         if (origin) {
@@ -119,25 +132,42 @@ try {
           return;
         }
 
-        // Kiểm tra quyền truy cập phòng (Database-backed Document Authorization & Tenant Boundary)
-        const docName = parsedUrl.searchParams.get('room') || 'default';
+        // Trích xuất authoritative document ID (từ path /collab/:docName hoặc ?room=...)
+        let docName = '';
+        if (parsedUrl.pathname.startsWith('/collab/')) {
+          const sub = parsedUrl.pathname.replace(/^\/collab\/?/, '');
+          if (sub) {
+            docName = decodeURIComponent(sub.split('/')[0]);
+          }
+        }
+        if (!docName) {
+          docName = parsedUrl.searchParams.get('room') || '';
+        }
+
         const userId = decoded.userId || decoded.id;
 
+        // Kiểm tra quyền truy cập phòng (Database-backed Document Authorization & Tenant Boundary)
         const { verifyCollabRoomAccess } = require('./services/collabAuth');
         const authResult = await verifyCollabRoomAccess(docName, userId);
 
         if (!authResult.authorized) {
-          socket.write('HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nForbidden: cross-user collaboration room access denied\r\n');
+          socket.write(`HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nForbidden: collaboration room access denied (${authResult.reason || 'UNAUTHORIZED'})\r\n`);
           socket.destroy();
           return;
         }
 
         request.user = decoded;
+        request.docName = docName;
         collabWSS.handleUpgrade(request, socket, head, (ws) => {
           collabWSS.emit('connection', ws, request);
         });
       }
-    } catch (_) {}
+    } catch (_) {
+      try {
+        socket.write('HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\n\r\n');
+        socket.destroy();
+      } catch (__) {}
+    }
   });
 } catch (collabErr) {
   logger.warn(`[Collab] Không thể khởi tạo Yjs WebSocket: ${collabErr.message}`);
@@ -531,18 +561,31 @@ if (require.main === module) {
   server.listen(PORT, () => {
     console.log(`⚡ FileTools Pro Server đang chạy tại http://localhost:${PORT}`);
     console.log(`⚡ Socket.io real-time server đã sẵn sàng`);
+
+    // Tự động khởi chạy worker colocated nếu được cấu hình (phục vụ staging chi phí thấp)
+    const shouldStartColocatedWorker = process.env.START_COLOCATED_WORKER === 'true' ||
+      (process.env.APP_ENV === 'staging' && process.env.SEPARATE_WORKER_SERVICE !== 'true');
+
+    if (shouldStartColocatedWorker) {
+      const { startWorkerSupervisor } = require('./utils/workerSupervisor');
+      startWorkerSupervisor();
+    }
   });
 
-  // tat app don dep browser
+  // Dọn dẹp tài nguyên & tiến trình con khi tắt app
   const { closeBrowser } = require('./utils/browser');
-  process.on('SIGTERM', async () => {
-    await closeBrowser();
+  const { stopWorkerSupervisor } = require('./utils/workerSupervisor');
+
+  const handleShutdown = async () => {
+    try {
+      await stopWorkerSupervisor();
+      await closeBrowser();
+    } catch (_) {}
     process.exit(0);
-  });
-  process.on('SIGINT', async () => {
-    await closeBrowser();
-    process.exit(0);
-  });
+  };
+
+  process.on('SIGTERM', handleShutdown);
+  process.on('SIGINT', handleShutdown);
 }
 
 module.exports = app;

@@ -35,10 +35,22 @@ const collabRoomSchema = new mongoose.Schema({
     type:    String,
     default: 'Collaborative Document',
   },
+  status: {
+    type:    String,
+    enum:    ['ACTIVE', 'ARCHIVED', 'DELETED'],
+    default: 'ACTIVE',
+    index:   true,
+  },
+  isDeleted: {
+    type:    Boolean,
+    default: false,
+    index:   true,
+  },
 }, {
   timestamps: true,
 });
 
 collabRoomSchema.index({ owner: 1, roomId: 1 });
+collabRoomSchema.index({ status: 1, isDeleted: 1 });
 
 module.exports = dataConn.models.CollabRoom || dataConn.model('CollabRoom', collabRoomSchema);

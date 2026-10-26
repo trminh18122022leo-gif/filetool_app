@@ -8,15 +8,21 @@
  * 1. In-process EventEmitter for low-latency local dispatching.
  * 2. Cross-process Redis Pub/Sub bridge to relay progress & completion events
  *    from standalone Background Workers to Socket.IO Web API processes.
- * 3. In-memory and persistent database-backed job ownership checks (hasJobAccess & hasJobAccessAsync)
+ * 3. Instance-level identity (INSTANCE_ID) to prevent false self-loop suppression
+ *    across containers sharing identical PIDs (e.g. PID 1 in Docker).
+ * 4. In-memory and persistent database-backed job ownership checks (hasJobAccess & hasJobAccessAsync)
  *    to protect job status and rooms during reconnects and page reloads.
  */
 
 const EventEmitter = require('events');
+const crypto = require('crypto');
 const { createRedisConnection, isRedisReady } = require('../queue/connection');
 
 class JobEmitter extends EventEmitter {}
 const jobEmitter = new JobEmitter();
+
+// Unique process-instance identifier generated at startup
+let instanceId = process.env.INSTANCE_ID || `${process.pid}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
 
 // In-memory registry of active jobs with ownership & metadata (TTL 1 hour)
 const jobRegistry = new Map();
@@ -114,6 +120,36 @@ let redisPublisher = null;
 let redisSubscriber = null;
 let isPubSubActive = false;
 
+function handlePubSubMessage(channel, message) {
+  if (channel !== REDIS_CHANNEL) return;
+  try {
+    const payload = JSON.parse(message);
+
+    // CRITICAL: Filter out messages that originated from this exact process instance.
+    // Compares unique instanceId rather than process.pid alone to prevent false suppression
+    // in containerized environments where multiple containers have identical PIDs (e.g. PID 1).
+    if (payload.senderInstanceId) {
+      if (payload.senderInstanceId === instanceId) {
+        return; // Skip self-published events
+      }
+    } else if (payload.senderPid === process.pid) {
+      // Legacy fallback when senderInstanceId is absent
+      return;
+    }
+
+    const { type, jobId } = payload;
+    if (type === 'progress') {
+      jobEmitter.emit('progress', { jobId, ...payload.data });
+    } else if (type === 'complete') {
+      jobEmitter.emit('complete', { jobId, result: payload.result });
+    } else if (type === 'error') {
+      if (jobEmitter.listenerCount('error') > 0) {
+        jobEmitter.emit('error', { jobId, error: payload.error });
+      }
+    }
+  } catch (_) {}
+}
+
 function initDistributedEventBridge() {
   if (isPubSubActive) return;
   const redisUrl = process.env.REDIS_URL || process.env.VALKEY_URL;
@@ -133,25 +169,7 @@ function initDistributedEventBridge() {
       });
     });
 
-    redisSubscriber.on('message', (channel, message) => {
-      if (channel !== REDIS_CHANNEL) return;
-      try {
-        const payload = JSON.parse(message);
-        // Do not process messages that originated from this exact process
-        if (payload.senderPid === process.pid) return;
-
-        const { type, jobId } = payload;
-        if (type === 'progress') {
-          jobEmitter.emit('progress', { jobId, ...payload.data });
-        } else if (type === 'complete') {
-          jobEmitter.emit('complete', { jobId, result: payload.result });
-        } else if (type === 'error') {
-          if (jobEmitter.listenerCount('error') > 0) {
-            jobEmitter.emit('error', { jobId, error: payload.error });
-          }
-        }
-      } catch (_) {}
-    });
+    redisSubscriber.on('message', handlePubSubMessage);
   } catch (err) {
     if (process.env.NODE_ENV !== 'test') {
       console.warn(`⚠️ [JobEmitter] Không thể khởi tạo Redis Pub/Sub event bridge: ${err.message}`);
@@ -168,7 +186,11 @@ function publishEvent(payload) {
     try {
       redisPublisher.publish(
         REDIS_CHANNEL,
-        JSON.stringify({ ...payload, senderPid: process.pid })
+        JSON.stringify({
+          ...payload,
+          senderInstanceId: instanceId,
+          senderPid: process.pid,
+        })
       ).catch(() => {});
     } catch (_) {}
   }
@@ -204,6 +226,18 @@ async function closePubSubBridge() {
   isPubSubActive = false;
 }
 
+function getInstanceId() {
+  return instanceId;
+}
+
+function setInstanceIdForTesting(newId) {
+  instanceId = newId;
+}
+
+function processIncomingPubSubMessage(channel, message) {
+  handlePubSubMessage(channel, message);
+}
+
 module.exports = {
   jobEmitter,
   registerJob,
@@ -215,4 +249,8 @@ module.exports = {
   emitError,
   initDistributedEventBridge,
   closePubSubBridge,
+  getInstanceId,
+  setInstanceIdForTesting,
+  processIncomingPubSubMessage,
+  REDIS_CHANNEL,
 };
