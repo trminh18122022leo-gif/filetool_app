@@ -4,8 +4,13 @@
   "webDir": "dist",
   "bundledWebRuntime": false,
   "server": {
-    "allowNavigation": ["*"],
-    "cleartext": true
+    "allowNavigation": [
+      "filetools-app.vercel.app",
+      "filetools-jkx7.onrender.com",
+      "accounts.google.com",
+      "github.com"
+    ],
+    "cleartext": false
   },
   "plugins": {
     "SplashScreen": {

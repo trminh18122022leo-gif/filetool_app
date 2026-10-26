@@ -12,6 +12,7 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 
 const upload = require('../middleware/upload');
+const authSvc = require('../services/auth.service');
 const speechSvc = require('../services/speech.service');
 const videoSvc = require('../services/video.service');
 const ttsSvc = require('../services/tts.service');
@@ -103,10 +104,12 @@ router.post('/transcribe', optionalAuth, upload.single('file'), wrap(async (req,
       fixOverlaps: true
     });
 
+    const downloadToken = authSvc.signDownloadToken(req.file.filename, req.user?._id ? String(req.user._id) : 'anonymous', '2h');
     res.json({
       success: true,
+      fileId: req.file.filename,
       videoFilename: req.file.filename,
-      videoUrl: `/uploads/${req.file.filename}`,
+      videoUrl: `/api/view/${encodeURIComponent(req.file.filename)}?token=${encodeURIComponent(downloadToken)}`,
       duration,
       detectedLanguage: transcribeResult.language || language,
       provider: transcribeResult.provider,
@@ -198,12 +201,20 @@ router.post('/render', optionalAuth, wrap(async (req, res) => {
   }
 
   // Render video
-  if (!videoFilename) {
+  const targetName = req.body.fileId || videoFilename;
+  if (!targetName) {
     return res.status(400).json({ error: 'Thiếu thông tin video cần render' });
   }
 
-  const safeFilename = path.basename(videoFilename);
-  const videoPath = path.join(UPLOAD_DIR, safeFilename);
+  const safeFilename = path.basename(targetName);
+  if (safeFilename !== targetName || safeFilename.includes('..') || targetName.includes('/') || targetName.includes('\\')) {
+    return res.status(400).json({ error: 'Định danh video không hợp lệ hoặc nghi vấn path traversal', code: 'PATH_TRAVERSAL_DETECTED' });
+  }
+
+  const videoPath = path.resolve(UPLOAD_DIR, safeFilename);
+  if (!videoPath.startsWith(UPLOAD_DIR)) {
+    return res.status(403).json({ error: 'Đường dẫn video ngoài phạm vi cho phép', code: 'FORBIDDEN_FILE_PATH' });
+  }
 
   if (!fs.existsSync(videoPath)) {
     return res.status(404).json({ error: 'Video gốc không tồn tại hoặc đã bị xóa' });

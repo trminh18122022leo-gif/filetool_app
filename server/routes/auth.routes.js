@@ -12,29 +12,158 @@ const User         = require('../models/User');
 const RefreshToken = require('../models/RefreshToken');
 const { requireAuth } = require('../middleware/auth');
 const { loginRateLimit, registerRateLimit, forgotPasswordRateLimit } = require('../middleware/rateLimit');
+const { isOriginAllowed, isOriginAllowedForEnv } = require('../utils/corsGuard');
+
+const VERIFIED_VERCEL_HOSTS = [
+  'filetool-app.vercel.app',
+  'filetools-app.vercel.app',
+  'filetool-app-git-staging.vercel.app',
+  'filetools-app-git-staging.vercel.app',
+  'filetool-app-git-release-v1-0-0-candidate.vercel.app',
+  'filetools-app-git-release-v1-0-0-candidate.vercel.app',
+  'filetools.pro',
+  'www.filetools.pro',
+];
+
+/**
+ * Encodes and HMAC-signs an OAuth state parameter.
+ * Cryptographically binds intended redirect origin, platform, nonce, and active environment.
+ * Prevents tampering, replay, and cross-environment redirect hijacking.
+ */
+function generateOAuthState(options = {}) {
+  const isStaging = process.env.APP_ENV === 'staging';
+  const currentEnv = isStaging ? 'staging' : (process.env.NODE_ENV === 'production' ? 'production' : 'development');
+  const secret = process.env.JWT_SECRET || 'filetools-oauth-state-secret-default-key';
+
+  const defaultOrigin = (
+    (isStaging ? process.env.STAGING_CLIENT_URL : null) ||
+    process.env.CLIENT_URL ||
+    (isStaging ? 'https://filetool-app-git-staging.vercel.app' : 'https://filetool-app.vercel.app')
+  ).replace(/\/$/, '');
+
+  let targetOrigin = options.origin || options.clientUrl || defaultOrigin;
+  if (!isOriginAllowedForEnv(targetOrigin, currentEnv)) {
+    targetOrigin = defaultOrigin;
+  }
+
+  const payload = {
+    origin: targetOrigin,
+    platform: options.platform || 'web',
+    env: currentEnv,
+    nonce: crypto.randomBytes(16).toString('hex'),
+    exp: Date.now() + 10 * 60 * 1000, // 10 minutes expiry
+  };
+
+  const payloadStr = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = crypto.createHmac('sha256', secret).update(payloadStr).digest('base64url');
+
+  return `${payloadStr}.${signature}`;
+}
+
+/**
+ * Validates and decodes an incoming OAuth state string.
+ * Returns verified payload if signature, expiry, and environment match; otherwise returns null.
+ */
+function verifyOAuthState(stateStr) {
+  if (!stateStr || typeof stateStr !== 'string') return null;
+  const parts = stateStr.split('.');
+  if (parts.length !== 2) return null;
+
+  const [payloadStr, signature] = parts;
+  const secret = process.env.JWT_SECRET || 'filetools-oauth-state-secret-default-key';
+  const expectedSig = crypto.createHmac('sha256', secret).update(payloadStr).digest('base64url');
+
+  // Constant-time signature comparison to protect against timing attacks
+  const sigBuf = Buffer.from(signature);
+  const expBuf = Buffer.from(expectedSig);
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(Buffer.from(payloadStr, 'base64url').toString('utf8'));
+    if (!payload.exp || Date.now() > payload.exp) {
+      return null;
+    }
+
+    const isStaging = process.env.APP_ENV === 'staging';
+    const currentEnv = isStaging ? 'staging' : (process.env.NODE_ENV === 'production' ? 'production' : 'development');
+
+    // Cross-environment isolation: Staging state cannot be accepted by production, and vice versa
+    if (payload.env !== currentEnv) {
+      return null;
+    }
+
+    // Verify origin is permitted for current environment
+    if (!isOriginAllowedForEnv(payload.origin, currentEnv)) {
+      return null;
+    }
+
+    return payload;
+  } catch (_) {
+    return null;
+  }
+}
 
 function getClientUrl(req) {
+  const isStaging = process.env.APP_ENV === 'staging';
+  const isSecureEnv = process.env.NODE_ENV === 'production' || isStaging;
+  const currentEnv = isStaging ? 'staging' : (process.env.NODE_ENV === 'production' ? 'production' : 'development');
+
+  const defaultClientUrl = (
+    (isStaging ? process.env.STAGING_CLIENT_URL : null) ||
+    process.env.CLIENT_URL ||
+    (isStaging ? 'https://filetool-app-git-staging.vercel.app' : 'https://filetool-app.vercel.app')
+  ).replace(/\/$/, '');
+
+  // 1. If this is an OAuth callback with cryptographically verified state, use verified origin
+  if (req && req.query && req.query.state) {
+    const verified = verifyOAuthState(req.query.state);
+    if (verified && verified.origin) {
+      return verified.origin;
+    }
+  }
+
+  // 2. Native application custom URL schemes
   if (req && req.cookies && req.cookies.auth_platform) {
     if (req.cookies.auth_platform === 'electron') return 'filetools://auth';
     if (req.cookies.auth_platform === 'android') return 'com.filetools.pro://auth';
   }
-  if (process.env.CLIENT_URL && !process.env.CLIENT_URL.includes('localhost')) {
-    return process.env.CLIENT_URL.replace(/\/$/, '');
-  }
+
+  // 3. For normal requests, adhere to Origin header ONLY if strictly authorized for CURRENT environment
+  // (Referer header is never trusted to determine redirect destinations)
   if (req) {
-    const host = req.get('x-forwarded-host') || req.get('host');
-    const proto = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
-    if (host && !host.includes('localhost:3002') && !host.includes('127.0.0.1:3002')) {
-      return `${proto}://${host}`;
+    const originHeader = req.get('origin');
+    if (originHeader && isOriginAllowedForEnv(originHeader, currentEnv)) {
+      return originHeader.replace(/\/$/, '');
     }
   }
-  return (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
+
+  const configuredClientUrl = (
+    (isStaging ? process.env.STAGING_CLIENT_URL : null) ||
+    process.env.CLIENT_URL ||
+    ''
+  ).replace(/\/$/, '');
+
+  if (configuredClientUrl && (!isSecureEnv || !configuredClientUrl.includes('localhost'))) {
+    return configuredClientUrl;
+  }
+
+  if (!isSecureEnv) {
+    return 'http://localhost:5173';
+  }
+
+  return defaultClientUrl;
 }
 
 function getOAuthRedirectUrl(req, clientUrl, token) {
-  const isNative = req.cookies && (req.cookies.auth_platform === 'electron' || req.cookies.auth_platform === 'android');
-  // Với Native App (Electron/Capacitor): Cần token trong custom URL scheme (filetools://, com.filetools.pro://)
-  // Với Web thông thường: KHÔNG đính kèm token vào URL để tránh rò rỉ (web đã nhận HttpOnly Cookie)
+  let isNative = req && req.cookies && (req.cookies.auth_platform === 'electron' || req.cookies.auth_platform === 'android');
+  if (req && req.query && req.query.state) {
+    const verified = verifyOAuthState(req.query.state);
+    if (verified && (verified.platform === 'electron' || verified.platform === 'android')) {
+      isNative = true;
+    }
+  }
   return isNative ? `${clientUrl}/dashboard?token=${token}` : `${clientUrl}/dashboard`;
 }
 
@@ -138,26 +267,69 @@ if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
   ));
 }
 
+const processedTelegramHashes = new Map();
+
+function cleanupTelegramHashes() {
+  const now = Date.now();
+  for (const [h, ts] of processedTelegramHashes.entries()) {
+    if (now - ts > 15 * 60 * 1000) {
+      processedTelegramHashes.delete(h);
+    }
+  }
+}
+
 function checkTelegramAuth(data, botToken) {
-  const { hash, ...rest } = data;
-  if (!hash || !botToken) return false;
+  const { hash, ...rest } = data || {};
+  if (!hash || !botToken) return { valid: false, reason: 'missing_credentials' };
+
+  // 1. Kiểm tra tính tươi mới của auth_date
+  const authDate = parseInt(data.auth_date, 10);
+  if (isNaN(authDate)) return { valid: false, reason: 'invalid_auth_date' };
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  // Hết hạn nếu quá 15 phút (900 giây)
+  if (nowSec - authDate > 900) return { valid: false, reason: 'expired_auth_date' };
+  // Chống clock-skew trong tương lai (> 60 giây)
+  if (authDate - nowSec > 60) return { valid: false, reason: 'future_auth_date' };
+
+  // 2. Chống tấn công lặp lại (Replay Attack)
+  cleanupTelegramHashes();
+  if (processedTelegramHashes.has(hash)) {
+    return { valid: false, reason: 'replay_detected' };
+  }
+
+  // 3. Chuẩn hóa check string theo tài liệu Telegram
   const checkString = Object.keys(rest)
     .sort()
-    .map(k => k + '=' + rest[k])
+    .map(k => `${k}=${rest[k]}`)
     .join('\n');
+
   const secret = crypto.createHash('sha256').update(botToken).digest();
   const hmac = crypto.createHmac('sha256', secret).update(checkString).digest('hex');
-  return hmac === hash;
+
+  const expectedBuf = Buffer.from(hmac, 'hex');
+  const receivedBuf = Buffer.from(hash, 'hex');
+
+  if (expectedBuf.length !== receivedBuf.length || !crypto.timingSafeEqual(expectedBuf, receivedBuf)) {
+    return { valid: false, reason: 'invalid_signature' };
+  }
+
+  // Ghi nhận hash hợp lệ vào memory cache (TTL 15m)
+  processedTelegramHashes.set(hash, Date.now());
+  return { valid: true };
 }
 
 // ── Google Routes ─────────────────────────────────────────────────────────────
 router.get('/google', (req, res, next) => {
-  if (req.query.platform) res.cookie('auth_platform', req.query.platform, { maxAge: 5 * 60 * 1000 });
+  const platform = req.query.platform || (req.cookies && req.cookies.auth_platform) || 'web';
+  if (platform) res.cookie('auth_platform', platform, { maxAge: 5 * 60 * 1000 });
   const clientUrl = getClientUrl(req);
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
     return res.redirect(clientUrl + '/login?error=' + encodeURIComponent('Google OAuth chưa được cấu hình đầy đủ (thiếu ID hoặc Secret)'));
   }
-  passport.authenticate('google', { scope: ['profile', 'email'], session: false })(req, res, next);
+  const callingOrigin = req.query.origin || (req.get('origin') && isOriginAllowedForEnv(req.get('origin')) ? req.get('origin') : clientUrl);
+  const state = generateOAuthState({ origin: callingOrigin, platform });
+  passport.authenticate('google', { scope: ['profile', 'email'], session: false, state })(req, res, next);
 });
 
 router.get('/google/callback',
@@ -176,12 +348,15 @@ router.get('/google/callback',
 
 // ── GitHub Routes ─────────────────────────────────────────────────────────────
 router.get('/github', (req, res, next) => {
-  if (req.query.platform) res.cookie('auth_platform', req.query.platform, { maxAge: 5 * 60 * 1000 });
+  const platform = req.query.platform || (req.cookies && req.cookies.auth_platform) || 'web';
+  if (platform) res.cookie('auth_platform', platform, { maxAge: 5 * 60 * 1000 });
   const clientUrl = getClientUrl(req);
   if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
     return res.redirect(clientUrl + '/login?error=' + encodeURIComponent('GitHub OAuth chưa được cấu hình đầy đủ (thiếu ID hoặc Secret)'));
   }
-  passport.authenticate('github', { scope: ['user:email'], session: false })(req, res, next);
+  const callingOrigin = req.query.origin || (req.get('origin') && isOriginAllowedForEnv(req.get('origin')) ? req.get('origin') : clientUrl);
+  const state = generateOAuthState({ origin: callingOrigin, platform });
+  passport.authenticate('github', { scope: ['user:email'], session: false, state })(req, res, next);
 });
 
 router.get('/github/callback',
@@ -202,11 +377,16 @@ router.get('/github/callback',
 router.get('/telegram/callback', async (req, res) => {
   const clientUrl = getClientUrl(req);
   try {
-    const data = req.query;
-    if (process.env.TELEGRAM_BOT_TOKEN) {
-      const valid = checkTelegramAuth(data, process.env.TELEGRAM_BOT_TOKEN);
-      if (!valid) return res.redirect(clientUrl + '/login?error=telegram_auth_invalid');
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      return res.redirect(clientUrl + '/login?error=telegram_auth_disabled');
     }
+
+    const data = req.query;
+    const authResult = checkTelegramAuth(data, process.env.TELEGRAM_BOT_TOKEN);
+    if (!authResult.valid) {
+      return res.redirect(clientUrl + `/login?error=telegram_auth_${authResult.reason}`);
+    }
+
     const telegramId = data.id;
     if (!telegramId) return res.redirect(clientUrl + '/login?error=no_telegram_id');
 
@@ -458,8 +638,30 @@ router.post('/2fa/complete', async (req, res) => {
   }
 });
 
+// ── Account Self-Service Deletion (Apple Guideline 5.1.1(v) & Google Play Compliance) ──
+router.delete('/account', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    // 1. Thu hồi toàn bộ refresh tokens
+    await RefreshToken.updateMany({ userId }, { revokedAt: new Date(), revokeReason: 'account_deleted' });
+    // 2. Xóa tài khoản người dùng
+    await User.findByIdAndDelete(userId);
+    // 3. Xóa sạch session cookies
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
+    res.clearCookie('token');
+    res.json({ success: true, message: 'Tài khoản và dữ liệu người dùng đã được xóa hoàn toàn theo tiêu chuẩn Store Policy' });
+  } catch (err) {
+    res.status(500).json({ error: 'Không thể xóa tài khoản: ' + err.message });
+  }
+});
+
 router.get('/me', requireAuth, (req, res) => {
   res.json({ success: true, user: authSvc.formatUser(req.user) });
 });
+
+router.generateOAuthState = generateOAuthState;
+router.verifyOAuthState = verifyOAuthState;
+router.getClientUrl = getClientUrl;
 
 module.exports = router;

@@ -12,7 +12,14 @@ const { v4: uuidv4 } = require('uuid');
 const OUT = path.resolve('outputs');
 
 let optionalAuth = (req, res, next) => next();
-try { optionalAuth = require('../middleware/auth').optionalAuth; } catch (_) {}
+let requireAuth  = (req, res, next) => res.status(401).json({ error: 'Yêu cầu đăng nhập' });
+let requireRole  = () => (req, res, next) => res.status(403).json({ error: 'Không có quyền' });
+try {
+  const authMw = require('../middleware/auth');
+  optionalAuth = authMw.optionalAuth;
+  requireAuth  = authMw.requireAuth;
+  requireRole  = authMw.requireRole;
+} catch (_) {}
 
 const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 
@@ -158,7 +165,7 @@ router.get('/tts/dictionary', wrap(async (req, res) => {
   res.json({ success: true, dictionary: dict });
 }));
 
-router.post('/tts/dictionary', optionalAuth, wrap(async (req, res) => {
+router.post('/tts/dictionary', requireAuth, requireRole('admin'), wrap(async (req, res) => {
   const { dictionary } = req.body;
   if (!dictionary || typeof dictionary !== 'object') {
     return res.status(400).json({ error: 'Dữ liệu từ điển không hợp lệ' });

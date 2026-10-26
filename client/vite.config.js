@@ -16,42 +16,84 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'robots.txt', 'icons/*.png', 'logo.png'],
       manifest: {
+        id: 'https://filetools-app.vercel.app/',
         name: 'FileTools Pro',
         short_name: 'FileTools',
         description: 'Nền tảng xử lý file tốc độ cao & bảo mật — Miễn phí 100%',
         theme_color: '#08080C',
         background_color: '#08080C',
         display: 'standalone',
+        display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
         orientation: 'any',
         start_url: '/',
         scope: '/',
         lang: 'vi',
-        categories: ['productivity', 'utilities'],
+        dir: 'ltr',
+        handle_links: 'preferred',
+        categories: ['productivity', 'utilities', 'photo'],
         icons: [
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
           { src: '/icons/icon-512-mask.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
         shortcuts: [
-          { name: 'Nén PDF', url: '/pdf', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
+          { name: 'Nén PDF', url: '/pdf/compress', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
+          { name: 'Gộp PDF', url: '/pdf/merge', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
           { name: 'Chỉnh ảnh', url: '/image', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
-          { name: 'AI Tools', url: '/ai', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
-          { name: 'Advanced Editor', url: '/editor', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
+          { name: 'Workflow Studio', url: '/workflows', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
+        ],
+        file_handlers: [
+          {
+            action: '/pdf',
+            name: 'Tài liệu PDF',
+            icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }],
+            accept: { 'application/pdf': ['.pdf'] },
+          },
+          {
+            action: '/convert/word-to-pdf',
+            name: 'Tài liệu Word',
+            icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }],
+            accept: {
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+              'application/msword': ['.doc'],
+            },
+          },
+          {
+            action: '/image',
+            name: 'Tệp Hình Ảnh',
+            icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }],
+            accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.webp'] },
+          },
+        ],
+        screenshots: [
+          {
+            src: '/logo.png',
+            sizes: '1280x720',
+            type: 'image/png',
+            form_factor: 'wide',
+            label: 'Màn hình làm việc chính của FileTools Pro',
+          },
         ],
       },
       workbox: {
         maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/outputs\//, /^\/collab/],
+        navigateFallbackDenylist: [/^\/api\//, /^\/outputs\//, /^\/collab/, /^\/socket\.io\//],
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
+          // Strict Allowlist: CHỈ lưu tạm các endpoint GET public phi định danh, tuyệt đối không cache private/user/auth/billing
           {
-            urlPattern: /^\/api\/.*/,
+            urlPattern: /^\/api\/(payment\/(plans|status)|workflows\/templates|health)$/,
             handler: 'NetworkFirst',
+            method: 'GET',
             options: {
-              cacheName: 'api-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 300 },
-              networkTimeoutSeconds: 10,
+              cacheName: 'public-api-cache-v2',
+              expiration: { maxEntries: 20, maxAgeSeconds: 300 },
+              networkTimeoutSeconds: 5,
+              cacheableResponse: {
+                statuses: [200],
+              },
             },
           },
           {

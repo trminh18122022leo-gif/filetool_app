@@ -1,0 +1,27 @@
+# ==============================================================================
+# GITLEAKS CONFIGURATION — FILETOOLS PRO
+# ==============================================================================
+# Enforces zero secret leakage across repository history and pull requests.
+# Real credentials block CI execution immediately.
+# ==============================================================================
+
+title = "FileTools Pro Gitleaks Configuration"
+
+[allowlist]
+description = "Permitted synthetic test credentials, mock secrets, and documentation fixtures"
+paths = [
+  '''^\.github/workflows/ci\.yml$''',
+  '''^tests/.*''',
+  '''^reports/.*''',
+  '''^docs/.*''',
+  '''^\.env\.example$'''
+]
+regexes = [
+  '''0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef''',
+  '''ci-test-token-secret-minimum-32-chars-long''',
+  '''ci-test-refresh-secret-minimum-32-chars''',
+  '''your_jwt_secret_key_minimum_32_characters_long''',
+  '''your_jwt_refresh_secret_key_minimum_32_characters_long''',
+  '''your_r2_access_key''',
+  '''your_r2_secret_key'''
+]

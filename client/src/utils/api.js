@@ -2,10 +2,10 @@
  * API Utility Helper cho FileTools Client
  */
 
-// Phát hiện môi trường Native (Capacitor hoặc Electron)
-const isNative = !!(window.Capacitor?.isNativePlatform?.() || window.electronAPI);
-const PRODUCTION_URL = 'https://filetool-app.vercel.app';
-const API_BASE = import.meta.env.VITE_API_URL || (isNative ? PRODUCTION_URL : '');
+import { getApiBaseUrl, getWebSocketBaseUrl, isProductionDomain, isPreviewOrStagingDomain } from './apiEnv';
+
+export { getApiBaseUrl, getWebSocketBaseUrl, isProductionDomain, isPreviewOrStagingDomain };
+
 export async function request(url, options = {}) {
   const token = localStorage.getItem('token');
   const headers = {
@@ -13,7 +13,8 @@ export async function request(url, options = {}) {
     ...options.headers,
   };
 
-  const res = await fetch(`${API_BASE}${url}`, {
+  const apiBase = getApiBaseUrl();
+  const res = await fetch(`${apiBase}${url}`, {
     ...options,
     headers,
   });

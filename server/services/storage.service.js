@@ -4,9 +4,21 @@ const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = re
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const path       = require('path');
 const fs         = require('fs');
+const crypto     = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const FileRecord = require('../models/FileRecord');
 const User       = require('../models/User');
+const { PLANS }  = require('../config/plans');
+
+function computeFileSha256(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    stream.on('data', chunk => hash.update(chunk));
+    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('error', err => reject(err));
+  });
+}
 
 let s3 = null;
 
@@ -59,65 +71,118 @@ function getS3Client() {
 }
 
 async function uploadToCloud(localFilePath, opts = {}) {
-  const client = getS3Client();
-  if (!client) throw new Error('Cloud storage chưa được cấu hình');
+  let client = null;
+  try {
+    client = getS3Client();
+  } catch (_) {}
+  if (!client) throw new Error('Cloud storage chưa được cấu hình (thiếu R2_ENDPOINT)');
 
-  const { userId, originalName, operation, retentionDays = 7 } = opts;
-  const fileBytes = fs.readFileSync(localFilePath);
-  const ext       = path.extname(localFilePath);
-  const cloudKey  = `users/${userId}/${uuidv4()}${ext}`;
-  const mimeType  = getMime(ext);
+  const { userId, originalName, operation, retentionDays, userPlan } = opts;
+  if (!fs.existsSync(localFilePath)) {
+    throw new Error('Tệp nguồn không tồn tại trên máy chủ');
+  }
+
+  // Single Source of Truth (SSOT) cho thời hạn lưu trữ theo gói (Free: 1d, Plus: 7d, Pro: 30d, Business: 90d)
+  let effectiveRetentionDays = retentionDays;
+  if (!effectiveRetentionDays) {
+    const planKey = (userPlan || 'free').toLowerCase();
+    effectiveRetentionDays = PLANS[planKey]?.entitlements?.retentionDays ?? 1;
+  }
+
+  const stat = fs.statSync(localFilePath);
+  const ext = path.extname(localFilePath);
+  const fileId = uuidv4();
+  const cloudKey = `users/${userId}/${fileId}${ext}`;
+  const mimeType = getMime(ext);
+
+  const checksum = await computeFileSha256(localFilePath);
+
+  // Truyền tải dạng stream, không đọc toàn bộ file vào buffer RAM
+  const fileStream = fs.createReadStream(localFilePath);
 
   await client.send(new PutObjectCommand({
-    Bucket:      process.env.R2_BUCKET_NAME,
-    Key:         cloudKey,
-    Body:        fileBytes,
-    ContentType: mimeType,
+    Bucket:        process.env.R2_BUCKET_NAME,
+    Key:           cloudKey,
+    Body:          fileStream,
+    ContentLength: stat.size,
+    ContentType:   mimeType,
+    Metadata: {
+      'checksum-sha256': checksum,
+      'original-name':   encodeURIComponent(originalName || path.basename(localFilePath)),
+    },
   }));
 
-  const expiresAt = new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + effectiveRetentionDays * 24 * 60 * 60 * 1000);
   const record = await FileRecord.create({
-    user:         userId,
-    originalName: originalName || path.basename(localFilePath),
+    fileId,
+    user:          userId,
+    originalName:  originalName || path.basename(localFilePath),
+    sanitizedName: path.basename(localFilePath),
     cloudKey,
-    fileSize:     fileBytes.length,
+    fileSize:      stat.size,
     mimeType,
+    checksum,
+    storageType:   'r2',
+    status:        'RESULT_READY',
     operation,
+    validatedAt:   new Date(),
     expiresAt,
   });
 
-  await User.findByIdAndUpdate(userId, { $inc: { cloudStorageUsed: fileBytes.length } });
-  const downloadUrl = await getDownloadUrl(cloudKey, 3600);
+  await User.findByIdAndUpdate(userId, { $inc: { cloudStorageUsed: stat.size } });
+  const downloadUrl = await getDownloadUrl(cloudKey, 3600, record.originalName);
 
   return { record, downloadUrl };
 }
 
-async function getDownloadUrl(cloudKey, expiresInSeconds = 3600) {
-  const client = getS3Client();
+async function getDownloadUrl(cloudKey, expiresInSeconds = 3600, safeDownloadName = null) {
+  let client = null;
+  try {
+    client = getS3Client();
+  } catch (_) {}
   if (!client) return null;
 
   const command = new GetObjectCommand({
     Bucket: process.env.R2_BUCKET_NAME,
     Key:    cloudKey,
+    ResponseCacheControl: 'private, no-cache, no-store, must-revalidate',
+    ResponseContentDisposition: safeDownloadName
+      ? `attachment; filename="${encodeURIComponent(safeDownloadName)}"`
+      : undefined,
   });
 
   return getSignedUrl(client, command, { expiresIn: expiresInSeconds });
 }
 
 async function deleteFromCloud(recordId, userId) {
-  const record = await FileRecord.findOne({ _id: recordId, user: userId });
-  if (!record) throw new Error('File không tồn tại');
+  const record = await FileRecord.findOne({
+    $or: [{ _id: recordId }, { fileId: recordId }],
+    user: userId,
+  });
+  if (!record || record.status === 'DELETED') {
+    return { success: true, message: 'File không tồn tại hoặc đã được xóa trước đó' };
+  }
 
-  const client = getS3Client();
-  if (client) {
-    await client.send(new DeleteObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME,
-      Key:    record.cloudKey,
-    }));
+  let client = null;
+  try {
+    client = getS3Client();
+  } catch (_) {}
+  if (client && record.cloudKey) {
+    try {
+      await client.send(new DeleteObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME,
+        Key:    record.cloudKey,
+      }));
+    } catch (s3Err) {
+      console.warn(`[storage] Cảnh báo khi xóa R2 object (${record.cloudKey}): ${s3Err.message}`);
+    }
   }
 
   await User.findByIdAndUpdate(userId, { $inc: { cloudStorageUsed: -record.fileSize } });
-  await record.deleteOne();
+  record.status = 'DELETED';
+  record.deletedAt = new Date();
+  await record.save();
+
   return { success: true };
 }
 
@@ -147,4 +212,5 @@ module.exports = {
   getDownloadUrl,
   deleteFromCloud,
   getUserFiles,
+  isCloudConfigured: () => Boolean(process.env.R2_ENDPOINT && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY && process.env.R2_BUCKET_NAME),
 };

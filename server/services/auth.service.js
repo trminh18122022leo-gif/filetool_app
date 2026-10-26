@@ -19,7 +19,7 @@ let ACCESS_SECRET  = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET;
 let REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
 
 if (!ACCESS_SECRET || !REFRESH_SECRET) {
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'staging') {
     throw new Error('CRITICAL SECURITY ERROR: JWT_ACCESS_SECRET and JWT_REFRESH_SECRET (or JWT_SECRET) must be set in production!');
   } else {
     console.warn('[SECURITY WARNING] JWT secrets not configured in environment. Generating dynamic cryptographically secure secrets for development session.');
@@ -56,21 +56,42 @@ function verifyAccessToken(token) {
   return jwt.verify(token, ACCESS_SECRET);
 }
 
+function signDownloadToken(filename, userId = 'anonymous', expiresIn = '1h') {
+  return jwt.sign(
+    { filename, userId: String(userId), type: 'file_download' },
+    ACCESS_SECRET,
+    { expiresIn }
+  );
+}
+
+function verifyDownloadToken(token) {
+  if (!token || typeof token !== 'string') {
+    throw new Error('Thiếu token download');
+  }
+  const decoded = jwt.verify(token, ACCESS_SECRET);
+  if (decoded.type !== 'file_download') {
+    throw new Error('Loại token không hợp lệ');
+  }
+  return decoded;
+}
+
 function cookieOptions(maxAge = 7 * 24 * 60 * 60 * 1000) {
+  const isSecure = process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'staging';
   return {
     httpOnly: true,
-    secure:   process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure:   isSecure,
+    sameSite: isSecure ? 'none' : 'lax',
     maxAge,
     path:     '/',
   };
 }
 
 function clearCookieOptions() {
+  const isSecure = process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'staging';
   return {
     httpOnly: true,
-    secure:   process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure:   isSecure,
+    sameSite: isSecure ? 'none' : 'lax',
     path:     '/',
   };
 }
@@ -462,6 +483,8 @@ module.exports = {
   signToken,
   generateTokens,
   verifyAccessToken,
+  signDownloadToken,
+  verifyDownloadToken,
   cookieOptions,
   clearCookieOptions,
   register,

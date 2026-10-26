@@ -11,6 +11,7 @@ import {
 import FileDropzone   from '../components/FileDropzone';
 import ProgressBar    from '../components/ProgressBar';
 import ResultDownload from '../components/ResultDownload';
+import MetaTags       from '../components/seo/MetaTags';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -271,6 +272,15 @@ export default function PdfTools() {
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-12">
+      <MetaTags
+        title="PDF Studio Pro — Bộ Công Cụ Xử Lý PDF Đa Năng Trực Tuyến"
+        description="Gộp, tách, nén, che PII bảo mật, xoay trang, đóng dấu và chuyển đổi tài liệu PDF sang Word, Excel, PowerPoint chuẩn xác 100%."
+        canonicalPath="/pdf"
+        breadcrumbs={[
+          { name: 'Trang chủ', path: '/' },
+          { name: 'PDF Hub', path: '/pdf' },
+        ]}
+      />
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gradient">PDF Studio Pro</h1>

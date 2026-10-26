@@ -9,6 +9,11 @@ const pdfParse          = require('pdf-parse');
 const sharp             = require('sharp');
 const { withPage }      = require('../utils/browser');
 const { pdfToImages: extractPdfPages } = require('../utils/binaries');
+const {
+  validateSafeUrl,
+  protectPageNetwork,
+  isUrlToPdfEnabled,
+} = require('../utils/ssrfGuard');
 const path              = require('path');
 const fs                = require('fs');
 const archiver          = require('archiver');
@@ -109,70 +114,15 @@ async function pdfToImages(pdfPath, opts = {}) {
   return { zipPath, pageCount: images.length };
 }
 
-const dns = require('dns');
-const net = require('net');
-
-function isPrivateOrReservedIP(ip) {
-  if (!ip) return true;
-  if (net.isIPv4(ip)) {
-    const parts = ip.split('.').map(Number);
-    if (parts[0] === 0) return true; // 0.0.0.0/8
-    if (parts[0] === 10) return true; // 10.0.0.0/8
-    if (parts[0] === 127) return true; // 127.0.0.0/8
-    if (parts[0] === 169 && parts[1] === 254) return true; // Link Local & Cloud Metadata
-    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true; // 172.16.0.0/12
-    if (parts[0] === 192 && parts[1] === 168) return true; // 192.168.0.0/16
-    if (parts[0] >= 224) return true; // Multicast & Reserved
-    return false;
-  }
-  if (net.isIPv6(ip)) {
-    const lower = ip.toLowerCase();
-    if (lower === '::1' || lower === '::') return true;
-    if (lower.startsWith('fe8') || lower.startsWith('fe9') || lower.startsWith('fea') || lower.startsWith('feb')) return true;
-    if (lower.startsWith('fc') || lower.startsWith('fd')) return true;
-    if (lower.includes('::ffff:')) {
-      const v4 = lower.split('::ffff:')[1];
-      return isPrivateOrReservedIP(v4);
-    }
-    return false;
-  }
-  return true;
-}
-
-async function validateSafeUrl(urlString) {
-  let parsed;
-  try {
-    parsed = new URL(urlString);
-  } catch {
-    throw new Error('URL không hợp lệ');
-  }
-
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error('Chỉ chấp nhận giao thức HTTP hoặc HTTPS');
-  }
-
-  const hostname = parsed.hostname;
-  if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) {
-    throw new Error('Không được phép truy cập địa chỉ cục bộ (Localhost)');
-  }
-
-  try {
-    const addresses = await dns.promises.lookup(hostname, { all: true });
-    for (const addr of addresses) {
-      if (isPrivateOrReservedIP(addr.address)) {
-        throw new Error(`Truy cập bị từ chối: Địa chỉ IP ${addr.address} thuộc vùng mạng nội bộ hoặc hệ thống bảo vệ.`);
-      }
-    }
-  } catch (err) {
-    if (err.message.includes('Truy cập bị từ chối')) throw err;
-    throw new Error(`Không thể phân giải tên miền: ${hostname}`);
-  }
-
-  return parsed;
-}
-
 // convert url web sang pdf
 async function urlToPdf(url, opts = {}) {
+  if (!isUrlToPdfEnabled()) {
+    const err = new Error('Tính năng URL sang PDF tạm thời bị vô hiệu hóa theo chính sách bảo mật mạng (ENABLE_URL_TO_PDF=false).');
+    err.code = 'FEATURE_DISABLED';
+    err.status = 403;
+    throw err;
+  }
+
   const { format = 'A4', printBackground = true, waitUntil = 'networkidle0' } = opts;
   await validateSafeUrl(url);
 
@@ -180,24 +130,10 @@ async function urlToPdf(url, opts = {}) {
     await page.setViewport({ width: 1440, height: 900 });
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
 
-    // Chặn request tới dải IP/giao thức nguy hiểm trong quá trình render trang
-    await page.setRequestInterception(true);
-    page.on('request', (req) => {
-      try {
-        const reqUrl = new URL(req.url());
-        if (reqUrl.protocol !== 'http:' && reqUrl.protocol !== 'https:' && reqUrl.protocol !== 'data:') {
-          return req.abort('accessdenied');
-        }
-        if (reqUrl.hostname === 'localhost' || reqUrl.hostname === '127.0.0.1' || reqUrl.hostname === '169.254.169.254') {
-          return req.abort('accessdenied');
-        }
-        req.continue();
-      } catch (_) {
-        req.abort('failed');
-      }
-    });
+    // Chặn request tới dải IP/giao thức nguy hiểm trong quá trình render trang (kể cả sub-resources/redirects)
+    await protectPageNetwork(page, { mode: 'allow-safe-remote', allowDataUris: true });
 
-    await page.goto(url, { waitUntil, timeout: 30000 });
+    await page.goto(url, { waitUntil, timeout: 25000 });
 
     const outPath = path.join(OUT, 'url_' + uuidv4() + '.pdf');
     await page.pdf({
@@ -208,7 +144,7 @@ async function urlToPdf(url, opts = {}) {
     });
 
     return outPath;
-  });
+  }, { timeoutMs: 30000 });
 }
 
 // convert markdown sang pdf
@@ -240,23 +176,10 @@ async function markdownToPdf(mdContent, opts = {}) {
   const fullHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' + (THEMES[theme] || THEMES.github) + '</style></head><body>' + sanitizedHtml + '</body></html>';
 
   return await withPage(async (page) => {
-    await page.setRequestInterception(true);
-    page.on('request', (req) => {
-      try {
-        const reqUrl = new URL(req.url());
-        if (reqUrl.protocol !== 'http:' && reqUrl.protocol !== 'https:' && reqUrl.protocol !== 'data:') {
-          return req.abort('accessdenied');
-        }
-        if (reqUrl.hostname === 'localhost' || reqUrl.hostname === '127.0.0.1' || reqUrl.hostname === '169.254.169.254') {
-          return req.abort('accessdenied');
-        }
-        req.continue();
-      } catch (_) {
-        req.abort('failed');
-      }
-    });
+    // Chế độ Deny-All cho tài nguyên Markdown untrusted
+    await protectPageNetwork(page, { mode: 'deny-all', allowDataUris: true });
 
-    await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
+    await page.setContent(fullHtml, { waitUntil: 'networkidle0', timeout: 15000 });
     const outPath = path.join(OUT, 'md_' + uuidv4() + '.pdf');
     await page.pdf({ path: outPath, format: 'A4', margin: { top: '15mm', bottom: '15mm', left: '15mm', right: '15mm' } });
     return outPath;

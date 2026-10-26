@@ -34,7 +34,7 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
+          GITLEAKS_CONFIG: .gitleaks.toml
 
   # --------------------------------------------------------------------------
   # 2. BACKEND VERIFICATION (Matrix Node 20.x & 22.x)
@@ -58,15 +58,35 @@ jobs:
           cache: 'npm'
           cache-dependency-path: package-lock.json
 
+      - name: Install System Dependencies (Poppler & Ghostscript)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils ghostscript
+          # Allow unprivileged user namespaces for sandboxed Chromium on Ubuntu 24.04
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+
       - name: Install Root Dependencies
         run: npm ci
 
       - name: Verify Backend JavaScript Syntax
         run: npm test
 
+      - name: Run Full Automated Test Suite (All 10 Verification Suites)
+        run: npm run test:all
+        env:
+          NODE_ENV: test
+          BILLING_ENABLED: false
+          FREE_MODE: false
+          JWT_SECRET: ci-test-token-secret-minimum-32-chars-long
+          JWT_REFRESH_SECRET: ci-test-refresh-secret-minimum-32-chars
+          AI_KEY_VAULT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          AI_KEY_ENCRYPTION_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
       - name: Run NPM Security Audit
-        run: npm audit --audit-level=high --omit=dev
-        continue-on-error: true
+        run: |
+          # Policy: Zero CRITICAL severity vulnerabilities permitted in production dependencies.
+          # High/Moderate findings are quarantined in sandbox workers and documented in SBOM.
+          npm audit --audit-level=critical --omit=dev
 
   # --------------------------------------------------------------------------
   # 3. FRONTEND VERIFICATION (Vite Build + Bundle Check)
@@ -122,5 +142,14 @@ jobs:
           file: ./Dockerfile
           push: false
           tags: filetools-app:ci-check
+          load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Container Smoke Test (Native Toolchain & Non-Root Execution)
+        run: |
+          docker run --rm filetools-app:ci-check ffmpeg -version
+          docker run --rm filetools-app:ci-check soffice --version
+          docker run --rm filetools-app:ci-check tesseract --version
+          docker run --rm filetools-app:ci-check pdftoppm -v
+          docker run --rm filetools-app:ci-check id

@@ -17,51 +17,76 @@ function checkMagicBytes(filePath, declaredMime) {
   try {
     if (!fs.existsSync(filePath)) return true;
 
-    const buf = Buffer.alloc(8);
+    const stats = fs.statSync(filePath);
+    if (stats.size < 4) return false; // File quá nhỏ không thể có header hợp lệ
+
+    const buf = Buffer.alloc(Math.min(1024, stats.size));
     const fd  = fs.openSync(filePath, 'r');
-    fs.readSync(fd, buf, 0, 8, 0);
+    fs.readSync(fd, buf, 0, buf.length, 0);
     fs.closeSync(fd);
+
+    // 1. Chặn đứng các binary nguy hiểm bất kể MIME type khai báo là gì
+    // Windows PE Executable (MZ)
+    if (buf[0] === 0x4D && buf[1] === 0x5A) return false;
+    // Linux ELF binary (\x7fELF)
+    if (buf[0] === 0x7F && buf[1] === 0x45 && buf[2] === 0x4C && buf[3] === 0x46) return false;
+    // Java bytecode (CAFEBABE)
+    if (buf[0] === 0xCA && buf[1] === 0xFE && buf[2] === 0xBA && buf[3] === 0xBE) return false;
 
     const mime = (declaredMime || '').toLowerCase();
 
-    // Image files
+    // 2. Kiểm tra PDF
+    if (mime === 'application/pdf') {
+      const isPdfHeader = buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46; // %PDF-
+      if (!isPdfHeader || stats.size < 32) return false;
+
+      // PDF Complexity & Malicious payload guard
+      const headerStr = buf.toString('latin1');
+      if (headerStr.includes('/Launch') || headerStr.includes('/EmbeddedFiles/')) {
+        return false;
+      }
+      return true;
+    }
+
+    // 3. Image files
     if (mime.startsWith('image/')) {
       const isPng  = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47;
       const isJpeg = buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF;
       const isGif  = buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46;
       const isWebp = buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46;
       const isBmp  = buf[0] === 0x42 && buf[1] === 0x4D;
-      const isSvg  = buf[0] === 0x3C; // '<' (XML or SVG tag)
-      if (isPng || isJpeg || isGif || isWebp || isBmp || isSvg) return true;
+      const isAvif = buf.length >= 12 && buf.toString('latin1', 4, 12).includes('ftypavif');
+      if (isPng || isJpeg || isGif || isWebp || isBmp || isAvif) return true;
+      return false;
     }
 
-    // PDF
-    if (mime === 'application/pdf') {
-      return buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46; // %PDF
-    }
-
-    // ZIP-based formats (DOCX, XLSX, PPTX, ZIP)
+    // 4. ZIP-based formats (DOCX, XLSX, PPTX, ZIP)
     if (mime.includes('openxmlformats') || mime === 'application/zip' || mime.includes('compressed')) {
       return buf[0] === 0x50 && buf[1] === 0x4B && (buf[2] === 0x03 || buf[2] === 0x05 || buf[2] === 0x07);
     }
 
-    // Audio / Video
+    // 5. Audio / Video
     if (mime.startsWith('audio/') || mime.startsWith('video/')) {
-      const isMp3    = (buf[0] === 0xFF && (buf[1] & 0xE0) === 0xE0) || (buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33);
-      const isRiff   = buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46; // WAV, AVI
-      const isOgg    = buf[0] === 0x4F && buf[1] === 0x67 && buf[2] === 0x67 && buf[3] === 0x53;
-      const isFlac   = buf[0] === 0x66 && buf[1] === 0x4C && buf[2] === 0x61 && buf[3] === 0x43;
-      const isMp4    = buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70; // ftyp (MP4, MOV, M4A)
-      const isEbml   = buf[0] === 0x1A && buf[1] === 0x45 && buf[2] === 0xDF && buf[3] === 0xA3; // MKV, WEBM
+      const isMp3  = (buf[0] === 0xFF && (buf[1] & 0xE0) === 0xE0) || (buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33);
+      const isRiff = buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46; // WAV, AVI
+      const isOgg  = buf[0] === 0x4F && buf[1] === 0x67 && buf[2] === 0x67 && buf[3] === 0x53;
+      const isFlac = buf[0] === 0x66 && buf[1] === 0x4C && buf[2] === 0x61 && buf[3] === 0x43;
+      const isMp4  = buf.length >= 8 && buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70; // ftyp (MP4, MOV, M4A)
+      const isEbml = buf[0] === 0x1A && buf[1] === 0x45 && buf[2] === 0xDF && buf[3] === 0xA3; // MKV, WEBM
       if (isMp3 || isRiff || isOgg || isFlac || isMp4 || isEbml) return true;
+      return false;
     }
 
-    // Plain text / CSV / JSON
+    // 6. Plain text / CSV / JSON
     if (mime.startsWith('text/') || mime === 'application/json' || mime === 'text/csv') {
+      // Chặn nếu text chứa PHP code hoặc executable tags
+      const sample = buf.toString('utf-8');
+      if (sample.includes('<?php') || sample.includes('<%@') || sample.includes('<script')) {
+        return false;
+      }
       return true;
     }
 
-    // Pass unknown MIME to avoid false positives
     return true;
   } catch (err) {
     console.error('[MagicBytes] Error checking file:', err.message);
@@ -77,7 +102,28 @@ function validateUploadedFiles(req, res, next) {
 
   if (!files.length) return next();
 
+  // File count guard
+  if (files.length > 50) {
+    for (const f of files) { try { if (fs.existsSync(f.path)) fs.unlinkSync(f.path); } catch (_) {} }
+    return res.status(400).json({ error: 'Số lượng tệp tải lên vượt quá giới hạn tối đa (50 tệp)', code: 'LIMIT_FILE_COUNT' });
+  }
+
+  const unlinkAll = () => {
+    for (const f of files) {
+      try { if (fs.existsSync(f.path)) fs.unlinkSync(f.path); } catch (_) {}
+    }
+  };
+
   for (const file of files) {
+    // 0. Symlink guard
+    try {
+      const lstat = fs.lstatSync(file.path);
+      if (lstat.isSymbolicLink()) {
+        unlinkAll();
+        return res.status(400).json({ error: 'Không chấp nhận symbolic link.', code: 'INVALID_SYMLINK' });
+      }
+    } catch (_) {}
+
     // 1. Path traversal & dangerous character sanitization (path.resolve + startsWith)
     const rawName = file.originalname || '';
     const baseName = path.basename(rawName);
@@ -94,7 +140,7 @@ function validateUploadedFiles(req, res, next) {
     const hasDangerousChars = /[\x00-\x1F\x7F<>&|;`$"{}]/.test(rawName);
 
     if (hasTraversal || hasDangerousChars) {
-      try { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); } catch (_) {}
+      unlinkAll();
       AuditLog.log({
         userId: req.user?._id,
         action: 'suspicious.filename',
@@ -114,13 +160,13 @@ function validateUploadedFiles(req, res, next) {
       '.mp3', '.wav', '.ogg', '.m4a', '.mp4', '.webm', '.aac', '.flac',
     ];
     if (ext && !allowedExts.includes(ext)) {
-      try { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); } catch (_) {}
+      unlinkAll();
       return res.status(400).json({ error: `Định dạng tệp "${ext}" không được hệ thống hỗ trợ.`, code: 'INVALID_EXTENSION' });
     }
 
-    // 3. Magic bytes validation
+    // 3. Magic bytes validation & Complexity guard
     if (!checkMagicBytes(file.path, file.mimetype)) {
-      try { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); } catch (_) {}
+      unlinkAll();
       AuditLog.log({
         userId: req.user?._id,
         action: 'file.spoofed_mime',
@@ -129,7 +175,7 @@ function validateUploadedFiles(req, res, next) {
         meta: { originalname: file.originalname, mimetype: file.mimetype },
       });
       return res.status(400).json({
-        error: `Tệp "${file.originalname}" không hợp lệ. Nội dung nhị phân thực tế không khớp với định dạng tệp khai báo.`,
+        error: `Tệp "${file.originalname}" không hợp lệ. Nội dung nhị phân thực tế không khớp với định dạng tệp khai báo hoặc chứa mã lệnh nghi vấn.`,
         code:  'INVALID_FILE_CONTENT',
       });
     }

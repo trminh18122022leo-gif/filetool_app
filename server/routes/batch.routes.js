@@ -10,7 +10,7 @@ const { v4: uuidv4 } = require('uuid');
 const pdfSvc     = require('../services/pdf.service');
 const imageSvc   = require('../services/image.service');
 const archiveSvc = require('../services/archive.service');
-const { emitProgress, emitComplete, emitError } = require('../services/jobEmitter');
+const { emitProgress, emitComplete, emitError, registerJob } = require('../services/jobEmitter');
 const { respondFile } = require('../utils/cloudRespond');
 
 let optionalAuth = (req, res, next) => next();
@@ -29,21 +29,29 @@ async function getQueue() {
 }
 
 router.post('/process', optionalAuth, upload.array('files', 20), wrap(async (req, res) => {
-  const { action, options = '{}', jobId: clientJobId } = req.body;
+  const { action, options = '{}', jobId: clientJobId, jobSecret: clientJobSecret } = req.body;
   const jobId = clientJobId || uuidv4();
+  const jobSecret = clientJobSecret || uuidv4();
   const opts  = typeof options === 'string' ? JSON.parse(options) : options;
 
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ error: 'Không có file nào được upload' });
   }
 
+  // Đăng ký quyền sở hữu job cho user hoặc cấp secret cho guest
+  registerJob(jobId, {
+    ownerId: req.user?._id ? String(req.user._id) : null,
+    secret: jobSecret,
+    action,
+  });
+
   const queue = await getQueue();
   const total = req.files.length;
   const processedPaths = [];
   const errors = [];
 
-  // Trả về jobId ngay lập tức để client lắng nghe qua Socket.io
-  res.json({ success: true, jobId, totalFiles: total, status: 'processing' });
+  // Trả về jobId và jobSecret để client có quyền lắng nghe qua Socket.io
+  res.json({ success: true, jobId, jobSecret, totalFiles: total, status: 'processing' });
 
   // Xử lý background
   (async () => {

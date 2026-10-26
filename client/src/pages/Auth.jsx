@@ -11,8 +11,10 @@ import 'feral-blob/blob.css';
 import { ClawCaptcha } from 'playcaptcha';
 import 'playcaptcha/clawcaptcha.css';
 import GlassyWisteriaBackground from '../components/backgrounds/GlassyWisteriaBackground';
+import MetaTags from '../components/seo/MetaTags';
+import { getApiBaseUrl } from '../utils/apiEnv';
 
-const API = import.meta.env.VITE_API_URL || (!!(window.Capacitor?.isNativePlatform?.() || window.electronAPI) ? 'https://filetool-app.vercel.app' : '');
+const API = getApiBaseUrl();
 const isNative = !!(window.Capacitor?.isNativePlatform?.() || window.electronAPI);
 const platform = window.electronAPI ? 'electron' : (window.Capacitor?.isNativePlatform?.() ? 'android' : '');
 const platformQuery = platform ? `?platform=${platform}` : '';
@@ -253,6 +255,11 @@ export default function Auth({ defaultMode = 'login' }) {
 
   return (
     <GlassyWisteriaBackground className="w-full">
+      <MetaTags
+        title={isRegister ? 'Đăng Ký Tài Khoản' : 'Đăng Nhập'}
+        description="Cổng đăng nhập và xác thực tài khoản cá nhân FileTools Pro."
+        noIndex={true}
+      />
       <div className="w-full max-w-4xl mx-auto py-6 px-2 sm:px-4 relative z-10">
         {/* Mobile Fluid Mode Switcher */}
         <div className="md:hidden mb-6 relative p-1.5 bg-black/40 border border-white/10 rounded-2xl backdrop-blur-xl flex shadow-lg">

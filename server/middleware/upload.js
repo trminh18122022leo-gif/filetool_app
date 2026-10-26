@@ -3,6 +3,7 @@
 const multer = require('multer');
 const path   = require('path');
 const { v4: uuidv4 } = require('uuid');
+const { validateUploadedFiles } = require('./security');
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
 
@@ -37,7 +38,7 @@ const allowedMimes = new Set([
   'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/flac', 'audio/x-flac',
   'video/mp4', 'video/webm', 'video/quicktime',
   'video/x-matroska', 'video/x-msvideo', 'video/avi', 'video/msvideo', 'video/x-flv',
-  'application/octet-stream', // Cho phép khi đi kèm extension nhị phân an toàn
+  'application/octet-stream',
 ]);
 
 const allowedExtensions = new Set([
@@ -79,8 +80,28 @@ const fileFilter = (req, file, cb) => {
   return cb(new multer.MulterError('LIMIT_UNEXPECTED_FILE', `MIME type không được hỗ trợ (${file.mimetype})`));
 };
 
-module.exports = multer({
+const rawMulter = multer({
   storage,
   fileFilter,
   limits: { fileSize: MAX_FILE_SIZE },
 });
+
+// Helper bọc middleware của Multer để tự động kích hoạt kiểm tra cách ly (Quarantine Validation)
+// ngay sau khi Multer ghi file tạm vào đĩa, trước khi truyền sang route handler.
+function wrapWithValidation(handler) {
+  return (req, res, next) => {
+    handler(req, res, (err) => {
+      if (err) return next(err);
+      validateUploadedFiles(req, res, next);
+    });
+  };
+}
+
+module.exports = {
+  single: (field) => wrapWithValidation(rawMulter.single(field)),
+  array:  (field, maxCount) => wrapWithValidation(rawMulter.array(field, maxCount)),
+  fields: (fields) => wrapWithValidation(rawMulter.fields(fields)),
+  any:    () => wrapWithValidation(rawMulter.any()),
+  none:   () => rawMulter.none(),
+  raw:    rawMulter,
+};

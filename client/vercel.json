@@ -1,8 +1,104 @@
 {
+  "version": 2,
   "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "(?<subdomain>.*-(?:git|preview|staging|candidate).*)\\.vercel\\.app"
+        }
+      ],
+      "destination": "https://staging-filetools-api.onrender.com/api/$1"
+    },
+    {
+      "source": "/socket.io/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "(?<subdomain>.*-(?:git|preview|staging|candidate).*)\\.vercel\\.app"
+        }
+      ],
+      "destination": "https://staging-filetools-api.onrender.com/socket.io/$1"
+    },
+    {
+      "source": "/collab/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "(?<subdomain>.*-(?:git|preview|staging|candidate).*)\\.vercel\\.app"
+        }
+      ],
+      "destination": "https://staging-filetools-api.onrender.com/collab/$1"
+    },
+    {
+      "source": "/api/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "^(?:filetool-app|filetools-app|filetools|www\\.filetools)\\.(?:vercel\\.app|pro)$"
+        }
+      ],
+      "destination": "https://filetools-jkx7.onrender.com/api/$1"
+    },
+    {
+      "source": "/socket.io/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "^(?:filetool-app|filetools-app|filetools|www\\.filetools)\\.(?:vercel\\.app|pro)$"
+        }
+      ],
+      "destination": "https://filetools-jkx7.onrender.com/socket.io/$1"
+    },
+    {
+      "source": "/collab/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "^(?:filetool-app|filetools-app|filetools|www\\.filetools)\\.(?:vercel\\.app|pro)$"
+        }
+      ],
+      "destination": "https://filetools-jkx7.onrender.com/collab/$1"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "https://staging-filetools-api.onrender.com/api/$1"
+    },
+    {
+      "source": "/socket.io/(.*)",
+      "destination": "https://staging-filetools-api.onrender.com/socket.io/$1"
+    },
+    {
+      "source": "/collab/(.*)",
+      "destination": "https://staging-filetools-api.onrender.com/collab/$1"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, proxy-revalidate" },
+        { "key": "Pragma", "value": "no-cache" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
     }
   ]
 }

@@ -31,22 +31,25 @@ async function requireAuth(req, res, next) {
 
     const userId = decoded.userId || decoded.id;
 
-    if (isAuthConnected()) {
-      const user = await User.findById(userId).select('-password -verifyToken -resetPasswordToken -twoFactorSecret -twoFactorTempSecret');
-      if (!user) return res.status(401).json({ error: 'Tài khoản không tồn tại', code: 'USER_NOT_FOUND' });
-
-      // Nếu user đổi mật khẩu SAU khi token được cấp -> block token cũ
-      if (user.passwordChangedAt && decoded.iat) {
-        const changedAt = Math.floor(user.passwordChangedAt.getTime() / 1000);
-        if (decoded.iat < changedAt) {
-          return res.status(401).json({ error: 'Mật khẩu đã được thay đổi. Vui lòng đăng nhập lại', code: 'PASSWORD_CHANGED' });
-        }
-      }
-
-      req.user = user;
-    } else {
-      req.user = { _id: userId, email: decoded.email, role: 'user', plan: 'pro' };
+    if (!isAuthConnected()) {
+      return res.status(503).json({
+        error: 'Dịch vụ xác thực tạm thời không khả dụng. Vui lòng thử lại sau.',
+        code: 'AUTH_DB_UNAVAILABLE'
+      });
     }
+
+    const user = await User.findById(userId).select('-password -verifyToken -resetPasswordToken -twoFactorSecret -twoFactorTempSecret');
+    if (!user) return res.status(401).json({ error: 'Tài khoản không tồn tại', code: 'USER_NOT_FOUND' });
+
+    // Nếu user đổi mật khẩu SAU khi token được cấp -> block token cũ
+    if (user.passwordChangedAt && decoded.iat) {
+      const changedAt = Math.floor(user.passwordChangedAt.getTime() / 1000);
+      if (decoded.iat < changedAt) {
+        return res.status(401).json({ error: 'Mật khẩu đã được thay đổi. Vui lòng đăng nhập lại', code: 'PASSWORD_CHANGED' });
+      }
+    }
+
+    req.user = user;
 
     next();
   } catch (err) {
@@ -76,9 +79,8 @@ async function optionalAuth(req, res, next) {
           }
           req.user = user;
         }
-      } else {
-        req.user = { _id: userId, email: decoded.email, role: 'user', plan: 'pro' };
       }
+      // Khi Auth DB không kết nối: Không gán req.user, tuyệt đối không nâng cấp ảo lên 'pro'
     }
   } catch (_) {}
   next();

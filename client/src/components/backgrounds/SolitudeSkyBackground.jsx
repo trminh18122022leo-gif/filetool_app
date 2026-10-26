@@ -19,42 +19,63 @@ export default function SolitudeSkyBackground({ className = '', showSolitudeText
   const videoRef = useRef(null);
 
   useEffect(() => {
+    const prefersReducedMotion = () =>
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
     const handleThemeChange = () => {
       const currentLight = document.documentElement.classList.contains('light');
       setIsLight(currentLight);
 
-      if (currentLight && videoRef.current) {
+      if (currentLight && videoRef.current && !document.hidden && !prefersReducedMotion()) {
         videoRef.current.play().catch(() => {});
-      } else if (!currentLight && videoRef.current) {
+      } else if (videoRef.current) {
         videoRef.current.pause();
       }
     };
 
-    // Kiểm tra ban đầu
+    const handleVisibilityChange = () => {
+      if (document.hidden && videoRef.current) {
+        videoRef.current.pause();
+      } else if (!document.hidden && isLight && videoRef.current && !prefersReducedMotion()) {
+        videoRef.current.play().catch(() => {});
+      }
+    };
+
     handleThemeChange();
 
     window.addEventListener('theme-change', handleThemeChange);
     window.addEventListener('storage', handleThemeChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('theme-change', handleThemeChange);
       window.removeEventListener('storage', handleThemeChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [isLight]);
 
-  // Xử lý autoplay khi component mount hoặc visibility thay đổi
+  // Xử lý play an toàn khi component mount hoặc visibility thay đổi
   useEffect(() => {
-    if (isLight && videoRef.current) {
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (isLight && videoRef.current && !document.hidden && !prefersReducedMotion) {
       videoRef.current.play().catch(() => {
-        // Fallback nếu trình duyệt chặn autoplay trước khi có click
+        // Fallback tương tác người dùng
         const handleUserInteraction = () => {
-          videoRef.current?.play().catch(() => {});
+          if (!document.hidden && !prefersReducedMotion) {
+            videoRef.current?.play().catch(() => {});
+          }
           window.removeEventListener('click', handleUserInteraction);
           window.removeEventListener('touchstart', handleUserInteraction);
         };
         window.addEventListener('click', handleUserInteraction, { once: true });
         window.addEventListener('touchstart', handleUserInteraction, { once: true });
       });
+    } else if (videoRef.current) {
+      videoRef.current.pause();
     }
   }, [isLight]);
 
@@ -65,18 +86,20 @@ export default function SolitudeSkyBackground({ className = '', showSolitudeText
       } ${className}`}
       aria-hidden="true"
     >
-      {/* ── GROUND TRUTH 10s SEAMLESS LOOP CLOUD SKY VIDEO ── */}
-      <video
-        ref={videoRef}
-        src="/blue-sky.mp4"
-        poster="/blue-sky-poster.png"
-        autoPlay
-        loop
-        muted
-        playsInline
-        preload="auto"
-        className="w-full h-full object-cover select-none"
-      />
+      {/* ── GROUND TRUTH 10s SEAMLESS LOOP CLOUD SKY VIDEO (PRELOAD=NONE FOR PERF) ── */}
+      {isLight && (
+        <video
+          ref={videoRef}
+          src="/blue-sky.mp4"
+          poster="/blue-sky-poster.webp"
+          autoPlay={false}
+          loop
+          muted
+          playsInline
+          preload="none"
+          className="w-full h-full object-cover select-none"
+        />
+      )}
 
       {/* ── FILM GRAIN OVERLAY (Đơn sắc 1px mịn blend overlay) ── */}
       <div

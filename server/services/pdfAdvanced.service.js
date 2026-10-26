@@ -10,6 +10,7 @@ const { execFileSync }  = require('child_process');
 const pdfParse      = require('pdf-parse');
 const sharp         = require('sharp');
 const { withPage }  = require('../utils/browser');
+const { protectPageNetwork } = require('../utils/ssrfGuard');
 const path          = require('path');
 const fs            = require('fs');
 const archiver      = require('archiver');
@@ -250,11 +251,12 @@ async function comparePdfText(pdfPath1, pdfPath2, opts = {}) {
 
   // xuat file pdf diff
   return await withPage(async (page) => {
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    await protectPageNetwork(page, { mode: 'deny-all', allowDataUris: true });
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15000 });
     const outPath = path.join(OUT, `compare_${uuidv4()}.pdf`);
     await page.pdf({ path: outPath, format: 'A4', printBackground: true, margin: { top: 0, bottom: 0, left: 0, right: 0 } });
     return { path: outPath, stats: { added, removed, unchanged, similarity } };
-  });
+  }, { timeoutMs: 20000 });
 }
 
 // 4. html file -> pdf
@@ -263,7 +265,19 @@ async function htmlFileToPdf(htmlPath, opts = {}) {
   const htmlContent = fs.readFileSync(htmlPath, 'utf-8');
 
   return await withPage(async (page) => {
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    // Chế độ Deny-All: ngăn chặn hoàn toàn HTML untrusted tải tài nguyên ngoài hoặc truy vấn IP nội bộ/cloud metadata
+    await protectPageNetwork(page, { mode: 'deny-all', allowDataUris: true });
+
+    // Khử các thẻ nguy hiểm (LFI/RCE/SSRF tags)
+    const sanitizedHtml = String(htmlContent)
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+      .replace(/<frame\b[^>]*>/gi, '')
+      .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
+      .replace(/<embed\b[^>]*>/gi, '')
+      .replace(/<base\b[^>]*>/gi, '');
+
+    await page.setContent(sanitizedHtml, { waitUntil: 'networkidle0', timeout: 15000 });
     const outPath = path.join(OUT, `html2pdf_${uuidv4()}.pdf`);
     await page.pdf({
       path: outPath,
@@ -272,7 +286,7 @@ async function htmlFileToPdf(htmlPath, opts = {}) {
       margin: { top: '15mm', bottom: '15mm', left: '15mm', right: '15mm' },
     });
     return outPath;
-  });
+  }, { timeoutMs: 20000 });
 }
 
 // ── 5. SẮP XẾP LẠI TRANG (REORDER) ──────────────────────────────────────────

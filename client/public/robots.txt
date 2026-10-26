@@ -1,0 +1,23 @@
+# ==========================================
+# robots.txt — FileTools Pro
+# https://www.robotstxt.org/robotstxt.html
+# ==========================================
+
+User-agent: *
+Allow: /
+
+# Chặn Googlebot và các công cụ tìm kiếm cào các trang riêng tư / xác thực / API
+Disallow: /dashboard
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /verify-email
+Disallow: /api/
+Disallow: /outputs/
+Disallow: /uploads/
+Disallow: /*?token=*
+Disallow: /*?session_id=*
+
+# Sơ đồ trang web chính thức (Sitemap)
+Sitemap: https://filetool-app.vercel.app/sitemap.xml

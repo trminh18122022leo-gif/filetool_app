@@ -141,7 +141,8 @@ ${timestampInstruction}
 If the audio is unclear or inaudible in parts, write [không rõ] for Vietnamese or [inaudible] for English.
 Do NOT add any explanation, metadata, introduction, or commentary.`;
 
-  const model = process.env.GEMINI_FLASH_MODEL || 'gemini-1.5-flash';
+  const { normalizeModelName } = require('./aiProviderAdapter');
+  const model = normalizeModelName('gemini', process.env.GEMINI_FLASH_MODEL || 'gemini-2.5-flash');
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
     {
