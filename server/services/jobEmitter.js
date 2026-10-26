@@ -1,6 +1,19 @@
 'use strict';
 
+/**
+ * server/services/jobEmitter.js
+ * Multi-process Distributed Job Event Emitter & Access Control Registry.
+ * 
+ * Features:
+ * 1. In-process EventEmitter for low-latency local dispatching.
+ * 2. Cross-process Redis Pub/Sub bridge to relay progress & completion events
+ *    from standalone Background Workers to Socket.IO Web API processes.
+ * 3. In-memory and persistent database-backed job ownership checks (hasJobAccess & hasJobAccessAsync)
+ *    to protect job status and rooms during reconnects and page reloads.
+ */
+
 const EventEmitter = require('events');
+const { createRedisConnection, isRedisReady } = require('../queue/connection');
 
 class JobEmitter extends EventEmitter {}
 const jobEmitter = new JobEmitter();
@@ -21,7 +34,7 @@ function registerJob(jobId, { ownerId = null, secret = null, action = '' } = {})
   cleanupExpiredJobs();
   jobRegistry.set(String(jobId), {
     ownerId: ownerId ? String(ownerId) : null,
-    secret: secret || null,
+    secret:  secret || null,
     action,
     createdAt: Date.now(),
   });
@@ -31,6 +44,9 @@ function getJobMeta(jobId) {
   return jobRegistry.get(String(jobId)) || null;
 }
 
+/**
+ * Fast in-memory synchronous job access check
+ */
 function hasJobAccess(jobId, { userId = null, secret = null } = {}) {
   const meta = jobRegistry.get(String(jobId));
   if (!meta) {
@@ -51,18 +67,141 @@ function hasJobAccess(jobId, { userId = null, secret = null } = {}) {
   return false;
 }
 
+/**
+ * Persistent async job access check with database fallback (supports reconnects and worker restarts)
+ */
+async function hasJobAccessAsync(jobId, { userId = null, secret = null } = {}) {
+  // 1. Fast path: check in-memory registry
+  if (hasJobAccess(jobId, { userId, secret })) {
+    return true;
+  }
+
+  // 2. Persistent fallback: query JobRecord from MongoDB if connected
+  const { isDataConnected } = require('../config/database');
+  if (isDataConnected && isDataConnected()) {
+    try {
+      const JobRecord = require('../models/JobRecord');
+      const jobRecord = await JobRecord.findOne({ jobId: String(jobId) }).select('+sessionSecret');
+      if (!jobRecord) return false;
+
+      // Cache into memory registry
+      registerJob(jobRecord.jobId, {
+        ownerId: jobRecord.user ? String(jobRecord.user) : null,
+        secret:  jobRecord.sessionSecret || null,
+        action:  jobRecord.operation,
+      });
+
+      if (jobRecord.user) {
+        if (userId && String(userId) === String(jobRecord.user)) return true;
+        if (secret && jobRecord.sessionSecret && secret === jobRecord.sessionSecret) return true;
+        return false;
+      }
+      if (jobRecord.sessionSecret) {
+        return secret === jobRecord.sessionSecret;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+// ── Distributed Event Bridge via Redis Pub/Sub ───────────────────────────────
+const REDIS_CHANNEL = (process.env.BULLMQ_PREFIX || 'bull') + ':job-events';
+let redisPublisher = null;
+let redisSubscriber = null;
+let isPubSubActive = false;
+
+function initDistributedEventBridge() {
+  if (isPubSubActive) return;
+  const redisUrl = process.env.REDIS_URL || process.env.VALKEY_URL;
+  if (!redisUrl) return;
+
+  try {
+    redisPublisher = createRedisConnection({ lazyConnect: false });
+    redisSubscriber = createRedisConnection({ lazyConnect: false });
+
+    if (!redisSubscriber || !redisPublisher) return;
+
+    redisSubscriber.on('ready', () => {
+      redisSubscriber.subscribe(REDIS_CHANNEL, (err) => {
+        if (!err) {
+          isPubSubActive = true;
+        }
+      });
+    });
+
+    redisSubscriber.on('message', (channel, message) => {
+      if (channel !== REDIS_CHANNEL) return;
+      try {
+        const payload = JSON.parse(message);
+        // Do not process messages that originated from this exact process
+        if (payload.senderPid === process.pid) return;
+
+        const { type, jobId } = payload;
+        if (type === 'progress') {
+          jobEmitter.emit('progress', { jobId, ...payload.data });
+        } else if (type === 'complete') {
+          jobEmitter.emit('complete', { jobId, result: payload.result });
+        } else if (type === 'error') {
+          if (jobEmitter.listenerCount('error') > 0) {
+            jobEmitter.emit('error', { jobId, error: payload.error });
+          }
+        }
+      } catch (_) {}
+    });
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn(`⚠️ [JobEmitter] Không thể khởi tạo Redis Pub/Sub event bridge: ${err.message}`);
+    }
+  }
+}
+
+if (process.env.REDIS_URL || process.env.VALKEY_URL) {
+  initDistributedEventBridge();
+}
+
+function publishEvent(payload) {
+  if (redisPublisher && isRedisReady()) {
+    try {
+      redisPublisher.publish(
+        REDIS_CHANNEL,
+        JSON.stringify({ ...payload, senderPid: process.pid })
+      ).catch(() => {});
+    } catch (_) {}
+  }
+}
+
 function emitProgress(jobId, data) {
   jobEmitter.emit('progress', { jobId, ...data });
+  publishEvent({ type: 'progress', jobId, data });
 }
 
 function emitComplete(jobId, result) {
   jobEmitter.emit('complete', { jobId, result });
+  publishEvent({ type: 'complete', jobId, result });
 }
 
 function emitError(jobId, error) {
+  const errMsg = error?.message || error;
   if (jobEmitter.listenerCount('error') > 0) {
-    jobEmitter.emit('error', { jobId, error: error.message || error });
+    jobEmitter.emit('error', { jobId, error: errMsg });
   }
+  publishEvent({ type: 'error', jobId, error: errMsg });
+}
+
+async function closePubSubBridge() {
+  if (redisSubscriber) {
+    try { await redisSubscriber.quit(); } catch (_) { redisSubscriber.disconnect(); }
+    redisSubscriber = null;
+  }
+  if (redisPublisher) {
+    try { await redisPublisher.quit(); } catch (_) { redisPublisher.disconnect(); }
+    redisPublisher = null;
+  }
+  isPubSubActive = false;
 }
 
 module.exports = {
@@ -70,7 +209,10 @@ module.exports = {
   registerJob,
   getJobMeta,
   hasJobAccess,
+  hasJobAccessAsync,
   emitProgress,
   emitComplete,
   emitError,
+  initDistributedEventBridge,
+  closePubSubBridge,
 };

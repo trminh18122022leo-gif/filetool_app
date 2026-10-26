@@ -27,6 +27,20 @@ const {
 
 const { isOriginAllowed } = require('../../server/utils/corsGuard');
 
+const {
+  verifyCollabRoomAccess,
+  addCollabRoomCollaborator,
+  resetCollabRoomsForTesting,
+} = require('../../server/services/collabAuth');
+
+const {
+  registerJob,
+  hasJobAccess,
+  hasJobAccessAsync,
+  emitProgress,
+  emitComplete,
+} = require('../../server/services/jobEmitter');
+
 describe('⚡ WebSocket Environment Isolation, Routing & Security Suite', () => {
 
   describe('1. Direct WSS Endpoint Environment Resolution (client/src/utils/apiEnv.js)', () => {
@@ -120,34 +134,128 @@ describe('⚡ WebSocket Environment Isolation, Routing & Security Suite', () => 
     });
   });
 
-  describe('4. Yjs /collab Room & Tenant Authorization Invariants', () => {
-    const testSecret = 'test-collab-jwt-secret-32-chars-key!';
+  describe('4. Database-Backed Document Authorization for Yjs /collab Rooms', () => {
     const userA = '65a123456789abcdef000001';
     const userB = '65a123456789abcdef000002';
+    const userC = '65a123456789abcdef000003';
 
-    const tokenA = jwt.sign({ userId: userA, email: 'alice@example.com' }, testSecret, { expiresIn: '1h' });
-
-    it('enforces that rooms formatted as user_<ownerId>_... restrict access to room owner', () => {
-      // Mock room check simulation matching server/index.js logic
-      const checkRoomAccess = (roomName, tokenUserId) => {
-        if (roomName.startsWith('user_') || roomName.startsWith('user:')) {
-          const parts = roomName.split(/[_:]/);
-          const roomOwnerId = parts[1];
-          if (roomOwnerId && String(roomOwnerId) !== String(tokenUserId)) {
-            return false; // Forbidden: cross-user collaboration room access denied
-          }
-        }
-        return true;
-      };
-
+    it('enforces that rooms formatted as user_<ownerId>_... restrict access to room owner', async () => {
       // User A accessing own room: Allowed
-      assert.equal(checkRoomAccess(`user_${userA}_doc1`, userA), true);
+      const resA = await verifyCollabRoomAccess(`user_${userA}_doc1`, userA);
+      assert.equal(resA.authorized, true);
 
       // User B trying to access User A's room: Forbidden
-      assert.equal(checkRoomAccess(`user_${userA}_doc1`, userB), false);
+      const resB = await verifyCollabRoomAccess(`user_${userA}_doc1`, userB);
+      assert.equal(resB.authorized, false);
+      assert.equal(resB.reason, 'CROSS_USER_ROOM_FORBIDDEN');
+    });
 
-      // User A accessing non-prefixed public room: Allowed
-      assert.equal(checkRoomAccess('shared-public-workspace', userA), true);
+    it('rejects unauthenticated attempts without userId', async () => {
+      const res = await verifyCollabRoomAccess('confidential-report-2026', null);
+      assert.equal(res.authorized, false);
+      assert.equal(res.reason, 'UNAUTHENTICATED');
+    });
+
+    it('rejects invalid or empty room identifiers', async () => {
+      const res = await verifyCollabRoomAccess('   ', userA);
+      assert.equal(res.authorized, false);
+      assert.equal(res.reason, 'INVALID_ROOM_ID');
+    });
+
+    it('binds document ownership on creation and strictly isolates across user accounts regardless of naming convention', async () => {
+      const docRoom = 'arbitrary-project-notes-room-99';
+
+      // 1. User A first opens the document and becomes registered owner
+      const firstAccess = await verifyCollabRoomAccess(docRoom, userA);
+      assert.equal(firstAccess.authorized, true);
+      assert.equal(firstAccess.role, 'room_owner_created');
+
+      // 2. User A reconnects/re-enters and is recognized as room_owner
+      const ownerAccess = await verifyCollabRoomAccess(docRoom, userA);
+      assert.equal(ownerAccess.authorized, true);
+      assert.equal(ownerAccess.role, 'room_owner');
+
+      // 3. User B (different account) attempts access to the same document -> Strictly FORBIDDEN
+      const unauthorizedAccess = await verifyCollabRoomAccess(docRoom, userB);
+      assert.equal(unauthorizedAccess.authorized, false);
+      assert.equal(unauthorizedAccess.reason, 'ROOM_ACCESS_DENIED');
+
+      // 4. User A explicitly invites User B as collaborator
+      await addCollabRoomCollaborator(docRoom, userA, userB);
+
+      // 5. User B can now collaborate
+      const collaboratorAccess = await verifyCollabRoomAccess(docRoom, userB);
+      assert.equal(collaboratorAccess.authorized, true);
+      assert.equal(collaboratorAccess.role, 'room_collaborator');
+
+      // 6. User C (uninvited) is still strictly rejected
+      const uninvitedAccess = await verifyCollabRoomAccess(docRoom, userC);
+      assert.equal(uninvitedAccess.authorized, false);
+      assert.equal(uninvitedAccess.reason, 'ROOM_ACCESS_DENIED');
+    });
+  });
+
+  describe('5. Cross-Process Realtime & Persistent Job Ownership Checks', () => {
+    const jobOwnerId = '65b123456789abcdef000010';
+    const otherUserId = '65b123456789abcdef000020';
+    const sampleJobId = 'job-collab-test-uuid-4455';
+    const guestSecret = 'guest-secure-secret-token-xyz';
+
+    it('verifies synchronous fast-path job ownership checks in memory', () => {
+      registerJob(sampleJobId, { ownerId: jobOwnerId, secret: guestSecret, action: 'pdf-compress' });
+
+      // Owner authorized
+      assert.equal(hasJobAccess(sampleJobId, { userId: jobOwnerId }), true);
+      // Secret authorized
+      assert.equal(hasJobAccess(sampleJobId, { secret: guestSecret }), true);
+      // Other user rejected
+      assert.equal(hasJobAccess(sampleJobId, { userId: otherUserId }), false);
+      // Missing credentials rejected
+      assert.equal(hasJobAccess(sampleJobId, { userId: null, secret: null }), false);
+    });
+
+    it('verifies persistent async job ownership checks for reconnecting clients', async () => {
+      // Reconnect query with owner credentials
+      const ownerAllowed = await hasJobAccessAsync(sampleJobId, { userId: jobOwnerId });
+      assert.equal(ownerAllowed, true);
+
+      // Reconnect query with guest secret
+      const guestAllowed = await hasJobAccessAsync(sampleJobId, { secret: guestSecret });
+      assert.equal(guestAllowed, true);
+
+      // Unauthorized reconnect attempt rejected
+      const attackerAllowed = await hasJobAccessAsync(sampleJobId, { userId: otherUserId });
+      assert.equal(attackerAllowed, false);
+    });
+
+    it('emits progress and completion events without crashing when Redis bridge is active or local', (t, done) => {
+      let progressSeen = false;
+      let completeSeen = false;
+
+      const onProgress = ({ jobId, progress, currentStep }) => {
+        if (jobId === sampleJobId) {
+          progressSeen = true;
+          assert.equal(progress, 50);
+          assert.equal(currentStep, 'Compressing PDF');
+        }
+      };
+
+      const onComplete = ({ jobId, result }) => {
+        if (jobId === sampleJobId) {
+          completeSeen = true;
+          assert.equal(result.fileId, 'output-123');
+          assert.equal(progressSeen, true);
+          assert.equal(completeSeen, true);
+          done();
+        }
+      };
+
+      const { jobEmitter } = require('../../server/services/jobEmitter');
+      jobEmitter.on('progress', onProgress);
+      jobEmitter.on('complete', onComplete);
+
+      emitProgress(sampleJobId, { progress: 50, currentStep: 'Compressing PDF' });
+      emitComplete(sampleJobId, { fileId: 'output-123' });
     });
   });
 

@@ -2,7 +2,7 @@
 
 const { Server } = require('socket.io');
 const authSvc = require('../services/auth.service');
-const { jobEmitter, hasJobAccess } = require('../services/jobEmitter');
+const { jobEmitter, hasJobAccess, hasJobAccessAsync } = require('../services/jobEmitter');
 const { isOriginAllowed } = require('../utils/corsGuard');
 
 let io = null;
@@ -44,7 +44,7 @@ function initSocket(httpServer) {
 
   io.on('connection', socket => {
     // Client tham gia room theo jobId có kiểm soát quyền
-    socket.on('join-job', payload => {
+    socket.on('join-job', async payload => {
       const targetJobId = typeof payload === 'string' ? payload : payload?.jobId;
       const secret = typeof payload === 'object' ? payload?.secret : null;
 
@@ -52,7 +52,11 @@ function initSocket(httpServer) {
         return socket.emit('job-error', { error: 'Thiếu jobId', code: 'INVALID_JOB_ID' });
       }
 
-      const authorized = hasJobAccess(targetJobId, { userId: socket.userId, secret });
+      let authorized = hasJobAccess(targetJobId, { userId: socket.userId, secret });
+      if (!authorized) {
+        authorized = await hasJobAccessAsync(targetJobId, { userId: socket.userId, secret });
+      }
+
       if (!authorized) {
         return socket.emit('job-error', {
           jobId: targetJobId,

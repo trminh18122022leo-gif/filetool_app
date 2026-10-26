@@ -81,7 +81,7 @@ try {
     }
   });
 
-  server.on('upgrade', (request, socket, head) => {
+  server.on('upgrade', async (request, socket, head) => {
     try {
       const parsedUrl = new URL(request.url, 'http://localhost');
       if (parsedUrl.pathname === '/collab') {
@@ -119,19 +119,17 @@ try {
           return;
         }
 
-        // Kiểm tra quyền truy cập phòng (Tenant Boundary & User Isolation)
+        // Kiểm tra quyền truy cập phòng (Database-backed Document Authorization & Tenant Boundary)
         const docName = parsedUrl.searchParams.get('room') || 'default';
         const userId = decoded.userId || decoded.id;
 
-        // Nếu room có định dạng user_<ownerId>_... hoặc user:<ownerId>:... thì chỉ chủ phòng mới được truy cập
-        if (docName.startsWith('user_') || docName.startsWith('user:')) {
-          const parts = docName.split(/[_:]/);
-          const roomOwnerId = parts[1];
-          if (roomOwnerId && String(roomOwnerId) !== String(userId)) {
-            socket.write('HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nForbidden: cross-user collaboration room access denied\r\n');
-            socket.destroy();
-            return;
-          }
+        const { verifyCollabRoomAccess } = require('./services/collabAuth');
+        const authResult = await verifyCollabRoomAccess(docName, userId);
+
+        if (!authResult.authorized) {
+          socket.write('HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nForbidden: cross-user collaboration room access denied\r\n');
+          socket.destroy();
+          return;
         }
 
         request.user = decoded;
