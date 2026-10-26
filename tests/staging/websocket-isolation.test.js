@@ -65,6 +65,7 @@ describe('⚡ WebSocket Environment Isolation, Routing & Security Suite', () => 
 
   describe('1. Direct WSS Endpoint Environment Resolution (client/src/utils/apiEnv.js)', () => {
     it('resolves direct wss:// production backend on production frontends', () => {
+      assert.equal(PRODUCTION_WS_URL, 'wss://filetools-jkx7.onrender.com');
       for (const host of PRODUCTION_HOSTS) {
         const wsUrl = getWebSocketBaseUrl(host);
         assert.equal(wsUrl, PRODUCTION_WS_URL, `Host ${host} must resolve to ${PRODUCTION_WS_URL}`);
@@ -116,7 +117,7 @@ describe('⚡ WebSocket Environment Isolation, Routing & Security Suite', () => 
       assert.ok(stagingCollab, 'Must have rewrite routing staging /collab/ to staging backend');
 
       const prodCollab = collabRewrites.find(r =>
-        r.destination.includes('filetools-api.onrender.com/collab/') && !r.destination.includes('staging-')
+        r.destination.includes('filetools-jkx7.onrender.com/collab/') && !r.destination.includes('staging-')
       );
       assert.ok(prodCollab, 'Must have rewrite routing production /collab/ to production backend');
     });
@@ -125,7 +126,7 @@ describe('⚡ WebSocket Environment Isolation, Routing & Security Suite', () => 
       const fallbackCollab = rewrites.find(r => r.source === '/collab/(.*)' && !r.has);
       assert.ok(fallbackCollab, 'Must have fallback /collab/ rewrite');
       assert.ok(fallbackCollab.destination.includes('staging-filetools-api.onrender.com'));
-      assert.ok(!fallbackCollab.destination.includes('//filetools-api.onrender.com'));
+      assert.ok(!fallbackCollab.destination.includes('//filetools-jkx7.onrender.com'));
     });
   });
 

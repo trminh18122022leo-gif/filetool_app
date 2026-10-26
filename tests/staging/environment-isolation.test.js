@@ -5,7 +5,7 @@
  * 
  * Validates:
  * 1. client/vercel.json rewrites:
- *    - Production domains route to production backend (filetools-api.onrender.com).
+ *    - Production domains route to production backend (filetools-jkx7.onrender.com).
  *    - Preview & Staging domains route to staging backend (staging-filetools-api.onrender.com).
  *    - Generic/relative fallback routes to staging backend, NEVER production.
  * 2. Client apiEnv.js destination logic:
@@ -42,7 +42,7 @@ describe('🌐 Environment Isolation & Staging Destination Verification Suite', 
 
       // Check production rule
       const prodRule = apiRewrites.find(r =>
-        r.destination.includes('filetools-api.onrender.com') &&
+        r.destination.includes('filetools-jkx7.onrender.com') &&
         !r.destination.includes('staging-') &&
         r.has && r.has.some(h => h.type === 'host' && h.value.includes('filetool-app|filetools-app|filetools'))
       );
@@ -67,7 +67,7 @@ describe('🌐 Environment Isolation & Staging Destination Verification Suite', 
         `Fallback /api/ destination (${fallbackApi.destination}) must route to STAGING, never production`
       );
       assert.ok(
-        !fallbackApi.destination.includes('//filetools-api.onrender.com'),
+        !fallbackApi.destination.includes('//filetools-jkx7.onrender.com'),
         'Fallback /api/ must not route directly to production backend'
       );
     });
@@ -116,8 +116,42 @@ describe('🌐 Environment Isolation & Staging Destination Verification Suite', 
       } = require('../../client/src/utils/apiEnv');
 
       assert.equal(typeof getApiBaseUrl, 'function');
-      assert.equal(PRODUCTION_API_URL, 'https://filetools-api.onrender.com');
+      assert.equal(PRODUCTION_API_URL, 'https://filetools-jkx7.onrender.com');
       assert.equal(STAGING_API_URL, 'https://staging-filetools-api.onrender.com');
+    });
+
+    it('verifies actual existing Render production backend URL mapping (filetools-jkx7.onrender.com)', () => {
+      const {
+        getWebSocketBaseUrl,
+        PRODUCTION_API_URL,
+        PRODUCTION_WS_URL,
+        STAGING_API_URL,
+        STAGING_WS_URL,
+        PRODUCTION_HOSTS
+      } = require('../../client/src/utils/apiEnv');
+
+      assert.equal(PRODUCTION_API_URL, 'https://filetools-jkx7.onrender.com');
+      assert.equal(PRODUCTION_WS_URL, 'wss://filetools-jkx7.onrender.com');
+      assert.ok(!PRODUCTION_API_URL.includes('filetools-api'), 'Must not reference deprecated placeholder subdomain');
+      assert.ok(!PRODUCTION_WS_URL.includes('filetools-api'), 'Must not reference deprecated placeholder subdomain');
+
+      // Verify each production host maps to the actual Render backend
+      for (const host of PRODUCTION_HOSTS) {
+        assert.equal(getWebSocketBaseUrl(host), 'wss://filetools-jkx7.onrender.com');
+      }
+
+      // Verify preview/staging hosts NEVER route to production Render backend
+      const previewHosts = [
+        'filetool-app-git-staging.vercel.app',
+        'filetools-app-git-staging.vercel.app',
+        'filetool-app-git-release-v1-0-0-candidate.vercel.app',
+        'filetool-app-preview-branch.vercel.app'
+      ];
+      for (const host of previewHosts) {
+        const ws = getWebSocketBaseUrl(host);
+        assert.equal(ws, STAGING_WS_URL);
+        assert.ok(!ws.includes('filetools-jkx7.onrender.com'), 'Preview must never connect to live production backend');
+      }
     });
   });
 

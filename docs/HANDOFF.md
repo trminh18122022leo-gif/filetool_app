@@ -156,6 +156,6 @@ Prior to public launch, the human repository owner must complete these sequentia
 
 1. [ ] **Repository Push:** Commit and push the verified patch set to `origin main`.
 2. [ ] **Environment Configuration:** Populate production environment variables in Render and Vercel dashboards.
-3. [ ] **Staging Smoke Test:** Verify `https://filetools-api.onrender.com/api/ready` returns HTTP 200 `status: "ready"`.
-4. [ ] **Stripe Sandbox / Live Transition:** When ready for paid subscriptions, review tax and currency disclosures, configure Stripe webhook `https://filetools-api.onrender.com/api/payment/webhook`, and set `BILLING_ENABLED=true`.
+3. [ ] **Staging Smoke Test:** Verify `https://filetools-jkx7.onrender.com/api/ready` returns HTTP 200 `status: "ready"` (or via staging backend `staging-filetools-api.onrender.com/api/ready`).
+4. [ ] **Stripe Sandbox / Live Transition:** When ready for paid subscriptions, review tax and currency disclosures, configure Stripe webhook `https://filetools-jkx7.onrender.com/api/payment/webhook`, and set `BILLING_ENABLED=true`.
 5. [ ] **Microsoft Partner Center Enrollment:** Follow [`docs/OWNER_ACTIONS.md`](file:///C:/Users/Admin/test_app/filetools-app/docs/OWNER_ACTIONS.md) to register an individual developer account on `storedeveloper.microsoft.com` and package the Windows MSIX candidate.

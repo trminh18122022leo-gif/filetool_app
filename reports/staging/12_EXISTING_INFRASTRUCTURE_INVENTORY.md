@@ -79,13 +79,15 @@ flowchart TD
 * **Owner Access Required:** None for baseline preview; optional check of custom domain bindings.
 
 ### 3.2 Backend Compute — Web API Service (Render.com)
-* **Status:** `EXISTING_BUT_UNVERIFIED` / `REQUIRES_OWNER_ACCESS`
+* **Status:** `EXISTING_AND_VERIFIED`
 * **Evidence:**
+  * Active operational production backend confirmed at: `https://filetools-jkx7.onrender.com` (and WebSocket at `wss://filetools-jkx7.onrender.com`).
+  * Live health probe (`/api/health`) returns HTTP 200 with dual-cluster MongoDB Atlas connection and all system tools verified (`ghostscript`, `libreoffice`, `tesseract`, `qpdf`, `pdftohtml`).
   * Render Blueprint specification in [render.yaml](file:///C:/Users/Admin/test_app/filetools-app/render.yaml) defines web service `filetools-backend` (`runtime: docker`, `plan: starter`, `region: singapore`, `healthCheckPath: /api/health`).
   * Full container specification verified in [Dockerfile](file:///C:/Users/Admin/test_app/filetools-app/Dockerfile) with complete toolchain (`ghostscript`, `qpdf`, `poppler-utils`, `libreoffice`, `tesseract`, `ffmpeg`, non-root user `filetools`).
   * Codebase supports `/api/live` (liveness), `/api/ready` (readiness), and `/api/health` probes.
-* **Unverified Aspect:** The exact active Render subdomain (e.g., `filetools-backend.onrender.com` vs `filetools-api.onrender.com` vs custom slug).
-* **Owner Access Required:** Inspect Render dashboard to verify the active service slug and confirm whether the environment variables (`NODE_ENV`, `APP_ENV`, `PORT`) are populated.
+* **Verified Production Identity:** Active URL is `https://filetools-jkx7.onrender.com`. The previous assumption `filetools-api.onrender.com` was an unverified placeholder.
+* **Owner Access Required:** None for production identification. For staging, owner will provision a separate staging Web Service (e.g. `staging-filetools-api`) when ready.
 
 ### 3.3 Backend Compute — Background Worker (Render.com)
 * **Status:** `REQUIRES_CONFIGURATION_UPDATE` / `REQUIRES_OWNER_ACCESS`

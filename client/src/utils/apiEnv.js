@@ -15,10 +15,10 @@ export const PRODUCTION_HOSTS = [
   'www.filetools.pro',
 ];
 
-export const PRODUCTION_API_URL = 'https://filetools-api.onrender.com';
+export const PRODUCTION_API_URL = 'https://filetools-jkx7.onrender.com';
 export const STAGING_API_URL = 'https://staging-filetools-api.onrender.com';
 
-export const PRODUCTION_WS_URL = 'wss://filetools-api.onrender.com';
+export const PRODUCTION_WS_URL = 'wss://filetools-jkx7.onrender.com';
 export const STAGING_WS_URL = 'wss://staging-filetools-api.onrender.com';
 export const LOCAL_WS_URL = 'ws://localhost:3002';
 

@@ -52,7 +52,7 @@ flowchart TD
 | :--- | :--- | :---: | :--- |
 | **Vercel Preview** | `filetool-app-git-release-v100-candidate-minh-2742.vercel.app` | **ONLINE (HTTP 200)** | HTML returned; Vercel edge rewrite proxy active. |
 | **Render Staging API** | `https://staging-filetools-api.onrender.com` | **UNPROVISIONED (HTTP 404)** | Header `x-render-routing: no-server`. Service not created on Render. |
-| **Render Production API** | `https://filetools-api.onrender.com` | **UNPROVISIONED (HTTP 404)** | Header `x-render-routing: no-server`. Untouched. |
+| **Render Production API** | `https://filetools-jkx7.onrender.com` | **OPERATIONAL (HTTP 200)** | Verified live response: uptime 2.37M s, system tools installed (Ghostscript, LibreOffice, Tesseract, qpdf, pdftohtml), Dual-Cluster DB connected. Untouched. |
 | **MongoDB Atlas Auth** | `cluster0.dpjmacd.mongodb.net:27017` | **ONLINE (TLS OK)** | DB: `filetools_auth_staging`. Authentication and collection queries verified. |
 | **MongoDB Atlas Data** | `cluster1.d8zqt6m.mongodb.net:27017` | **ONLINE (TLS OK)** | DB: `filetools_data_staging`. Authentication, `JobRecord`, and `CollabRoom` verified. |
 | **Cloudflare R2 Storage** | `ae5cdb78c294cc4ff82715bbe5cd0a2c.r2.cloudflarestorage.com` | **ONLINE (S3 OK)** | Production bucket `filetools-outputs` returns HeadBucket 200 OK. |

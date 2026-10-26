@@ -6,7 +6,7 @@
   "server": {
     "allowNavigation": [
       "filetools-app.vercel.app",
-      "filetools-api.onrender.com",
+      "filetools-jkx7.onrender.com",
       "accounts.google.com",
       "github.com"
     ],

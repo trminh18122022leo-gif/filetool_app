@@ -29,7 +29,7 @@ Instead, the candidate establishes **account-level reuse with strict runtime iso
 | Component | Existing Resource Today | Release Candidate Staging Requirement | Action Needed (Reuse / Update / Provision) | Separate Runtime Resource? | Incremental Cost | Dashboard Access Required? |
 | :--- | :--- | :--- | :--- | :---: | :---: | :---: |
 | **Frontend Web** | Vercel Project `filetool-app` (`minh-2742`) | Preview deployment of PR #15 branch `release/v1.0.0-candidate` | **Reuse** existing project; auto-deployed at `filetool-app-git-release-v100-candidate-minh-2742.vercel.app` | **No** (Vercel Preview) | **$0.00** | No (Auto-built on PR push) |
-| **Backend Web API** | Render Web Service `filetools-api` (Production) | Dedicated staging Web API (`staging-filetools-api`) with `APP_ENV=staging`, `NODE_ENV=production` | **Deploy separate staging service** on existing Render account; **DO NOT TOUCH PRODUCTION** | **Yes** (Separate Web Service) | **$0.00** (Free plan) or **$7.00/mo** (Starter plan) | Yes (Create service in Render dashboard) |
+| **Backend Web API** | Render Web Service `filetools-jkx7` (Production) | Dedicated staging Web API (`staging-filetools-api`) with `APP_ENV=staging`, `NODE_ENV=production` | **Deploy separate staging service** on existing Render account; **DO NOT TOUCH PRODUCTION** | **Yes** (Separate Web Service) | **$0.00** (Free plan) or **$7.00/mo** (Starter plan) | Yes (Create service in Render dashboard) |
 | **Backend Worker** | Render Background Worker (or Web-colocated) | BullMQ worker consuming async jobs with Redis Pub/Sub event bridge | **Reuse / Colocate** within Staging Web Service, or deploy separate staging worker | **Optional** (Colocated in Free Web service) | **$0.00** (Colocated) or **$7.00/mo** (Separate Worker) | Yes (Configure service in Render) |
 | **Auth Database** | Atlas Cluster 0 (`cluster0.dpjmacd.mongodb.net`) | Isolated Auth DB with strict user/session/key records | **Reuse** existing cluster; specify `/filetools_auth_staging` in connection URI | **No** (Logical database on same cluster) | **$0.00** | No (URI passed via Render env) |
 | **Data Database** | Atlas Cluster 1 (`cluster1.d8zqt6m.mongodb.net`) | Isolated Data DB with FileRecord, CollabRoom, Quota Ledger | **Reuse** existing cluster; specify `/filetools_data_staging` in connection URI | **No** (Logical database on same cluster) | **$0.00** | No (URI passed via Render env) |
@@ -99,8 +99,8 @@ To guarantee that staging compute can never accidentally write or delete product
 
 ### 4.5 Exact API & Realtime Destinations
 * **Production Frontend:** `filetool-app.vercel.app`, `filetools-app.vercel.app`
-  * HTTP API: `https://filetools-api.onrender.com`
-  * WebSocket: `wss://filetools-api.onrender.com`
+  * HTTP API: `https://filetools-jkx7.onrender.com`
+  * WebSocket: `wss://filetools-jkx7.onrender.com`
 * **Staging Preview Frontend:** `filetool-app-git-release-v100-candidate-minh-2742.vercel.app`
   * HTTP API: `https://staging-filetools-api.onrender.com` (proxied via Vercel edge rewrite)
   * WebSocket: `wss://staging-filetools-api.onrender.com` (direct WSS upgrade)

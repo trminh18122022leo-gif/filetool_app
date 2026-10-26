@@ -26,7 +26,7 @@ This report documents the resolution of five targeted staging preflight and secu
 - **Problem:** Vercel serverless edge rewrites do not reliably support persistent bidirectional `Connection: Upgrade` to external Render HTTP origins. Furthermore, while [client/vercel.json](file:///C:/Users/Admin/test_app/filetools-app/client/vercel.json) rewrote `/socket.io/(.*)`, the Yjs endpoint `/collab` had zero rewrite rules. In addition, the frontend Monaco binding hook failed to pass authentication tokens into the query string.
 - **Implemented Fixes:**
   1. In [client/src/utils/apiEnv.js](file:///C:/Users/Admin/test_app/filetools-app/client/src/utils/apiEnv.js), updated `getWebSocketBaseUrl()` to resolve direct secure WebSocket endpoints:
-     - Production domains $\rightarrow$ `wss://filetools-api.onrender.com`
+     - Production domains $\rightarrow$ `wss://filetools-jkx7.onrender.com`
      - Preview/staging domains $\rightarrow$ `wss://staging-filetools-api.onrender.com`
      - Local development $\rightarrow$ `ws://localhost:3002`
   2. In [client/src/hooks/useCollaboration.js](file:///C:/Users/Admin/test_app/filetools-app/client/src/hooks/useCollaboration.js), extracted the active JWT token from storage and supplied it via `params: { room: documentId, token }`.

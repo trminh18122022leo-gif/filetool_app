@@ -63,7 +63,7 @@ The server codebase has been audited for all `process.env` references (62 total 
 > Do NOT set `BILLING_ENABLED=true` until all Stripe webhooks and tax settings are verified in sandbox.
 
 - [ ] **`STRIPE_SECRET_KEY`**: Production Stripe restricted secret key.
-- [ ] **`STRIPE_WEBHOOK_SECRET`**: Webhook signing secret from Stripe Dashboard for endpoint `https://filetools-api.onrender.com/api/payment/webhook`.
+- [ ] **`STRIPE_WEBHOOK_SECRET`**: Webhook signing secret from Stripe Dashboard for endpoint `https://filetools-jkx7.onrender.com/api/payment/webhook`.
 - [ ] **`STRIPE_PRICE_PLUS_MONTHLY`**: Stripe Price ID for Plus Monthly ($4.99).
 - [ ] **`STRIPE_PRICE_PLUS_YEARLY`**: Stripe Price ID for Plus Yearly ($39.99).
 - [ ] **`STRIPE_PRICE_PRO_MONTHLY`**: Stripe Price ID for Pro Monthly ($9.99).

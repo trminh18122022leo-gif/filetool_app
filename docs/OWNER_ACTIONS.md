@@ -95,7 +95,7 @@ Quay trở lại **Microsoft Partner Center**:
 ## BƯỚC 6: Kiểm Tra Cuối Cùng & Gửi Phê Duyệt (Final Review Gate)
 
 Trước khi nhấn nút **"Submit to the Store"**:
-1. [ ] Kiểm tra máy chủ Cloud API trên Render (`https://filetools-api.onrender.com/health`) đang hoạt động ổn định (Active 200 OK).
+1. [ ] Kiểm tra máy chủ Cloud API trên Render (`https://filetools-jkx7.onrender.com/api/health`) đang hoạt động ổn định (Active 200 OK).
 2. [ ] Kiểm tra giao diện web trên Vercel (`https://filetools-app.vercel.app/`) tải nhanh, không bị lỗi màn hình trắng.
 3. [ ] Khẳng định cờ an toàn `BILLING_ENABLED=false` đang được giữ nguyên để đội ngũ kiểm duyệt không bị yêu cầu nhập thẻ tín dụng thật.
 4. [ ] Bấm nút **Submit to the Store**.

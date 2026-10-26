@@ -100,7 +100,7 @@ curl -X POST "$RENDER_DEPLOY_HOOK_URL"
 
 Immediately after executing a rollback, verify system health:
 
-- [ ] Execute `curl -s https://filetools-api.onrender.com/api/ready | jq .`
+- [ ] Execute `curl -s https://filetools-jkx7.onrender.com/api/ready | jq .`
   - Verify `"status": "ready"`
   - Verify backing services report connected
 - [ ] Execute `curl -s https://filetools-app.vercel.app/`

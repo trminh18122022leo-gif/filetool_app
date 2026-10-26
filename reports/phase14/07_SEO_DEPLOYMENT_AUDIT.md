@@ -12,8 +12,8 @@
 ```mermaid
 flowchart LR
     Browser["User Browser / Search Crawler"] --> VercelEdge["Vercel Global Edge CDN (filetools-app.vercel.app)"]
-    VercelEdge -->|/api/*| RenderAPI["Render Web Service (filetools-api.onrender.com)"]
-    VercelEdge -->|/socket.io/*| RenderSocket["Render WebSockets (filetools-api.onrender.com)"]
+    VercelEdge -->|/api/*| RenderAPI["Render Web Service (filetools-jkx7.onrender.com)"]
+    VercelEdge -->|/socket.io/*| RenderSocket["Render WebSockets (filetools-jkx7.onrender.com)"]
     VercelEdge -->|/* (SPA Fallback)| SPABundle["Static HTML/JS Prebuilt SPA (dist/)"]
 ```
 

@@ -39,7 +39,7 @@ Per the **Execution Workflow Update**, independent Second Pass reviews after eac
    - *Concern:* Managed Redis on free/starter tiers may not persist AOF (Append-Only File) to disk across host migrations.
    - *Action Plan:* Document that Render Redis must be configured with persistent disk or enterprise Valkey tier before enabling public asynchronous batch processing.
 2. **Client-Side Vercel API Proxy:**
-   - *Concern:* Direct relative calls to `/api/*` from Vercel require valid rewrites in `client/vercel.json` pointing to the live Render backend URL (`https://filetools-api.onrender.com`).
+   - *Concern:* Direct relative calls to `/api/*` from Vercel require valid rewrites in `client/vercel.json` pointing to the live Render backend URL (`https://filetools-jkx7.onrender.com`).
    - *Action Plan:* Finalize production environment variable `VITE_API_URL` vs Vercel Serverless Function proxy in Phase 13 staging rehearsal.
 3. **Database Index Verification:**
    - *Concern:* High volume of file queries and job lookups requires compound indexes (`ownerId + createdAt`, `status + expiresAt`).

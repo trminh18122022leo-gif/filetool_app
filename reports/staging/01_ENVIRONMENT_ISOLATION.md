@@ -11,7 +11,7 @@
 ## 1. EXECUTIVE OVERVIEW & PROBLEM STATEMENT
 
 Prior to this correction phase, a critical architectural defect existed in the Vercel edge deployment configuration:
-1. `client/vercel.json` statically rewritten all relative `/api/(.*)` and `/socket.io/(.*)` requests to the production backend (`https://filetools-api.onrender.com`).
+1. `client/vercel.json` statically rewritten all relative `/api/(.*)` and `/socket.io/(.*)` requests to the production backend (`https://filetools-jkx7.onrender.com`).
 2. Because Vercel builds and applies `vercel.json` uniformly across Production and Preview environments, any user or automated runner accessing a Vercel Preview URL (e.g. `https://filetool-app-git-staging.vercel.app` or `https://filetool-app-git-release-v1-0-0-candidate.vercel.app`) who dispatched a relative `/api/*` call would have their requests **silently forwarded to the LIVE PRODUCTION BACKEND**.
 3. Frontend API callers across 20+ components relied on `import.meta.env.VITE_API_URL || ''`. When `VITE_API_URL` was unset or defaulted to relative paths, the hardcoded production destination in `vercel.json` broke staging isolation.
 
@@ -57,7 +57,7 @@ To prevent preview deployments from targeting production, `client/vercel.json` w
           "value": "^(?:filetool-app|filetools-app|filetools|www\\.filetools)\\.(?:vercel\\.app|pro)$"
         }
       ],
-      "destination": "https://filetools-api.onrender.com/api/$1"
+      "destination": "https://filetools-jkx7.onrender.com/api/$1"
     },
     {
       "source": "/socket.io/(.*)",
@@ -67,7 +67,7 @@ To prevent preview deployments from targeting production, `client/vercel.json` w
           "value": "^(?:filetool-app|filetools-app|filetools|www\\.filetools)\\.(?:vercel\\.app|pro)$"
         }
       ],
-      "destination": "https://filetools-api.onrender.com/socket.io/$1"
+      "destination": "https://filetools-jkx7.onrender.com/socket.io/$1"
     },
     {
       "source": "/api/(.*)",
@@ -87,7 +87,7 @@ To prevent preview deployments from targeting production, `client/vercel.json` w
 
 ### 2.2 Security Invariants Enforced
 - **Rule 1 (Preview & Staging Match):** Any host matching `.*-(?:git|preview|staging|candidate).*\.vercel\.app` is strictly routed to `https://staging-filetools-api.onrender.com`.
-- **Rule 2 (Production Match):** Only the verified production domains (`filetool-app.vercel.app`, `filetools-app.vercel.app`, `filetools.pro`, `www.filetools.pro`) route to `https://filetools-api.onrender.com`.
+- **Rule 2 (Production Match):** Only the verified production domains (`filetool-app.vercel.app`, `filetools-app.vercel.app`, `filetools.pro`, `www.filetools.pro`) route to `https://filetools-jkx7.onrender.com`.
 - **Rule 3 (Fail-Safe Fallback):** Any other unclassified deployment or preview URL falls back to `https://staging-filetools-api.onrender.com`. Under no circumstances can an unknown origin silently route to production.
 - **Rule 4 (SPA Ordering):** All `/api/(.*)` and `/socket.io/(.*)` rewrites precede the `/(.*)` -> `/index.html` single-page application fallback.
 
@@ -104,7 +104,7 @@ flowchart TD
     
     ClientReq --> CheckDomain
     
-    CheckDomain -->|Production Domain| ProdPath["Production API: https://filetools-api.onrender.com"]
+    CheckDomain -->|Production Domain| ProdPath["Production API: https://filetools-jkx7.onrender.com"]
     CheckDomain -->|Preview / Staging Domain| Guard{"VITE_API_URL == PRODUCTION_API_URL?"}
     
     Guard -->|Yes (Misconfigured Env)| Override["Override Guard: Redirect to Staging Backend"]

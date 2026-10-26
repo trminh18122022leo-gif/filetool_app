@@ -16,7 +16,7 @@ Hệ thống FileTools Pro duy trì mô hình kiến trúc **Single-Page Applica
 2. **Khắc phục lỗi Reverse Proxy / Rewrite trên Staging (Vercel & Cloudflare):**
    - *Vấn đề đã xác thực:* Cấu hình `client/vercel.json` trước đây sử dụng quy tắc bắt tất cả `/(.*) -> /index.html`. Khi client hoặc đối tác gọi endpoint `/api/payment/plans` hoặc `/api/auth/me`, Vercel lập tức trả về mã HTML của SPA (`<!doctype html>`) với mã 200 thay vì dữ liệu JSON từ API Render!
    - *Giải pháp triệt để:* Viết lại quy tắc rewrite trong `client/vercel.json` theo đúng thứ tự ưu tiên:
-     1. `/api/(.*)` chuyển tiếp sang `https://filetools-api.onrender.com/api/$1` kèm tiêu đề chống cache CDN (`Cache-Control: no-store, no-cache, must-revalidate`).
+     1. `/api/(.*)` chuyển tiếp sang `https://filetools-jkx7.onrender.com/api/$1` kèm tiêu đề chống cache CDN (`Cache-Control: no-store, no-cache, must-revalidate`).
      2. `/socket.io/(.*)` chuyển tiếp sang máy chủ WebSocket Render.
      3. `/(.*)` chuyển tiếp về `/index.html` cho các tuyến đường client-side SPA.
      4. Áp dụng tương tự cho `client/public/_redirects` đối với triển khai Netlify / Cloudflare Pages.
@@ -92,11 +92,11 @@ Tất cả các tuyến đường dưới đây **tuyệt đối không xuất h
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://filetools-api.onrender.com/api/$1"
+      "destination": "https://filetools-jkx7.onrender.com/api/$1"
     },
     {
       "source": "/socket.io/(.*)",
-      "destination": "https://filetools-api.onrender.com/socket.io/$1"
+      "destination": "https://filetools-jkx7.onrender.com/socket.io/$1"
     },
     {
       "source": "/(.*)",
@@ -131,7 +131,7 @@ Tất cả các tuyến đường dưới đây **tuyệt đối không xuất h
 
 ### 3.2. Cấu hình Netlify / Cloudflare Pages (`client/public/_redirects`)
 ```text
-/api/*  https://filetools-api.onrender.com/api/:splat  200
+/api/*  https://filetools-jkx7.onrender.com/api/:splat  200
 /*      /index.html                                    200
 ```
 

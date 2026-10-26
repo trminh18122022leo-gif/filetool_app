@@ -84,7 +84,7 @@ In the **Render Dashboard** & **Vercel Dashboard** $\rightarrow$ **Environment V
 3. **Smoke Verification:**  
    Execute:
    ```bash
-   curl -s https://filetools-api.onrender.com/api/ready | jq .
+   curl -s https://filetools-jkx7.onrender.com/api/ready | jq .
    ```
    Verify that `"status": "ready"` is returned.
 
@@ -97,7 +97,7 @@ In the **Render Dashboard** & **Vercel Dashboard** $\rightarrow$ **Environment V
 1. **Activate Live Stripe Account:**  
    Navigate to [dashboard.stripe.com](https://dashboard.stripe.com) and complete business verification.
 2. **Configure Stripe Webhook:**  
-   - Add endpoint: `https://filetools-api.onrender.com/api/payment/webhook`
+   - Add endpoint: `https://filetools-jkx7.onrender.com/api/payment/webhook`
    - Select events: `checkout.session.completed`, `customer.subscription.deleted`, `invoice.payment_failed`.
    - Copy the **Signing Secret** (`whsec_...`).
 3. **Update Render Environment:**  
